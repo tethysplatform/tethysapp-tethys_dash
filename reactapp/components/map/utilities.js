@@ -27,6 +27,11 @@ import {
   DECORATION_LAYER_KEY,
   LINKED_EXTENT_SOURCE_TYPE,
 } from "components/map/decorationTypes";
+import {
+  HIGHLIGHT_STROKE_COLOR,
+  MAP_SELECTION_LABELS,
+  MARKER_PIN_COLOR,
+} from "components/map/mapSelection";
 
 // Source types whose features live in a client-side OL VectorSource (vs
 // server-rendered services queried remotely).
@@ -579,15 +584,21 @@ export function updateOlLayerProps(olLayer, newProps) {
 }
 
 // `extraFeatures` share the pin's layer, and so its lifetime: the click
-// tolerance rings (createClickToleranceFeatures).
-export function createMarkerLayer(coordinate, extraFeatures = []) {
+// tolerance rings (createClickToleranceFeatures). With `pin: false` (the Map
+// Selection setting hides the clicked location) the layer carries only those,
+// so a ring still marks how far the click searched.
+export function createMarkerLayer(
+  coordinate,
+  extraFeatures = [],
+  { pin = true } = {},
+) {
   const markPath = `
       M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9
       c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z
     `;
   const svgIcon = `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40">
-        <path d="${markPath}" fill="#007bff" stroke="white" stroke-width="1"/>
+        <path d="${markPath}" fill="${MARKER_PIN_COLOR}" stroke="white" stroke-width="1"/>
       </svg>
     `;
   const svgURI = "data:image/svg+xml;base64," + btoa(svgIcon);
@@ -608,9 +619,11 @@ export function createMarkerLayer(coordinate, extraFeatures = []) {
   // selection highlight (100) and the snap preview (101).
   const markerLayer = new VectorLayer({
     source: new VectorSource({
-      features: [marker, ...extraFeatures],
+      features: pin ? [marker, ...extraFeatures] : extraFeatures,
     }),
     name: "Marker",
+    // What the layer control calls it; the name stays as the map's own key.
+    title: MAP_SELECTION_LABELS.clickedLocation,
     zIndex: 99,
   });
 
@@ -624,7 +637,7 @@ export function createMarkerLayer(coordinate, extraFeatures = []) {
 const clickToleranceStyle = [
   new Style({ stroke: new Stroke({ color: "white", width: 4 }), zIndex: -1 }),
   new Style({
-    stroke: new Stroke({ color: "#007bff", width: 2, lineDash: [6, 4] }),
+    stroke: new Stroke({ color: MARKER_PIN_COLOR, width: 2, lineDash: [6, 4] }),
     zIndex: -1,
   }),
 ];
@@ -647,7 +660,7 @@ export function createClickToleranceFeatures(coordinate, radii, resolution) {
 
 export function createHighlightLayer() {
   const stroke = new Stroke({
-    color: "#00008b",
+    color: HIGHLIGHT_STROKE_COLOR,
     width: 3,
   });
   const highlightLayer = new VectorLayer({
@@ -661,6 +674,7 @@ export function createHighlightLayer() {
     }),
     zIndex: 100,
     name: "Highlighted Layer",
+    title: MAP_SELECTION_LABELS.selectedFeature,
   });
 
   return highlightLayer;
@@ -1930,33 +1944,10 @@ export const attributeOrderPropType = PropTypes.objectOf(
   PropTypes.arrayOf(PropTypes.string),
 );
 
-/**
- * Applies an author's saved field order to a list of field names.
- *
- * The order is a list rather than the key order of an object because
- * JSON.parse moves integer-like keys ("2020") to the front of every object,
- * so an author's position for a year or ID column would not survive a reload.
- *
- * @param {string[]} names Field names in their natural order (as discovered,
- *   or as the source returned them).
- * @param {string[]} [savedOrder] The author's order. May list fields that are
- *   absent from `names`, and may omit fields that are present.
- * @returns {string[]} The saved names that are present, in saved order,
- *   followed by the remaining names in their natural order, each once.
- */
-export function orderAttributeNames(names, savedOrder) {
-  const present = new Set(names);
-  const ordered = new Set();
-  // A hand-edited or imported config may carry anything here; ignore what is
-  // not a list rather than fail the popup render.
-  for (const name of Array.isArray(savedOrder) ? savedOrder : []) {
-    if (present.has(name)) ordered.add(name);
-  }
-  for (const name of names) {
-    ordered.add(name);
-  }
-  return Array.from(ordered);
-}
+// the only fields the hover tooltip shows, structure is {layerName: ["field1", "field2"]}
+export const hoverPopupAttributesPropType = PropTypes.objectOf(
+  PropTypes.arrayOf(PropTypes.string),
+);
 
 const LAYER_ATTRIBUTE_MAP_KEYS = {
   aliases: "attributeAliases",
@@ -1967,9 +1958,9 @@ const LAYER_ATTRIBUTE_MAP_KEYS = {
 
 /**
  * Merges each layer's attribute maps into one map per kind, keyed by sublayer
- * name, for the popup and the variable-input write-back to look up by the
- * clicked feature's layer. Click and hover both build these from their own
- * layer sets, so they share this rather than each keeping a copy.
+ * name, for the click table and the variable-input write-back to look up by
+ * the clicked feature's layer. Hover keeps no merged set: it reads each
+ * feature's own layer (see `hoverAttributeRows`).
  *
  * @param {object[]} layers Saved layer configs.
  * @returns {{aliases: object, variables: object, omitted: object, order: object}}
@@ -1992,19 +1983,14 @@ export const attributePropsPropType = PropTypes.shape({
   variables: attributeVariablesPropType,
   omitted: omittedPopupAttributesPropType,
   order: attributeOrderPropType,
-  tablePopupType: PropTypes.oneOf(["none", "click", "hover"]),
+  hover: hoverPopupAttributesPropType,
+  omittedHover: omittedPopupAttributesPropType,
+  tablePopupType: PropTypes.oneOf(["none", "click", "hover", "both"]),
   // Legacy: superseded by tablePopupType. Kept on the PropType so dashboards
   // saved before the migration still pass type-checking until they're re-saved.
   queryable: PropTypes.bool,
 });
 
-// Resolves the per-layer table popup trigger from either the new
-// `tablePopupType` field or the legacy `queryable` boolean. Accepts any object
-// with these keys at the top level — works for attributeProps (used in the
-// MapLayer modal) and for hoisted layer config (used in Map.js filters).
-//   tablePopupType present  → use it directly
-//   queryable === false     → "none" (legacy "Allow Layer Query" off)
-//   otherwise               → "click" (default)
 /**
  * Whether a layer has a legend. The Legend tab's "No Legend" stores an empty
  * object, and an empty object is truthy -- so a bare truthiness check reports
@@ -2014,12 +2000,6 @@ export const attributePropsPropType = PropTypes.shape({
 export function hasLegend(legend) {
   if (!legend) return false;
   return !(typeof legend === "object" && Object.keys(legend).length === 0);
-}
-
-export function resolveTablePopupType(obj) {
-  if (obj?.tablePopupType) return obj.tablePopupType;
-  if (obj?.queryable === false) return "none";
-  return "click";
 }
 
 /**
@@ -2051,23 +2031,6 @@ export function formatAttributeValue(value) {
     }
   }
   return value;
-}
-
-// The two questions asked of every feature a click turns up. A feature can
-// answer yes to both (the common case), or to exactly one -- a layer with
-// `tablePopupType: "none"` or `"hover"` plus a modal is reachable only through
-// the modal, and a layer with no popupConfig only through the table. The
-// wrapper layer is tagged onto each feature at query time (see the queryCalls
-// loop in Map.js's onMapClick).
-
-/** Does this feature belong in the click-driven table popup? */
-export function isTableEligible(feature) {
-  return resolveTablePopupType(feature?.__wrapperLayer) === "click";
-}
-
-/** Does this feature's layer have a custom modal popup configured? */
-export function hasModalPopup(feature) {
-  return feature?.__wrapperLayer?.popupConfig?.mode === "modal";
 }
 
 export const sourcePropType = PropTypes.shape({
@@ -2131,6 +2094,8 @@ export const layerPropType = PropTypes.shape({
   configuration: configurationPropType,
   attributeVariables: attributeVariablesPropType,
   omittedPopupAttributes: omittedPopupAttributesPropType,
+  hoverPopupAttributes: hoverPopupAttributesPropType,
+  omittedHoverAttributes: omittedPopupAttributesPropType,
   attributeOrder: attributeOrderPropType,
   style: PropTypes.string,
   legend: legendPropType,
@@ -2145,6 +2110,8 @@ export const layerInfoPropType = PropTypes.shape({
   style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json
   attributeVariables: attributeVariablesPropType,
   omittedPopupAttributes: omittedPopupAttributesPropType,
+  hoverPopupAttributes: hoverPopupAttributesPropType,
+  omittedHoverAttributes: omittedPopupAttributesPropType,
   attributeOrder: attributeOrderPropType,
 });
 

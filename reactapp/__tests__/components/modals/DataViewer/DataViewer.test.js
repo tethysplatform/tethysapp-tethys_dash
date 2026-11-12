@@ -948,6 +948,105 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
             layers: [],
             map_extent: { extent: "-10686671.12,4721671.57,4.5" },
             mapDrawing: {},
+            mapSelection: {},
+          }),
+          h: 20,
+          i: "1",
+          id: 1,
+          metadata_string: "{}",
+          source: "Map",
+          uuid: "some-uuid-1",
+          w: 20,
+          x: 0,
+          y: 0,
+        },
+      ],
+      id: 1,
+      name: "Tab 1",
+    },
+  ]);
+});
+
+test("Dashboard Viewer Modal Map saves its Map Selection setting", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  const mockHandleModalClose = jest.fn();
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetShowGridItemMessage = jest.fn();
+  const mockUpdateTab = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <TestingComponent
+            gridItem={gridItem}
+            mockHandleModalClose={mockHandleModalClose}
+            mockSetGridItemMessage={mockSetGridItemMessage}
+            mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+            onTabUpdate={mockUpdateTab}
+          />
+        </>
+      ),
+      options: { initialDashboard: userDashboard },
+    }),
+  );
+
+  const visualizationTypeSelect = await screen.findByLabelText(
+    "Search Visualization Type Button",
+  );
+  await userEvent.click(visualizationTypeSelect);
+  const groupOption = await screen.findByText("Default");
+  fireEvent.click(groupOption);
+
+  const visualizationOption = await screen.findByLabelText(
+    "Map Visualization Card",
+  );
+  fireEvent.click(visualizationOption);
+
+  const visualizationTabContent =
+    await screen.findByLabelText("visualizationTab");
+  const comboboxes = await within(visualizationTabContent).findAllByRole(
+    "combobox",
+  );
+  const baseMapDropdown = comboboxes[1];
+  await selectEvent.openMenu(baseMapDropdown);
+  const baseMapOption = await screen.findByRole("option", {
+    name: "World Light Gray Base",
+  });
+  expect(baseMapOption).toBeInTheDocument();
+  fireEvent.click(baseMapOption);
+
+  const showLayersDropdown = comboboxes[2];
+  await selectEvent.openMenu(showLayersDropdown);
+  const showLayersFalseOption = await screen.findByRole("option", {
+    name: "False",
+  });
+  expect(showLayersFalseOption).toBeInTheDocument();
+  fireEvent.click(showLayersFalseOption);
+
+  // Only the change from the defaults is saved.
+  fireEvent.click(await screen.findByText("Map Selection"));
+  fireEvent.click(
+    await screen.findByLabelText("Selected feature Show in legend"),
+  );
+
+  const dataviewerSaveButton = await screen.findByLabelText(
+    "dataviewer-save-button",
+  );
+  fireEvent.click(dataviewerSaveButton);
+  expect(mockUpdateTab).toHaveBeenLastCalledWith([
+    {
+      gridItems: [
+        {
+          args_string: JSON.stringify({
+            baseMap:
+              "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+            layerControl: false,
+            layers: [],
+            map_extent: { extent: "-10686671.12,4721671.57,4.5" },
+            mapDrawing: {},
+            mapSelection: { selectedFeature: { legend: true } },
           }),
           h: 20,
           i: "1",

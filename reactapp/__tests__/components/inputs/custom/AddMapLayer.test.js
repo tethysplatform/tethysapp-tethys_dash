@@ -18,6 +18,7 @@ import {
 import createLoadedComponent from "__tests__/utilities/customRender";
 import selectEvent from "react-select-event";
 import appAPI from "services/api/app";
+import * as mapUtilities from "components/map/utilities";
 
 it("AddMapLayer update existing", async () => {
   const mockDownloadJSON = jest.fn();
@@ -830,4 +831,86 @@ it("AddMapLayer shows a legend turned off with No Legend as Off", async () => {
 
   expect(await screen.findByText("Off")).toBeInTheDocument();
   expect(screen.queryByText("On")).not.toBeInTheDocument();
+});
+
+describe("AddMapLayer hover lists", () => {
+  const layerName = "ImageArcGISRest Layer";
+
+  const esriLayer = (popupKeys) => ({
+    ...JSON.parse(JSON.stringify(layerConfigImageArcGISRest)),
+    ...popupKeys,
+  });
+
+  const mountWithLayer = (layer) => {
+    const onChange = jest.fn();
+    render(
+      createLoadedComponent({
+        children: (
+          <AddMapLayer
+            values={[layer]}
+            onChange={onChange}
+            setShowingSubModal={jest.fn()}
+            gridItemIndex={0}
+          />
+        ),
+      }),
+    );
+    return onChange;
+  };
+
+  const saveUnchanged = async (onChange) => {
+    fireEvent.click(await screen.findByTestId("editMapLayer"));
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+  };
+
+  it("re-saves a hover layer saved before hover had its own list as it was", async () => {
+    // Covers R29: nothing re-reads its fields unless the Attributes tab is
+    // opened, so it keeps reading the click table's omitted fields.
+    const layer = esriLayer({
+      tablePopupType: "hover",
+      omittedPopupAttributes: { [layerName]: ["id"] },
+    });
+    const onChange = mountWithLayer(layer);
+
+    await saveUnchanged(onChange);
+    expect(onChange).toHaveBeenLastCalledWith([layer]);
+  });
+
+  it("opens a hover layer saved before hover had its own list with its hover fields checked", async () => {
+    // An empty list handed to the editor in place of a missing one would read
+    // as an allow-list naming nothing, and every hover box would be unchecked.
+    jest.spyOn(mapUtilities, "getLayerAttributes").mockResolvedValue({
+      [layerName]: [
+        { name: "id", alias: "id" },
+        { name: "flow", alias: "flow" },
+      ],
+    });
+    mountWithLayer(
+      esriLayer({
+        tablePopupType: "hover",
+        omittedPopupAttributes: { [layerName]: ["id"] },
+      }),
+    );
+
+    fireEvent.click(await screen.findByTestId("editMapLayer"));
+    fireEvent.click(await screen.findByText("Attributes/Table Popup"));
+    await screen.findByLabelText("Move id down");
+    expect(
+      screen
+        .getAllByLabelText("Show on Hover row")
+        .map((checkbox) => checkbox.checked),
+    ).toEqual([false, true]);
+  });
+
+  it.each([
+    ["allow-list", { hoverPopupAttributes: { [layerName]: ["flow"] } }],
+    ["deny-list", { omittedHoverAttributes: { [layerName]: [] } }],
+  ])("passes a both layer's hover %s through", async (_, hoverList) => {
+    const layer = esriLayer({ tablePopupType: "both", ...hoverList });
+    const onChange = mountWithLayer(layer);
+
+    await saveUnchanged(onChange);
+    expect(onChange).toHaveBeenLastCalledWith([layer]);
+  });
 });

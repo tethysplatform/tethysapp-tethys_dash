@@ -5,37 +5,58 @@ Attributes/Table Popup Tab
 --------------------------
 
 
-The Attributes/Table Popup tab configures the default table popup that appears when a feature on this layer is interacted with. A separate, additive Custom Modal Popup can be configured on its own tab; see :ref:`popup_modal`.
+The Attributes/Table Popup tab configures what a layer shows when one of its features is clicked or hovered:
+
+    - **Click** opens an attribute table at the feature. When a click lands on several features, the table pages between them.
+    - **Hover** shows a small tooltip beside the cursor with the fields of the feature under it, laid out like the attribute table: the layer's name above a Field and Value table. It has no paging or close button. It appears once the cursor rests on a feature for about a quarter of a second and disappears as soon as the cursor moves.
+
+A layer can use either, both, or neither. A separate Custom Modal Popup can be configured on its own tab; it always opens on click. See :ref:`popup_modal`.
 
 **After configuring the layer name and required source properties**, a table of layers and their attributes will appear.
 
 
-Table Popup Type
-================
+Choosing fields for click and hover
+===================================
 
-At the top of the tab, the **Table Popup Type** radio chooses how (or whether) the table popup opens for this layer. The default is **Click**, matching the legacy behavior.
+The table has a **Show on Click** column and a **Show on Hover** column. Check a field in a column to show it for that event. The checkbox in each column's header checks or unchecks every field of that layer at once.
 
-    - **None** — The table overlay popup never opens for this layer. The layer is *not* queried on click for the table popup, but it **is** still queried if a Custom Modal Popup is configured (see :ref:`popup_modal`). Use this when you only want a modal popup and want to suppress the default attribute table.
-    - **Click** *(default)* — Click a feature to open the table popup at the click point. Same as the legacy default.
-    - **Hover** — The cursor settling on a feature for ~250 ms opens the table popup at the cursor position. Moving the cursor back over empty map closes the popup. Clicks on a hover-only layer are no-ops (no marker, no popup change). Useful for previews where the user can scan many features quickly without clicking each one.
+    - An event is on while at least one field is checked for it. Unchecking every field in a column turns that event off for the layer.
+    - **Click** shows every field except the ones unchecked under Show on Click. That includes fields the table does not list, such as extra columns a source returns.
+    - **Hover** shows only the fields checked under Show on Hover. Keep it to a few fields so the tooltip stays small.
+    - A new layer starts with every field checked for click and none for hover, which is how layers have always behaved.
+    - The field order and the aliases apply to both the click table and the hover tooltip.
 
 .. note::
-    The Table Popup Type setting only governs the **table** popup. The Custom Modal Popup is always click-driven regardless of this setting. A layer can have **Table Popup Type = None** *and* a Custom Modal Popup enabled — clicking opens the modal, and the table overlay stays out of the way.
+    A layer that links a field to a variable input keeps answering clicks even with every field unchecked, as long as no field is checked for hover. The click updates the variable inputs, and no table opens. This is useful for a layer that only drives a chart. In the same way, a layer that showed fields only on hover keeps updating its variable inputs on hover with every field unchecked, and shows no tooltip.
 
 .. note::
-    Hover queries are debounced (~250 ms): the actual layer query fires only after the cursor settles. For remote ESRI/WMS layers this keeps request load to ~1 request per cursor pause rather than several per second while moving.
+    Hover asks the layer what is under the cursor only once the cursor settles, so a remote ESRI or WMS layer receives one request per pause rather than several per second. A layer set to zoom in when clicked beyond a zoom level (**minZoomQuery**) shows no tooltip until the map is zoomed in that far.
+
+
+Layers whose fields cannot be listed
+------------------------------------
+
+Some layers, such as GeoTIFF rasters and WMS or ESRI image services, only report their fields when they are queried, so the table cannot list them in advance. These layers, and any layer whose fields could not be found, get **Click** and **Hover** switches above a table where fields are entered by hand.
+
+    - **Click** starts on and **Hover** starts off.
+    - An event that is switched on shows every field the layer returns, except rows you add and uncheck for that event.
+    - While a switch is off, its column is greyed out and keeps its checks, so switching it back on restores them.
+    - For a GeoJSON file loaded from a URL, **Load attributes from URL** reads the file and adds its fields to the table as rows. Rows and settings already in the table are kept.
 
 
 Configuring attribute fields
 ============================
 
-Within this table, fields can be configured for interaction in three ways:
+Within this table, fields can be configured in three ways:
 
-    1. When a feature is selected (via click or hover, depending on the Table Popup Type), the popup displays the feature's attributes. You can hide attributes from the popup by unchecking the "Show in popup" column.
+    1. Choose which fields the click table and the hover tooltip show, as described above.
 
-    2. The popup lists fields in the same order as the table. Use the **↑** and **↓** buttons in the "Order" column to move a field up or down. Hidden fields keep their place, so showing one again puts it back where it was.
+    2. The click table and the tooltip list fields in the same order as this table. Use the **↑** and **↓** buttons in the "Order" column to move a field up or down. Hidden fields keep their place, so showing one again puts it back where it was.
 
-    3. Fields can be linked to variable inputs. See the :ref:`variableinputs` section for details. In the "Variable Input Name" column, add the desired variable input for the field whose value will be set when a feature is selected. Variable-input writes happen on both click and hover popups, so other widgets on the dashboard can follow the active feature.
+    3. Fields can be linked to variable inputs. See the :ref:`variableinputs` section for details. In the "Variable Input Name" column, add the desired variable input for the field whose value will be set when a feature is selected.
+
+        - On a layer that shows fields on click, clicking a feature updates its variable inputs. Hovering does not, so moving the cursor across the map does not reload every connected chart.
+        - On a layer that shows fields only on hover, hovering a feature updates its variable inputs. A click that opens the layer's Custom Modal Popup updates them too.
 
 
 .. note::
@@ -85,15 +106,18 @@ A single click often lands on more than one feature — overlapping layers, a ga
 
 **Paging.** Use the popup's arrows to step through the gathered features. The list wraps in both directions: stepping past the last feature returns to the first, and back from the first goes to the last.
 
-**With a Custom Modal Popup.** The modal is a view of the *currently selected* feature, not a separate list. Stepping onto a feature whose layer has no modal configured closes it, and stepping back reopens it. Closing the modal keeps it shut for the rest of that click — including while paging — and the next map click clears that. The table popup is unaffected either way. See :ref:`popup_modal`.
+**With a Custom Modal Popup.** The modal is a view of the *currently selected* feature, not a separate list. Stepping onto a feature whose layer has no modal configured closes it, and stepping back reopens it.
+
+The table and the modal close independently. Closing the table leaves the modal open on its feature, and closing the modal leaves the table open. Once both are closed, the next map click opens them again. While the table is closed, paging the modal onto a feature that has no modal reopens the table on that feature, so the selection stays on screen. See :ref:`popup_modal`.
 
 
 Backward compatibility
 ======================
 
-Dashboards saved before the Table Popup Type radio existed used a single **Allow Layer Query** checkbox stored as ``queryable: true | false`` on the layer. Those dashboards continue to work without any migration:
+Dashboards saved before these columns existed keep working without being re-saved:
 
-    - Legacy ``queryable: false`` → resolves to **Table Popup Type = None**.
-    - Legacy ``queryable: true`` (or absent) → resolves to **Table Popup Type = Click**.
+    - A layer whose table opened on **click** shows the same fields on click, and nothing on hover.
+    - A layer whose table opened on **hover** now shows those fields in the hover tooltip instead of a table, and opens no table on click. Its Custom Modal Popup, if any, still opens on click, and it still updates its variable inputs on hover.
+    - A layer set to **None** (or with the older **Allow Layer Query** checkbox unchecked) responds to neither.
 
-Re-saving a layer in the UI writes the new ``tablePopupType`` field and removes the legacy ``queryable`` key.
+Opening such a layer in the editor shows its fields checked in the matching column.

@@ -8,11 +8,8 @@ import Button from "react-bootstrap/Button";
 import { valuesEqual } from "components/modals/utilities";
 import { BsPencilSquare, BsTrash } from "react-icons/bs";
 import { RxDragHandleHorizontal } from "react-icons/rx";
-import {
-  hasLegend,
-  layerPropType,
-  resolveTablePopupType,
-} from "components/map/utilities";
+import { hasLegend, layerPropType } from "components/map/utilities";
+import { resolveTablePopupType } from "components/map/popupAttributes";
 import { AppContext } from "components/contexts/Contexts";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
 import { DEFAULT_DYNAMIC_LAYER_SOURCE } from "components/modals/MapLayer/runtimeLayerSource";
@@ -153,6 +150,12 @@ const MapLayerTemplate = ({
         aliases: attributeAliases,
         order: attributeOrder,
         tablePopupType: layerTablePopupType,
+        // Left undefined when the layer has none, not defaulted to {} like the
+        // maps above: which hover key is present is what decides how hover
+        // reads its fields, and an empty allow-list would turn a hover layer
+        // saved before hover had its own list into one that shows nothing.
+        hover: existingMapLayer.hoverPopupAttributes,
+        omittedHover: existingMapLayer.omittedHoverAttributes,
       },
       popupConfig: existingMapLayer.popupConfig ?? null,
     };

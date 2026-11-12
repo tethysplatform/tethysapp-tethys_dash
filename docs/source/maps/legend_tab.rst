@@ -11,6 +11,8 @@ If a layer's legend is set to "Custom Legend", you must provide a legend title a
 
 To configure a symbol, click it in the table row. A popup will appear with additional symbols and color options.
 
+The symbols include a map pin, the same one the map drops where it is clicked. The pin and the selected-feature outline can be listed in the legend from the map's :ref:`map_selection` section rather than from a layer.
+
 .. figure:: ../../images/legend.png
     :align: center
 

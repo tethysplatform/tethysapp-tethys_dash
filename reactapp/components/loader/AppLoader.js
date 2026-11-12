@@ -227,6 +227,7 @@ function Loader({ children }) {
               layers: "custom-AddMapLayer",
               map_extent: "custom-MapExtent",
               mapDrawing: "custom-MapDrawing",
+              mapSelection: "custom-MapSelection",
             },
             tags: ["map", "default"],
             description:

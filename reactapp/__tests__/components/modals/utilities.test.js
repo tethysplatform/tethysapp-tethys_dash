@@ -25,6 +25,14 @@ test("getInitialInputValue", async () => {
 
   inputValue = getInitialInputValue("custom-AddMapLayer");
   expect(inputValue).toStrictEqual([]);
+
+  inputValue = getInitialInputValue("custom-MapDrawing");
+  expect(inputValue).toStrictEqual({});
+
+  // Not null, which would block preview and save on a map saved before the
+  // Map Selection setting existed.
+  inputValue = getInitialInputValue("custom-MapSelection");
+  expect(inputValue).toStrictEqual({});
 });
 
 test("spaceAndCapitalize", async () => {

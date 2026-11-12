@@ -7,8 +7,6 @@ import {
   createHighlightLayer,
   addHighlightFeatures,
   getGeometryAnchor,
-  isTableEligible,
-  hasModalPopup,
   transformCoordinates,
   queryLayerFeatures,
   hasLegend,
@@ -33,7 +31,6 @@ import {
   formatAttributeValue,
   coerceOptionalBoolean,
   RASTER_SOURCE_TYPES,
-  orderAttributeNames,
   collectLayerAttributeMaps,
 } from "components/map/utilities";
 import {
@@ -218,6 +215,29 @@ test("createMarkerLayer draws just below the highlight, above the data layers", 
   expect(createMarkerLayer([0, 0]).getZIndex()).toBe(
     createHighlightLayer().getZIndex() - 1,
   );
+});
+
+test("createMarkerLayer without the pin carries only the extra features", () => {
+  const rings = createClickToleranceFeatures([0, 0], [10], 1);
+  const markerLayer = createMarkerLayer([0, 0], rings, { pin: false });
+
+  expect(markerLayer.get("name")).toBe("Marker");
+  expect(markerLayer.getSource().getFeatures()).toStrictEqual(rings);
+  expect(
+    markerLayer
+      .getSource()
+      .getFeatures()
+      .some((feature) => feature.getGeometry() instanceof Point),
+  ).toBe(false);
+});
+
+test("createMarkerLayer keeps the pin beside the extra features by default", () => {
+  const rings = createClickToleranceFeatures([0, 0], [10], 1);
+  const features = createMarkerLayer([0, 0], rings).getSource().getFeatures();
+
+  expect(features).toHaveLength(2);
+  expect(features[0].getGeometry() instanceof Point).toBe(true);
+  expect(features[1]).toBe(rings[0]);
 });
 
 test("createClickToleranceFeatures sizes each ring on the ground at the click's resolution", () => {
@@ -484,66 +504,6 @@ test("addHighlightFeatures no-ops when geometries is a non-object primitive", ()
   expect(() => addHighlightFeatures(highlightLayer, 0)).not.toThrow();
   expect(() => addHighlightFeatures(highlightLayer, "")).not.toThrow();
   expect(highlightLayer.getSource().getFeatures().length).toBe(0);
-});
-
-describe("isTableEligible / hasModalPopup", () => {
-  // The two questions asked of every feature a click turns up. A feature can
-  // answer yes to both, or to exactly one -- which is what lets a single list
-  // drive both popups.
-  const feature = (wrapperLayer) => ({ __wrapperLayer: wrapperLayer });
-
-  test("a layer with no popup settings is table-only", () => {
-    const f = feature({ configuration: {} });
-    expect(isTableEligible(f)).toBe(true);
-    expect(hasModalPopup(f)).toBe(false);
-  });
-
-  test("a modal layer that also shows the click table answers yes to both", () => {
-    const f = feature({ popupConfig: { mode: "modal" } });
-    expect(isTableEligible(f)).toBe(true);
-    expect(hasModalPopup(f)).toBe(true);
-  });
-
-  test("tablePopupType 'none' with a modal is modal-only", () => {
-    const f = feature({
-      tablePopupType: "none",
-      popupConfig: { mode: "modal" },
-    });
-    expect(isTableEligible(f)).toBe(false);
-    expect(hasModalPopup(f)).toBe(true);
-  });
-
-  test("tablePopupType 'hover' with a modal is modal-only on click", () => {
-    // Streamflow's shape in the CW3E config.
-    const f = feature({
-      tablePopupType: "hover",
-      popupConfig: { mode: "modal" },
-    });
-    expect(isTableEligible(f)).toBe(false);
-    expect(hasModalPopup(f)).toBe(true);
-  });
-
-  test("popupConfig mode 'table' means no modal", () => {
-    // What the layer editor writes when the modal toggle is off; its
-    // gridItems are inert.
-    const f = feature({ popupConfig: { mode: "table", gridItems: [{}] } });
-    expect(isTableEligible(f)).toBe(true);
-    expect(hasModalPopup(f)).toBe(false);
-  });
-
-  test("queryable: false is treated as table popup 'none'", () => {
-    expect(isTableEligible(feature({ queryable: false }))).toBe(false);
-  });
-
-  test("an untagged feature is table-eligible and has no modal", () => {
-    // resolveTablePopupType defaults to "click", so a feature that somehow
-    // arrives without a wrapper layer still reaches the table rather than
-    // vanishing from both popups.
-    expect(isTableEligible({})).toBe(true);
-    expect(hasModalPopup({})).toBe(false);
-    expect(isTableEligible(undefined)).toBe(true);
-    expect(hasModalPopup(undefined)).toBe(false);
-  });
 });
 
 describe("getGeometryAnchor", () => {
@@ -5468,63 +5428,6 @@ describe("imageRatio is editable in the layer properties GUI", () => {
     expect(layerPropertiesOptions.imageRatio.placeholder).toEqual(
       expect.stringContaining("Vector Image Layer"),
     );
-  });
-});
-
-describe("orderAttributeNames", () => {
-  test("puts saved fields first and the rest after in their own order", () => {
-    expect(
-      orderAttributeNames(
-        ["STATUS", "GAUGE_ID", "NAME", "FLOW"],
-        ["NAME", "FLOW", "STATUS"],
-      ),
-    ).toEqual(["NAME", "FLOW", "STATUS", "GAUGE_ID"]);
-  });
-
-  test("skips saved fields the names do not include", () => {
-    expect(
-      orderAttributeNames(["FLOW", "EXTRA"], ["NAME", "FLOW", "STATUS"]),
-    ).toEqual(["FLOW", "EXTRA"]);
-  });
-
-  test("appends newly discovered fields below the saved ones", () => {
-    expect(orderAttributeNames(["C", "A", "B"], ["A", "B"])).toEqual([
-      "A",
-      "B",
-      "C",
-    ]);
-  });
-
-  test("places integer-like names where the saved order puts them", () => {
-    expect(orderAttributeNames(["2020", "NAME"], ["NAME", "2020"])).toEqual([
-      "NAME",
-      "2020",
-    ]);
-  });
-
-  test("returns the natural order when nothing is saved", () => {
-    expect(orderAttributeNames(["b", "a"], undefined)).toEqual(["b", "a"]);
-    expect(orderAttributeNames(["b", "a"], [])).toEqual(["b", "a"]);
-  });
-
-  test("lists a duplicated name once, at its first position", () => {
-    expect(orderAttributeNames(["a", "b", "a"], ["b", "a", "b"])).toEqual([
-      "b",
-      "a",
-    ]);
-  });
-
-  test("ignores a saved order that is not a list", () => {
-    expect(orderAttributeNames(["b", "a"], "a,b")).toEqual(["b", "a"]);
-    expect(orderAttributeNames(["b", "a"], { 0: "a" })).toEqual(["b", "a"]);
-  });
-
-  test("does not mutate its inputs", () => {
-    const names = ["b", "a"];
-    const saved = ["a"];
-    orderAttributeNames(names, saved);
-    expect(names).toEqual(["b", "a"]);
-    expect(saved).toEqual(["a"]);
   });
 });
 

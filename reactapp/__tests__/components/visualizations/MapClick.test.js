@@ -2,29 +2,37 @@
 // modal, and attribute variables written from a clicked feature.
 import {
   mockedQueryLayerFeatures,
+  mockedSwapVectorLayerFeatures,
   TestingComponent,
   ExtentDrawModeSetter,
   renderSyncMap,
   spyOnSlideTo,
   syncLayer,
 } from "__tests__/utilities/mapVisualizationHarness";
-import { useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+import PropTypes from "prop-types";
 import {
+  act,
   render,
   screen,
   waitFor,
   fireEvent,
   within,
 } from "@testing-library/react";
-import createLoadedComponent from "__tests__/utilities/customRender";
+import createLoadedComponent, {
+  InputVariablePComponent,
+} from "__tests__/utilities/customRender";
+import { VariableInputsContext } from "components/contexts/Contexts";
+import appAPI from "services/api/app";
 import { Map } from "ol";
 import ImageArcGISRest from "ol/source/ImageArcGISRest.js";
 import VariableInput from "components/visualizations/VariableInput";
 import { Vector as VectorSource } from "ol/source.js";
-import { Circle as CircleGeometry } from "ol/geom";
+import { Circle as CircleGeometry, Point } from "ol/geom";
 import Overlay from "ol/Overlay";
 import { Swiper } from "swiper";
 import {
+  dynamicMapLayer,
   mockedTextVariable,
   mockedDropdownVariable,
   mockedDropdownVisualization,
@@ -33,7 +41,11 @@ import {
 import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
-import MapVisualization, { Popup } from "components/visualizations/Map";
+import MapVisualization, {
+  HOVER_TOOLTIP_OVERLAY_ID,
+  Popup,
+} from "components/visualizations/Map";
+import { SHOW_IN_LAYER_CONTROL } from "components/map/LayersControl";
 import { clearClientSourceCaches } from "components/map/ModuleLoader";
 
 // The GeoParquet/Zarr read caches are module-scoped and live for the page's
@@ -1086,6 +1098,459 @@ test("Closing the modal keeps it closed while navigating, until the next click",
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
+// --- Closing the table and the layout independently ------------------------
+//
+// The map's first click fires on its own once the map is ready, as
+// TestingComponent's does; later ones are fired by the test, at the same point,
+// so a test can click a station, close a popup and click the same station
+// again. The map is handed back through `mapRef` so the table overlay's own
+// position can be read rather than inferred from the last setPosition call.
+const RepeatClickHarness = ({ layers, mapRef }) => {
+  const { mapReady } = useMapContext();
+  const { setVariableInputValues } = useContext(VariableInputsContext);
+  const click = () =>
+    mapRef.current?.dispatchEvent({
+      type: "singleclick",
+      coordinate: [10, 20],
+    });
+
+  useEffect(() => {
+    if (mapReady) click();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady]);
+
+  return (
+    <div>
+      <MapVisualization
+        visualizationRef={mapRef}
+        mapConfig={{}}
+        layers={layers}
+        baseMap={null}
+        layerControl={false}
+      />
+      <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      <InputVariablePComponent />
+      <button type="button" onClick={click}>
+        click again
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          setVariableInputValues((previous) => ({
+            ...previous,
+            "Test Variable": "set by the user",
+          }))
+        }
+      >
+        set variable
+      </button>
+    </div>
+  );
+};
+
+RepeatClickHarness.propTypes = {
+  layers: PropTypes.array,
+  mapRef: PropTypes.shape({ current: PropTypes.any }),
+};
+
+describe("closing the table and the layout independently", () => {
+  let mapRef;
+
+  const renderStationMap = (layers) => {
+    mapRef = { current: null };
+    render(
+      createLoadedComponent({
+        children: (
+          <MapContextProvider>
+            <RepeatClickHarness layers={layers} mapRef={mapRef} />
+          </MapContextProvider>
+        ),
+      }),
+    );
+  };
+
+  // A layer with a table and a layout whose title names the feature, so a test
+  // can tell which feature the layout is on.
+  const stationLayer = () => {
+    const layer = syncLayer();
+    // eslint-disable-next-line no-template-curly-in-string
+    layer.popupConfig.titleTemplate = "${feature.station_id}";
+    return layer;
+  };
+
+  const tableOnlyLayer = () => {
+    const layer = syncLayer("TableOnly");
+    delete layer.popupConfig;
+    return layer;
+  };
+
+  const station = (id, x, y, layerName = "Both") => ({
+    attributes: { station_id: id },
+    geometry: { x, y },
+    layerName,
+  });
+
+  // The table overlay, found by the closer it renders. `undefined` is how
+  // OpenLayers hides an overlay, so its position is whether the table shows.
+  const tablePosition = () =>
+    mapRef.current
+      .getOverlays()
+      .getArray()
+      .find((overlay) =>
+        overlay.getElement()?.contains(screen.getByLabelText("Popup Closer")),
+      )
+      .getPosition();
+
+  const layoutTitle = () => screen.getByTestId("popup-modal-header-title");
+
+  const layoutPagination = () =>
+    screen.getByTestId("popup-modal-carousel-pagination");
+
+  // What the pin and the outline are drawn at, read off their layers.
+  const selectionDrawn = () => {
+    const layerNamed = (name) =>
+      mapRef.current
+        .getLayers()
+        .getArray()
+        .find((layer) => layer.get("name") === name);
+    const coordinatesOf = (layer) =>
+      layer
+        .getSource()
+        .getFeatures()
+        .map((feature) => feature.getGeometry().getCoordinates());
+    return {
+      pin: coordinatesOf(layerNamed("Marker")),
+      outline: coordinatesOf(layerNamed("Highlighted Layer")),
+    };
+  };
+
+  const closeTable = () =>
+    fireEvent.click(screen.getByLabelText("Popup Closer"));
+
+  const closeLayout = async () => {
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByLabelText("Close popup"),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  };
+
+  // Fires another click at the same point and waits for its queries to go out.
+  const clickAgain = async () => {
+    const queried = mockedQueryLayerFeatures.mock.calls.length;
+    fireEvent.click(screen.getByText("click again"));
+    await waitFor(() => {
+      expect(mockedQueryLayerFeatures.mock.calls.length).toBeGreaterThan(
+        queried,
+      );
+    });
+  };
+
+  // The table open at (x, y) with the station's row in it. The table renders
+  // in a React root of its own, which commits after the map's, so its content
+  // is waited for separately from its position.
+  const expectTableOpenOn = async (id, x, y) => {
+    await waitFor(() => expect(tablePosition()).toEqual([x, y]));
+    await waitFor(() => {
+      expect(
+        within(screen.getByLabelText("Map Popup Content")).getAllByText(id),
+      ).not.toHaveLength(0);
+    });
+  };
+
+  // Both popups open on the station at (x, y).
+  const expectBothOpenOn = async (id, x, y) => {
+    await waitFor(() => expect(layoutTitle()).toHaveTextContent(id));
+    await expectTableOpenOn(id, x, y);
+  };
+
+  // A click that finds a station with a table and a layout, and a feature
+  // farther off whose layer has a table only.
+  const mockStationAndTableOnly = () =>
+    mockedQueryLayerFeatures.mockImplementation(async (layer) =>
+      layer.configuration.props.name === "TableOnly"
+        ? [station("TTT", 90, 90, "TableOnly")]
+        : [station("AAA", 10, 10)],
+    );
+
+  beforeEach(() => {
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  });
+
+  test("clicking the same station after closing the layout opens the layout again", async () => {
+    // Characterization of the reported bug: after a close, clicking the same
+    // station opened the table but not the layout. It does not reproduce here.
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    await closeLayout();
+    expect(tablePosition()).toEqual([10, 10]);
+
+    await clickAgain();
+    await expectBothOpenOn("AAA", 10, 10);
+  });
+
+  test("clicking the same station after closing the table opens both popups", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+    expect(layoutTitle()).toHaveTextContent("AAA");
+
+    await clickAgain();
+    await expectBothOpenOn("AAA", 10, 10);
+  });
+
+  test("closing the table leaves the layout, the pin and the outline on the station", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(layoutTitle()).toHaveTextContent("AAA");
+    expect(selectionDrawn()).toEqual({ pin: [[10, 20]], outline: [[10, 10]] });
+  });
+
+  test("Covers AE2. Paging the table moves the layout, which stays there once the table is closed", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      station("AAA", 10, 10),
+      station("BBB", 50, 60),
+      station("CCC", 90, 90),
+    ]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    fireEvent.click(screen.getByLabelText("Next Swiper"));
+    await expectBothOpenOn("BBB", 50, 60);
+    expect(layoutPagination()).toHaveTextContent("2 / 3");
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+    expect(layoutTitle()).toHaveTextContent("BBB");
+    expect(layoutPagination()).toHaveTextContent("2 / 3");
+    expect(selectionDrawn().outline).toEqual([[50, 60]]);
+
+    // A new click opens both popups for whatever it selects.
+    mockedQueryLayerFeatures.mockResolvedValue([
+      station("DDD", 30, 40),
+      station("EEE", 70, 80),
+    ]);
+    await clickAgain();
+    await expectBothOpenOn("DDD", 30, 40);
+    expect(layoutPagination()).toHaveTextContent("1 / 2");
+  });
+
+  test("closing the layout and then the table clears the selection, leaving the pin and outline", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    await closeLayout();
+    expect(tablePosition()).toEqual([10, 10]);
+
+    closeTable();
+    // The table renders its empty state once the list is gone.
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+    expect(tablePosition()).toBeUndefined();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(selectionDrawn()).toEqual({ pin: [[10, 20]], outline: [[10, 10]] });
+  });
+
+  test("closing the table and then the layout clears the selection, leaving the pin and outline", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+    expect(screen.queryByText("No Attributes Found")).not.toBeInTheDocument();
+
+    await closeLayout();
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+    expect(tablePosition()).toBeUndefined();
+    expect(selectionDrawn()).toEqual({ pin: [[10, 20]], outline: [[10, 10]] });
+  });
+
+  test("paging the layout onto a table-only feature reopens the table there, and paging back reopens the layout", async () => {
+    mockStationAndTableOnly();
+
+    renderStationMap([stationLayer(), tableOnlyLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+
+    // The layout has nothing to show for the table-only feature and closes, so
+    // the table comes back to keep the selection on screen.
+    fireEvent.click(screen.getByTestId("popup-modal-carousel-next"));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    await expectTableOpenOn("TTT", 90, 90);
+    expect(selectionDrawn().outline).toEqual([[90, 90]]);
+
+    // Both popups follow the table back onto the station.
+    fireEvent.click(screen.getByLabelText("Previous Swiper"));
+    await expectBothOpenOn("AAA", 10, 10);
+  });
+
+  test("paging the layout onto another layout feature leaves the table closed", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      station("AAA", 10, 10),
+      station("BBB", 50, 60),
+    ]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+
+    fireEvent.click(screen.getByTestId("popup-modal-carousel-next"));
+    await waitFor(() => expect(layoutTitle()).toHaveTextContent("BBB"));
+    expect(selectionDrawn().outline).toEqual([[50, 60]]);
+    expect(tablePosition()).toBeUndefined();
+  });
+
+  test("closing the table on a table-only selection clears it", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      station("TTT", 90, 90, "TableOnly"),
+    ]);
+
+    renderStationMap([tableOnlyLayer()]);
+    await expectTableOpenOn("TTT", 90, 90);
+
+    closeTable();
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+    expect(tablePosition()).toBeUndefined();
+  });
+
+  test("closing the table after paging it off the layout's feature clears the selection", async () => {
+    // The close button is bound when the list arrives, while the layout was
+    // still showing. Read stale, it would record a dismissal instead, and the
+    // table-only feature would then reopen the table it had just closed.
+    mockStationAndTableOnly();
+
+    renderStationMap([stationLayer(), tableOnlyLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    fireEvent.click(screen.getByLabelText("Next Swiper"));
+    await expectTableOpenOn("TTT", 90, 90);
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    closeTable();
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+    expect(tablePosition()).toBeUndefined();
+  });
+
+  test("closing the table does not write the linked variable inputs again", async () => {
+    // The table's close only hides the overlay. The selection has not changed,
+    // so a value set since the click must survive it.
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+    const layer = stationLayer();
+    layer.attributeVariables = { Both: { station_id: "Test Variable" } };
+
+    renderStationMap([layer]);
+    await expectBothOpenOn("AAA", 10, 10);
+    await waitFor(() => {
+      expect(screen.getByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ "Test Variable": "AAA" }),
+      );
+    });
+
+    fireEvent.click(screen.getByText("set variable"));
+    await waitFor(() => {
+      expect(screen.getByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ "Test Variable": "set by the user" }),
+      );
+    });
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+    expect(layoutTitle()).toHaveTextContent("AAA");
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": "set by the user" }),
+    );
+  });
+
+  test("closing the empty table hides it, and the next click shows its results", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([]);
+
+    renderStationMap([stationLayer()]);
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+    await waitFor(() => expect(tablePosition()).toEqual([10, 20]));
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+    await clickAgain();
+    await expectBothOpenOn("AAA", 10, 10);
+    expect(screen.queryByText("No Attributes Found")).not.toBeInTheDocument();
+  });
+
+  test("a dynamic layer's data swap closes a layout whose table was closed, and the next click opens both", async () => {
+    const getVisualizationFeatures = jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockResolvedValue({
+        success: true,
+        viz_type: "features",
+        data: {
+          type: "FeatureCollection",
+          features: [],
+          crs: { type: "name", properties: { name: "EPSG:4326" } },
+        },
+      });
+    const dynamicLayer = JSON.parse(JSON.stringify(dynamicMapLayer));
+    // Bound to the variable the harness sets, so setting it refetches.
+    dynamicLayer.configuration.props.pluginSource.args = {
+      // eslint-disable-next-line no-template-curly-in-string
+      gauge: "${Test Variable}",
+    };
+    mockedQueryLayerFeatures.mockImplementation(async (layer) =>
+      layer.configuration.props.name === "Both" ? [station("AAA", 10, 10)] : [],
+    );
+
+    renderStationMap([stationLayer(), dynamicLayer]);
+    // The first fetch swaps the layer's data in on load, which may land after
+    // the first click and clear it. Wait for it, then click.
+    await waitFor(() =>
+      expect(mockedSwapVectorLayerFeatures).toHaveBeenCalled(),
+    );
+    await clickAgain();
+    await expectBothOpenOn("AAA", 10, 10);
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+
+    fireEvent.click(screen.getByText("set variable"));
+    await waitFor(() =>
+      expect(getVisualizationFeatures).toHaveBeenCalledTimes(2),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+
+    await clickAgain();
+    await expectBothOpenOn("AAA", 10, 10);
+  });
+});
+
 test("Map click — modal-only layer feature without geometry does not call addHighlightFeatures", async () => {
   // Covers the `!feature?.geometry` early-return guard in the modal-driven
   // highlight effect. A queried feature whose geometry field is absent
@@ -1093,9 +1558,9 @@ test("Map click — modal-only layer feature without geometry does not call addH
   // crash the effect — it should bail before calling addHighlightFeatures.
   //
   // The effect still runs through its earlier guards (modalOpen is true,
-  // highlightLayer.current is set by the click handler, hoverActiveRef is
-  // false because click resets it, modalFeatures has the missing-geometry
-  // feature), so reaching the no-geometry guard is what's being exercised.
+  // highlightLayer.current is set by the click handler, modalFeatures has the
+  // missing-geometry feature), so reaching the no-geometry guard is what's
+  // being exercised.
   mockedQueryLayerFeatures.mockResolvedValue([
     {
       attributes: { reach_id: "ABC" },
@@ -1244,9 +1709,10 @@ test("Map click — modal-only layer highlights the clicked feature's GeoJSON ge
   expect(vectorAddFeaturesSpy).toHaveBeenCalled();
 });
 
-test("Map click — hover-table layer is excluded from the click handler", async () => {
+test("Map click — a hover-only layer is excluded from the click handler, a layer with both popups is not", async () => {
   // tablePopupType: "hover" without modal must not be queried on click; only
-  // the hover handler should fire for that layer.
+  // the hover handler should fire for that layer. "both" shows the click table
+  // as well as the tooltip, so a click queries it.
   mockedQueryLayerFeatures.mockResolvedValue([
     {
       attributes: { field1: "value" },
@@ -1282,6 +1748,19 @@ test("Map click — hover-table layer is excluded from the click handler", async
         },
       },
     },
+    {
+      tablePopupType: "both",
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "BothLayer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "both_url" },
+          },
+        },
+      },
+    },
   ];
   const clickCoordinates = [10, 20];
   const LoadedComponent = createLoadedComponent({
@@ -1306,26 +1785,22 @@ test("Map click — hover-table layer is excluded from the click handler", async
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-  // Click handler queries only ClickLayer. (The pointermove dispatch in the
-  // TestingComponent only fires when onMapPointerMove is passed, so the hover
-  // handler does not run here — this is purely a click-filter test.)
+  // Click handler queries ClickLayer and BothLayer. (The pointermove dispatch
+  // in the TestingComponent only fires when onMapPointerMove is passed, so the
+  // hover handler does not run here — this is purely a click-filter test.)
   await waitFor(() => {
-    expect(mockedQueryLayerFeatures.mock.calls.length).toBeGreaterThanOrEqual(
-      1,
-    );
+    expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(2);
   });
   const queriedNames = mockedQueryLayerFeatures.mock.calls.map(
     ([layer]) => layer.configuration.props.name,
   );
-  expect(queriedNames).toContain("ClickLayer");
-  expect(queriedNames).not.toContain("HoverLayer");
+  expect(queriedNames).toEqual(["ClickLayer", "BothLayer"]);
 });
 
 test("Map click — hover-only map: click is a no-op (no query, no empty popup)", async () => {
-  // Regression: when the map has only hover-tagged layers, clicking
-  // anywhere previously overwrote the hover popup with an empty
-  // "No Attributes Found" overlay. The click handler now bails before
-  // any side effects when nothing is click-eligible.
+  // When the map has only hover-tagged layers there is nothing to click, so
+  // the click handler bails before any side effects -- in particular it must
+  // not put up an empty "No Attributes Found" table.
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
   const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
 
@@ -1379,12 +1854,10 @@ test("Map click — hover-only map: click is a no-op (no query, no empty popup)"
   expect(positionCalls).not.toContainEqual(clickCoordinates);
 });
 
-test("Map click — mixed config: click on hover feature preserves the hover popup", async () => {
-  // Regression: when both click and hover layers exist, clicking on a
-  // location where ONLY the hover layer has a feature must not replace
-  // the hover popup with "No Attributes Found". The click handler queries
-  // the click-eligible layer, finds nothing, and now bails via the
-  // hoverActiveRef guard instead of overwriting popup state.
+test("Map click — mixed config: a click takes the hover tooltip down and answers for the click layers", async () => {
+  // Hover and click no longer share a popup. A click where only the hover
+  // layer has a feature hides the tooltip, and the click table shows what the
+  // click layers found there: nothing.
   mockedQueryLayerFeatures.mockImplementation(async (layer) => {
     if (layer.configuration.props.name === "HoverLayer") {
       return [
@@ -1399,7 +1872,6 @@ test("Map click — mixed config: click on hover feature preserves the hover pop
     return [];
   });
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
-  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
 
   const layers = [
     {
@@ -1429,18 +1901,18 @@ test("Map click — mixed config: click on hover feature preserves the hover pop
     },
   ];
   const sharedCoordinates = [10, 20];
+  const mapRef = { current: null };
 
   // The default TestingComponent fires singleclick before pointermove,
-  // which is the wrong order for this test (we need hover popup OPEN
-  // first, then dispatch the click). Use a manual harness with two
-  // buttons so the test body controls the dispatch order.
+  // which is the wrong order for this test (we need the tooltip up first,
+  // then dispatch the click). Use a manual harness with two buttons so the
+  // test body controls the dispatch order.
   const HoverThenClickHarness = () => {
-    const visualizationRef = useRef();
     const { mapReady } = useMapContext();
     return (
       <div>
         <MapVisualization
-          visualizationRef={visualizationRef}
+          visualizationRef={mapRef}
           mapConfig={{}}
           viewConfig={{}}
           layers={layers}
@@ -1451,7 +1923,7 @@ test("Map click — mixed config: click on hover feature preserves the hover pop
         <button
           type="button"
           onClick={() =>
-            visualizationRef.current?.dispatchEvent({
+            mapRef.current?.dispatchEvent({
               type: "pointermove",
               coordinate: sharedCoordinates,
             })
@@ -1462,7 +1934,7 @@ test("Map click — mixed config: click on hover feature preserves the hover pop
         <button
           type="button"
           onClick={() =>
-            visualizationRef.current?.dispatchEvent({
+            mapRef.current?.dispatchEvent({
               type: "singleclick",
               coordinate: sharedCoordinates,
             })
@@ -1485,33 +1957,47 @@ test("Map click — mixed config: click on hover feature preserves the hover pop
 
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  const tooltipOverlay = () =>
+    mapRef.current.getOverlayById(HOVER_TOOLTIP_OVERLAY_ID);
+  // The table overlay, found by the closer it renders.
+  const tableOverlay = () =>
+    mapRef.current
+      .getOverlays()
+      .getArray()
+      .find((overlay) =>
+        overlay.getElement()?.contains(screen.getByLabelText("Popup Closer")),
+      );
 
-  // Step 1: fire hover. After the 250ms debounce, the hover popup opens
-  // at sharedCoordinates and the overlay is positioned there.
+  // Step 1: hover. After the 250ms debounce the tooltip shows the hover
+  // layer's feature at the cursor; the table stays shut.
   fireEvent.click(screen.getByText("fire-hover"));
   await waitFor(() => {
-    expect(popSetPosition).toHaveBeenCalledWith(sharedCoordinates);
+    expect(tooltipOverlay().getPosition()).toEqual(sharedCoordinates);
   });
+  expect(
+    await screen.findByRole("tooltip", { hidden: true }),
+  ).toHaveTextContent("hover-value");
+  expect(tableOverlay().getPosition()).toBeUndefined();
   const queriedAfterHover = mockedQueryLayerFeatures.mock.calls.length;
 
-  // Step 2: fire click at the same coordinate. The click handler will
-  // query ClickLayer (which returns []), find no features, see that a
-  // hover popup is open, and bail without modifying popup state.
+  // Step 2: click at the same coordinate. The tooltip comes down at once,
+  // and the click layer's empty result opens the empty table at the click.
   fireEvent.click(screen.getByText("fire-click"));
-  // Give the async click handler time to complete its query work.
+  expect(tooltipOverlay().getPosition()).toBeUndefined();
   await waitFor(() => {
     expect(mockedQueryLayerFeatures.mock.calls.length).toBeGreaterThan(
       queriedAfterHover,
     );
   });
-
-  // The overlay was NOT repositioned to undefined (which would hide it)
-  // and was NOT given a fresh setPosition with the click coordinate to
-  // anchor an empty popup. The last setPosition call should still be the
-  // hover anchor — sharedCoordinates — leaving the hover popup visible.
   await waitFor(() => {
-    expect(popSetPosition).toHaveBeenLastCalledWith(sharedCoordinates);
+    expect(tableOverlay().getPosition()).toEqual(sharedCoordinates);
   });
+  expect(
+    within(screen.getByLabelText("Map Popup Content")).getByText(
+      "No Attributes Found",
+    ),
+  ).toBeInTheDocument();
+  expect(tooltipOverlay().getPosition()).toBeUndefined();
 });
 
 test("Map click skips layers the user has hidden via the layer control", async () => {
@@ -3961,7 +4447,17 @@ describe("Map popup follows the saved attribute order", () => {
     renderMap([layer({ tablePopupType: "hover" })], {
       onMapPointerMove: true,
     });
-    expect(await popupRowLabels()).toEqual(["NAME", "STATUS", "GAUGE_ID"]);
+    // The hover tooltip. Like the table's overlay it is not laid out in jsdom,
+    // so it and its rows count as hidden. Its header row has column headers
+    // rather than cells, so only the field rows are read.
+    const tooltip = await screen.findByRole("tooltip", { hidden: true });
+    await within(tooltip).findByText("Creek");
+    const labels = within(tooltip)
+      .getAllByRole("row", { hidden: true })
+      .map((row) => within(row).queryAllByRole("cell", { hidden: true }))
+      .filter((cells) => cells.length > 0)
+      .map((cells) => cells[0].textContent);
+    expect(labels).toEqual(["NAME", "STATUS", "GAUGE_ID"]);
   });
 });
 
@@ -4111,4 +4607,287 @@ test("Map click draws no tolerance ring when a layer zooms in instead of queryin
   expect(ringsOf(marker)).toStrictEqual([]);
   // The pin is still drawn.
   expect(marker.getSource().getFeatures()).toHaveLength(1);
+});
+
+// --- Map Selection ---------------------------------------------------------
+//
+// The test fires each click itself, on the map handed back through `mapRef`,
+// so it can look at the map before any click and between two of them. The
+// "Change Selection" button swaps in a new setting while the layers stay the
+// same array: MapComponent binds the click handler only when the layers
+// change, so this is the edit a stale handler would miss.
+
+const SelectionHarness = ({
+  layers,
+  mapRef,
+  initialSelection,
+  nextSelection,
+}) => {
+  const { mapReady } = useMapContext();
+  const [mapSelection, setMapSelection] = useState(initialSelection);
+  return (
+    <div>
+      <MapVisualization
+        visualizationRef={mapRef}
+        mapConfig={{}}
+        layers={layers}
+        baseMap={null}
+        layerControl={false}
+        mapSelection={mapSelection}
+      />
+      <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      <button type="button" onClick={() => setMapSelection(nextSelection)}>
+        Change Selection
+      </button>
+    </div>
+  );
+};
+
+SelectionHarness.propTypes = {
+  layers: PropTypes.array,
+  mapRef: PropTypes.shape({ current: PropTypes.any }),
+  initialSelection: PropTypes.object,
+  nextSelection: PropTypes.object,
+};
+
+const mountSelectionMap = async (
+  layers,
+  initialSelection,
+  nextSelection = {},
+) => {
+  const mapRef = { current: null };
+  render(
+    createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <SelectionHarness
+            layers={layers}
+            mapRef={mapRef}
+            initialSelection={initialSelection}
+            nextSelection={nextSelection}
+          />
+        </MapContextProvider>
+      ),
+    }),
+  );
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  // The map is ready before its layers are: the layer pass that adds them runs
+  // after, and it sweeps away every layer that is not one of them -- the pin
+  // and the outline included. Clicking only once that pass has landed keeps a
+  // slow run from losing the marks a click draws.
+  for (const layer of layers) {
+    const name = layer.configuration?.props?.name;
+    if (name) {
+      await waitFor(() => expect(mapLayerNamed(mapRef, name)).toBeDefined());
+    }
+  }
+  return mapRef;
+};
+
+const selectionLayer = (props = {}) => ({
+  configuration: {
+    type: "ImageLayer",
+    props: {
+      name: "Sites",
+      source: {
+        type: "ESRI Image and Map Service",
+        props: { url: "sites_url" },
+      },
+      ...props,
+    },
+  },
+});
+
+const site = {
+  attributes: { station_name: "Station 7" },
+  geometry: { x: 0, y: 0 },
+  layerName: "Sites",
+};
+
+// Clicks, then waits for the click to finish: its query has gone out and the
+// table shows what it found. The marker and highlight layers are settled by
+// then, since a click swaps them before it queries.
+const clickAndSettle = async (mapRef, queryCount) => {
+  await act(async () => {
+    mapRef.current.dispatchEvent({ type: "singleclick", coordinate: [10, 20] });
+  });
+  await waitFor(() =>
+    expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(queryCount),
+  );
+  expect(await screen.findByText("Station 7")).toBeInTheDocument();
+};
+
+const mapLayerNamed = (mapRef, name) =>
+  mapRef.current
+    .getLayers()
+    .getArray()
+    .find((layer) => layer.get("name") === name);
+
+const geometriesOf = (layer) =>
+  layer
+    .getSource()
+    .getFeatures()
+    .map((feature) => feature.getGeometry());
+
+describe("Map Selection", () => {
+  beforeEach(() => {
+    mockedQueryLayerFeatures.mockResolvedValue([site]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  });
+
+  test("a hidden pin leaves the tolerance ring, and the outline is drawn and listed", async () => {
+    // Covers AE3.
+    const mapRef = await mountSelectionMap(
+      [selectionLayer({ showClickTolerance: true })],
+      { clickedLocation: { map: false }, selectedFeature: { legend: true } },
+    );
+
+    // Before any click, the legend already lists the outline (and only it).
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    expect(await screen.findByText("Selected feature")).toBeInTheDocument();
+    expect(screen.queryByText("Clicked location")).not.toBeInTheDocument();
+    expect(mapLayerNamed(mapRef, "Marker")).toBeUndefined();
+
+    await clickAndSettle(mapRef, 1);
+
+    await waitFor(() =>
+      expect(
+        geometriesOf(mapLayerNamed(mapRef, "Highlighted Layer")),
+      ).toHaveLength(1),
+    );
+    const markerGeometries = geometriesOf(mapLayerNamed(mapRef, "Marker"));
+    expect(markerGeometries).toHaveLength(1);
+    expect(markerGeometries[0]).toBeInstanceOf(CircleGeometry);
+    expect(markerGeometries.some((geometry) => geometry instanceof Point)).toBe(
+      false,
+    );
+  });
+
+  test("a hidden pin with no tolerance ring adds no marker layer", async () => {
+    const mapRef = await mountSelectionMap([selectionLayer()], {
+      clickedLocation: { map: false },
+    });
+
+    await clickAndSettle(mapRef, 1);
+
+    await waitFor(() =>
+      expect(
+        geometriesOf(mapLayerNamed(mapRef, "Highlighted Layer")),
+      ).toHaveLength(1),
+    );
+    expect(mapLayerNamed(mapRef, "Marker")).toBeUndefined();
+  });
+
+  test("a hidden outline creates no highlight layer, and the pin still draws", async () => {
+    const mapRef = await mountSelectionMap([selectionLayer()], {
+      selectedFeature: { map: false },
+    });
+
+    await clickAndSettle(mapRef, 1);
+
+    const markerGeometries = geometriesOf(mapLayerNamed(mapRef, "Marker"));
+    expect(markerGeometries).toHaveLength(1);
+    expect(markerGeometries[0]).toBeInstanceOf(Point);
+    expect(mapLayerNamed(mapRef, "Highlighted Layer")).toBeUndefined();
+  });
+
+  test("hiding the outline after a click takes the old outline down on the next click", async () => {
+    const mapRef = await mountSelectionMap(
+      [selectionLayer()],
+      {},
+      {
+        selectedFeature: { map: false },
+      },
+    );
+
+    await clickAndSettle(mapRef, 1);
+    await waitFor(() =>
+      expect(
+        geometriesOf(mapLayerNamed(mapRef, "Highlighted Layer")),
+      ).toHaveLength(1),
+    );
+
+    // Only the setting changes; the layers are the same array.
+    fireEvent.click(screen.getByText("Change Selection"));
+    // Nothing is retroactive: the outline stays until the next click.
+    expect(mapLayerNamed(mapRef, "Highlighted Layer")).toBeDefined();
+
+    await clickAndSettle(mapRef, 2);
+
+    expect(mapLayerNamed(mapRef, "Highlighted Layer")).toBeUndefined();
+    expect(geometriesOf(mapLayerNamed(mapRef, "Marker"))[0]).toBeInstanceOf(
+      Point,
+    );
+  });
+
+  test("hiding the pin after a click applies from the next click", async () => {
+    const mapRef = await mountSelectionMap(
+      [selectionLayer()],
+      {},
+      {
+        clickedLocation: { map: false },
+      },
+    );
+
+    await clickAndSettle(mapRef, 1);
+    expect(geometriesOf(mapLayerNamed(mapRef, "Marker"))[0]).toBeInstanceOf(
+      Point,
+    );
+
+    fireEvent.click(screen.getByText("Change Selection"));
+    expect(mapLayerNamed(mapRef, "Marker")).toBeDefined();
+
+    await clickAndSettle(mapRef, 2);
+
+    expect(mapLayerNamed(mapRef, "Marker")).toBeUndefined();
+  });
+
+  test("a map saved without the setting draws the pin and outline as before and lists neither", async () => {
+    const mapRef = await mountSelectionMap([selectionLayer()], undefined);
+
+    await clickAndSettle(mapRef, 1);
+
+    await waitFor(() =>
+      expect(
+        geometriesOf(mapLayerNamed(mapRef, "Highlighted Layer")),
+      ).toHaveLength(1),
+    );
+    expect(geometriesOf(mapLayerNamed(mapRef, "Marker"))[0]).toBeInstanceOf(
+      Point,
+    );
+    // Both are listed in the layer control, under the names the legend uses.
+    for (const [name, title] of [
+      ["Marker", "Clicked location"],
+      ["Highlighted Layer", "Selected feature"],
+    ]) {
+      expect(mapLayerNamed(mapRef, name).get(SHOW_IN_LAYER_CONTROL)).toBe(true);
+      expect(mapLayerNamed(mapRef, name).get("title")).toBe(title);
+    }
+    // The layer has no legend, so nothing gives the map a legend control.
+    expect(
+      screen.queryByLabelText("Show Legend Control"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("marks left out of the layer control are drawn but flagged to stay out of it", async () => {
+    const mapRef = await mountSelectionMap([selectionLayer()], {
+      clickedLocation: { layerControl: false },
+      selectedFeature: { layerControl: false },
+    });
+
+    await clickAndSettle(mapRef, 1);
+
+    await waitFor(() =>
+      expect(
+        geometriesOf(mapLayerNamed(mapRef, "Highlighted Layer")),
+      ).toHaveLength(1),
+    );
+    expect(geometriesOf(mapLayerNamed(mapRef, "Marker"))).toHaveLength(1);
+    expect(mapLayerNamed(mapRef, "Marker").get(SHOW_IN_LAYER_CONTROL)).toBe(
+      false,
+    );
+    expect(
+      mapLayerNamed(mapRef, "Highlighted Layer").get(SHOW_IN_LAYER_CONTROL),
+    ).toBe(false);
+  });
 });

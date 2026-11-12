@@ -42,9 +42,12 @@ import {
   sourcePropType,
   attributePropsPropType,
   saveLayerJSON,
-  resolveTablePopupType,
   hasLegend,
 } from "components/map/utilities";
+import {
+  resolveTablePopupType,
+  isHoverEnabled,
+} from "components/map/popupAttributes";
 import {
   isClassStyleMode,
   isRampBoundSet,
@@ -202,6 +205,11 @@ export function normalizeAttributePropsForLayer(
     omitted: rekeyAttributeMapToLayer(attributeProps?.omitted, targetLayerName),
     aliases: rekeyAttributeMapToLayer(attributeProps?.aliases, targetLayerName),
     order: rekeyAttributeMapToLayer(attributeProps?.order, targetLayerName),
+    hover: rekeyAttributeMapToLayer(attributeProps?.hover, targetLayerName),
+    omittedHover: rekeyAttributeMapToLayer(
+      attributeProps?.omittedHover,
+      targetLayerName,
+    ),
   };
 }
 
@@ -218,6 +226,8 @@ export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
     omitted: renameKey(attributeProps?.omitted),
     aliases: renameKey(attributeProps?.aliases),
     order: renameKey(attributeProps?.order),
+    hover: renameKey(attributeProps?.hover),
+    omittedHover: renameKey(attributeProps?.omittedHover),
   };
 }
 
@@ -263,6 +273,16 @@ const MapLayerModal = ({
   const [layerProps, setLayerProps] = useState(layerInfo.layerProps ?? {});
   const [attributeProps, setAttributeProps] = useState(
     layerInfo.attributeProps ?? {},
+  );
+  // The popup type the layer had when the editor opened it, which keeps a
+  // layer that hides every field only to update its variable inputs answering
+  // the event that drives them (see AttributesPane). Read here rather than in
+  // the pane: the Attributes pane remounts when the source moves to a type
+  // without that tab and back, and would read props already edited by then. A
+  // template or plugin scaffold replaces the layer's popup settings wholesale,
+  // so loading one counts as opening the layer it describes.
+  const [openedPopupType, setOpenedPopupType] = useState(() =>
+    resolveTablePopupType(layerInfo.attributeProps ?? {}),
   );
   const [style, setStyle] = useState(layerInfo.style);
   // A raster's style is its ramp settings rather than a style JSON, so it is
@@ -574,6 +594,21 @@ const MapLayerModal = ({
       mapConfiguration.omittedPopupAttributes = attributeProps.omitted;
     }
 
+    // Hover's list is saved only while hover is on. It lists every sublayer,
+    // empty lists included, and the gate below keeps such a map: which key is
+    // present is what tells the runtime how to read it (see
+    // hoverFieldFilter). A hover layer that never had either key -- one saved
+    // before hover had a list of its own and not re-read in the Attributes
+    // tab since -- keeps reading the click table's omitted fields.
+    if (isHoverEnabled(attributeProps)) {
+      if (Object.keys(attributeProps.hover ?? {}).length > 0) {
+        mapConfiguration.hoverPopupAttributes = attributeProps.hover;
+      }
+      if (Object.keys(attributeProps.omittedHover ?? {}).length > 0) {
+        mapConfiguration.omittedHoverAttributes = attributeProps.omittedHover;
+      }
+    }
+
     // Gated on its own rather than riding on the alias check: a layer whose
     // aliases are all blank saves no alias map, but its row order still counts.
     const attributeOrder = Object.fromEntries(
@@ -732,6 +767,7 @@ const MapLayerModal = ({
     setLabels(apiResponse.data.configuration.labels ?? null);
 
     const effectiveName = layerProps?.name || updatedLayerProps.name;
+    setOpenedPopupType(layerTablePopupType);
     setAttributeProps(
       normalizeAttributePropsForLayer(
         {
@@ -739,6 +775,11 @@ const MapLayerModal = ({
           omitted: omittedPopupAttributes,
           aliases: attributeAliases,
           order: attributeOrder,
+          // Left undefined when the template has none, as AddMapLayer leaves
+          // a saved layer's: an empty map would read as a hover list that
+          // shows nothing, where a missing one falls back to the click list.
+          hover: apiResponse.data.hoverPopupAttributes,
+          omittedHover: apiResponse.data.omittedHoverAttributes,
           tablePopupType: layerTablePopupType,
         },
         effectiveName,
@@ -804,6 +845,7 @@ const MapLayerModal = ({
         // one, and the Attributes table is not re-read here, so it keeps
         // showing the author's order. Resetting it would save a different
         // order from the one on screen.
+        setOpenedPopupType(scaffoldTablePopupType);
         setAttributeProps((previous) =>
           normalizeAttributePropsForLayer(
             {
@@ -811,6 +853,9 @@ const MapLayerModal = ({
               omitted: omittedPopupAttributes,
               aliases: attributeAliases,
               order: scaffold.attributeOrder ?? previous?.order ?? {},
+              // Undefined when absent, for the same reason as a template's.
+              hover: scaffold.hoverPopupAttributes,
+              omittedHover: scaffold.omittedHoverAttributes,
               tablePopupType: scaffoldTablePopupType,
             },
             effectiveName,
@@ -1028,6 +1073,7 @@ const MapLayerModal = ({
                   layerProps={layerProps}
                   tabKey={tabKey}
                   shapefileDiscovery={shapefileDiscovery}
+                  openedPopupType={openedPopupType}
                 />
               </Tab>
             )}

@@ -73,6 +73,7 @@ const InputTable = ({
   onChange,
   values,
   disabledFields,
+  inactiveFields = [],
   hiddenFields = [],
   allowRowCreation,
   allowRowReorder = false,
@@ -351,6 +352,7 @@ const InputTable = ({
                           <input
                             type="checkbox"
                             checked={row[field]}
+                            disabled={inactiveFields.includes(field)}
                             onChange={(e) =>
                               handleChange(e.target.checked, rowIndex, field)
                             }
@@ -368,6 +370,7 @@ const InputTable = ({
                             aria-label={`${field} Input ${rowIndex}`}
                             type={types?.[rowIndex] ?? "text"}
                             value={row[field]}
+                            disabled={inactiveFields.includes(field)}
                             ref={(el) =>
                               (inputRefs.current[
                                 rowIndex * Object.keys(row).length + fieldIndex
@@ -419,6 +422,10 @@ InputTable.propTypes = {
     ),
   ).isRequired, // array of objects (rows) that contain colum keys and values
   disabledFields: PropTypes.arrayOf(PropTypes.string), // array of fields to not have an input
+  // Fields whose text and checkbox inputs are shown disabled. Unlike
+  // disabledFields the input stays, so its value reads as one that is kept
+  // and comes back into effect once the field is active again.
+  inactiveFields: PropTypes.arrayOf(PropTypes.string),
   // field -> function formatting how a disabled field's value is shown; the
   // stored value is untouched
   displayFormatters: PropTypes.objectOf(PropTypes.func),

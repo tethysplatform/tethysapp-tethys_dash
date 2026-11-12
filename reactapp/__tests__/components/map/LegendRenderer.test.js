@@ -1,7 +1,9 @@
 import LegendRenderer, {
   LegendSymbol,
   formatRampBound,
+  legendSymbols,
 } from "components/map/LegendRenderer";
+import { BsGeoAltFill } from "react-icons/bs";
 import { render, screen, waitFor } from "@testing-library/react";
 import { defaultStroke } from "components/inputs/RuleEditor";
 
@@ -75,6 +77,49 @@ test("LegendRenderer; custom legend with 1 item", async () => {
   expect(screen.queryByRole("list")).not.toBeInTheDocument();
   const symbol1 = screen.getByLabelText("green-square");
   expect(symbol1).toBeInTheDocument();
+});
+
+test("LegendRenderer; the pin symbol draws as a map pin, not the fallback circle", async () => {
+  // The Map Selection legend's "Clicked location" entry, as the map builds it.
+  render(
+    <LegendRenderer
+      legend={{
+        title: "Clicked location",
+        items: [{ label: "Clicked location", symbol: "pin", color: "#007bff" }],
+      }}
+    />,
+  );
+
+  expect(screen.getByText("Clicked location")).toBeInTheDocument();
+  expect(screen.getByLabelText("#007bff-pin")).toBeInTheDocument();
+  expect(legendSymbols.pin).toBe(BsGeoAltFill);
+});
+
+test("LegendRenderer; a single-item entry keeps its symbol's outline", async () => {
+  // The Map Selection's "Selected feature" entry: a transparent circle that
+  // is only its stroke. The single-item layout's margin used to replace it.
+  render(
+    <LegendRenderer
+      legend={{
+        title: "Selected feature",
+        items: [
+          {
+            label: "Selected feature",
+            symbol: "circle",
+            color: "transparent",
+            stroke: "#00008b",
+          },
+        ],
+      }}
+    />,
+  );
+
+  // jsdom's style object has no SVG stroke, so read the attribute.
+  const style = screen
+    .getByLabelText("transparent-circle")
+    .getAttribute("style");
+  expect(style).toContain("stroke: #00008b");
+  expect(style).toContain("margin-right: 4px");
 });
 
 test("LegendRenderer; custom legend with multiple items", async () => {

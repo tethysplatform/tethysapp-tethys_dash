@@ -13,6 +13,10 @@ import FloatingMapControl, {
 import { canZoomToLayer, zoomToLayer } from "components/map/layerExtent";
 import { SNAP_PREVIEW_LAYER_NAME } from "components/map/snapping";
 
+// A layer property: set to false, the layer is left out of this control. A
+// click's pin and outline carry it, from the map's Map Selection setting.
+export const SHOW_IN_LAYER_CONTROL = "showInLayerControl";
+
 // See LegendControl: the positioning lives on the anchor, the control itself is
 // portalled out of the map tile's stacking context.
 const ControlWrapper = styled(FloatingMapControl)`
@@ -105,11 +109,15 @@ const LayersControl = ({
     if (visualizationRef.current) {
       // Get layers from the map and set them in local state. The snap preview
       // only draws while the cursor is over a feature, so there is nothing for
-      // its checkbox to show or hide.
+      // its checkbox to show or hide; a layer can also ask to be left out.
       const mapLayers = visualizationRef.current
         .getLayers()
         .getArray()
-        .filter((layer) => layer.get("name") !== SNAP_PREVIEW_LAYER_NAME);
+        .filter(
+          (layer) =>
+            layer.get("name") !== SNAP_PREVIEW_LAYER_NAME &&
+            layer.get(SHOW_IN_LAYER_CONTROL) !== false,
+        );
       setLayers(mapLayers);
 
       // Update state tracking the checkbox
@@ -169,6 +177,9 @@ const LayersControl = ({
             >
               {layers.map((layer, index) => {
                 const layerName = layer.get("name") ?? `Layer ${index + 1}`;
+                // A layer can carry a title to show in place of its name, which
+                // stays the key its visibility and status are tracked under.
+                const label = layer.get("title") ?? layerName;
                 const layerId = layer.get("layerId");
                 // Runtime dynamic_map_layer errors are scoped to layers tagged
                 // with a layerId. Static layers render only the visibility
@@ -213,16 +224,16 @@ const LayersControl = ({
                             updateVisibility(layer, layerName, e.target.checked)
                           }
                           style={{ marginRight: "8px" }}
-                          aria-label={layerName + " Set Visible"}
+                          aria-label={label + " Set Visible"}
                         />
-                        <span>{layerName}</span>
+                        <span>{label}</span>
                       </label>
                       {/* Disabled, not hidden, for a layer that cannot say
                           where it is (a server-rendered WMS or ArcGIS image),
                           so every row keeps the same shape. */}
                       <ZoomButton
                         type="button"
-                        aria-label={layerName + " Zoom to Layer"}
+                        aria-label={label + " Zoom to Layer"}
                         title="Zoom to layer"
                         disabled={!canZoomToLayer(layer)}
                         onClick={() =>

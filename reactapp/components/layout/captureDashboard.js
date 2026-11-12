@@ -17,7 +17,8 @@ export const CAPTURE_EXCLUDED_SELECTORS = [
   // On-map controls. The legend itself stays; its show button and the layer
   // switcher do not. A clicked feature's attribute table stays, without its
   // close button - like the popup modal, it is shown only while open. The query
-  // spinner and a linked map's cursor marker are transient and do not.
+  // spinner, a linked map's cursor marker and the hover tooltip are transient
+  // and do not.
   '[aria-label="Show Legend Control"]',
   // The collapsed legend's box, which would otherwise stay as an empty square.
   '.legend-control:has([aria-label="Show Legend Control"])',
@@ -27,6 +28,7 @@ export const CAPTURE_EXCLUDED_SELECTORS = [
   ".ol-popup-closer",
   ".map-query-spinner",
   ".linked-cursor-marker",
+  ".map-hover-tooltip",
 ];
 
 // Set on the grid for the length of a capture, so tile styling can drop the

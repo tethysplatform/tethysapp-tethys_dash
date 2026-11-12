@@ -191,6 +191,40 @@ it("InputTable Disabled Fields", async () => {
   expect(screen.queryAllByRole("textbox").length).toBe(1);
 });
 
+it("InputTable inactive fields keep their inputs and values, disabled", () => {
+  const values = [
+    { name: "a", click: true, hover: false },
+    { name: "b", click: false, hover: true },
+  ];
+  const { rerender } = render(
+    <InputTable
+      label="Test Table"
+      onChange={jest.fn()}
+      values={values}
+      inactiveFields={["name", "hover"]}
+    />,
+  );
+
+  // Unlike a disabled field, an inactive one is still an input showing its
+  // value -- only the author cannot change it.
+  expect(screen.getByLabelText("name Input 0")).toBeDisabled();
+  expect(screen.getByLabelText("name Input 0")).toHaveValue("a");
+  expect(screen.getByLabelText("hover Input 0")).toBeDisabled();
+  expect(screen.getByLabelText("hover Input 0")).not.toBeChecked();
+  expect(screen.getByLabelText("hover Input 1")).toBeChecked();
+  expect(screen.getByLabelText("click Input 0")).toBeEnabled();
+  expect(screen.getByLabelText("click Input 1")).toBeEnabled();
+
+  // Active again, the same values come back editable.
+  rerender(
+    <InputTable label="Test Table" onChange={jest.fn()} values={values} />,
+  );
+  expect(screen.getByLabelText("name Input 0")).toBeEnabled();
+  expect(screen.getByLabelText("hover Input 0")).toBeEnabled();
+  expect(screen.getByLabelText("hover Input 0")).not.toBeChecked();
+  expect(screen.getByLabelText("hover Input 1")).toBeChecked();
+});
+
 it("InputTable Placeholders", async () => {
   const label = "Test Table";
   const onChange = jest.fn();

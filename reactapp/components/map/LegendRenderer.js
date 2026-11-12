@@ -7,6 +7,7 @@ import {
   BsFillCircleFill,
   BsFillStarFill,
   BsDiamondFill,
+  BsGeoAltFill,
 } from "react-icons/bs";
 import { legendPropType } from "components/map/utilities";
 import styled from "styled-components";
@@ -40,6 +41,8 @@ export const legendSymbols = {
   diamond: BsDiamondFill,
   cross: RiAddFill,
   x: RotatedAdd,
+  // The clicked-location marker's shape, for the Map Selection legend entry.
+  pin: BsGeoAltFill,
 };
 
 const LegendWrapper = styled.div`
@@ -162,6 +165,10 @@ export const LegendSymbol = ({
   dotRadius = 2,
   strokeDash,
   strokeWidth = 4,
+  // Merged over each symbol's own style rather than replacing it: a
+  // single-item entry passes a margin, and an outline-only symbol (the Map
+  // Selection's transparent circle) is nothing without its stroke.
+  style,
   ...rest
 }) => {
   const isPolygonHatch = symbol === "polygon" && polygonFillType === "hatch";
@@ -243,6 +250,7 @@ export const LegendSymbol = ({
           border: `1px solid ${stroke || "#222"}`,
           borderRadius: 2,
           background: "none",
+          ...style,
         }}
         {...rest}
       >
@@ -282,6 +290,7 @@ export const LegendSymbol = ({
           border: `1px solid ${stroke || "#222"}`,
           borderRadius: 2,
           background: "none",
+          ...style,
         }}
         {...rest}
       >
@@ -329,7 +338,7 @@ export const LegendSymbol = ({
         height="8"
         viewBox="0 0 32 12"
         aria-label="linestring"
-        style={{ display: "block" }}
+        style={{ display: "block", ...style }}
         {...rest}
       >
         <line
@@ -355,7 +364,10 @@ export const LegendSymbol = ({
       aria-label={label}
       color={color}
       size={16}
-      style={stroke ? { stroke: stroke, strokeWidth: 1.33 } : {}}
+      style={{
+        ...(stroke ? { stroke: stroke, strokeWidth: 1.33 } : {}),
+        ...style,
+      }}
       {...rest}
     />
   );
@@ -789,6 +801,7 @@ LegendSymbol.propTypes = {
   dotRadius: PropTypes.number, // radius for dot pattern
   strokeDash: PropTypes.string, // stroke dash array for linestrings
   strokeWidth: PropTypes.number, // stroke width for linestrings
+  style: PropTypes.object, // merged over the symbol's own style
 };
 
 LegendRenderer.propTypes = {
