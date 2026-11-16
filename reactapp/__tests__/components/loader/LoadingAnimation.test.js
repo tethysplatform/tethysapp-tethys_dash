@@ -83,6 +83,14 @@ describe("LoadingAnimation", () => {
     }).not.toThrow();
   });
 
+  it("logs nothing when it has no text", () => {
+    render(<LoadingAnimation delay={0} text="" />);
+    act(() => {
+      jest.runAllTimers();
+    });
+    expect(infoSpy).not.toHaveBeenCalled();
+  });
+
   it("logs its text and detail to the console (not shown to users)", () => {
     render(
       <LoadingAnimation

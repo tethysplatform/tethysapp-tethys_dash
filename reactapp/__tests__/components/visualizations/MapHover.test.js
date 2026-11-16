@@ -673,6 +673,22 @@ describe("hiding the hover tooltip", () => {
     expect(mockedQueryLayerFeatures).not.toHaveBeenCalled();
     expect(tooltipPosition(mapRef)).toBeUndefined();
   });
+
+  test("a move during an extent draw starts no query", async () => {
+    twoFeatures();
+    const mapRef = await mountHoverMap([hoverLayer()], {
+      extentDrawMode: "rectangle",
+    });
+    // The mode is set as the map mounts. Let it take effect first, so the move
+    // below comes during the draw rather than just before it.
+    await outlastDebounce();
+
+    await hover(mapRef, [10, 20]);
+    await outlastDebounce();
+
+    expect(mockedQueryLayerFeatures).not.toHaveBeenCalled();
+    expect(tooltipPosition(mapRef)).toBeUndefined();
+  });
 });
 
 describe("stale hover results", () => {

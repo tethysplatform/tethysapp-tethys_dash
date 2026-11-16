@@ -1203,6 +1203,19 @@ describe("loading attributes from a GeoJSON URL", () => {
     );
   });
 
+  test("adds a sublayer the table does not list yet as a table of its own", async () => {
+    mockedGetLayerAttributes.mockResolvedValue({
+      "other-layer": [{ name: "field_x", alias: "field_x" }],
+    });
+    renderRemote({ order: { "remote-geojson": ["typed_in"] } });
+    await waitFor(() => expect(rowNames()).toEqual(["typed_in"]));
+
+    await userEvent.click(screen.getByLabelText("Load attributes from URL"));
+
+    await waitFor(() => expect(rowNames()).toEqual(["typed_in", "field_x"]));
+    expect(screen.getByText("other-layer")).toBeInTheDocument();
+  });
+
   test("keeps the table on screen while the file loads", async () => {
     let finish;
     mockedGetLayerAttributes.mockReturnValue(
