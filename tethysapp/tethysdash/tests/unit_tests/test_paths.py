@@ -1,14 +1,16 @@
-"""Direct contract tests for the shared path-containment rules.
+"""Direct contract tests for the shared naming and path-containment rules.
 
-Everything else exercises these through a controller or the cleanup sweep, so
-a refactor could change the contract while every integration test stayed green.
+Everything else exercises these through a controller, the storage helpers or the
+workspace sweeps, so a refactor could change the contract while every
+integration test stayed green.
 """
 
 import pytest
 
 from tethysapp.tethysdash.exceptions import UnsafePath
 from tethysapp.tethysdash.paths import (
-    resolve_dashboard_file,
+    require_canonical_dashboard_uuid,
+    require_layer_filename,
     resolve_dashboard_folder,
 )
 
@@ -29,49 +31,88 @@ def test_resolve_dashboard_folder_accepts_a_contained_name(tmp_path):
     assert folder == (tmp_path / VALID_UUID).resolve()
 
 
+@pytest.mark.parametrize("target", ["outside", "workspace"])
+def test_resolve_dashboard_folder_refuses_a_uuid_symlinked_out_of_the_workspace(
+    tmp_path, target
+):
+    """The uuid is canonical but names a symlink: to a folder outside the workspace,
+    or to the workspace itself."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (tmp_path / "outside").mkdir()
+    (workspace / VALID_UUID).symlink_to(tmp_path / target)
+
+    with pytest.raises(UnsafePath):
+        resolve_dashboard_folder(workspace, VALID_UUID)
+
+
 @pytest.mark.parametrize(
     "filename",
-    ["../escape.json", "/etc/passwd", "sub/../../out.json", "", ".", "..", None, {}],
+    [
+        "../escape.json",
+        "/etc/passwd",
+        "sub/../../out.json",
+        "sub/layer.json",
+        "..\\escape.json",
+        "a\0b.json",
+        "",
+        ".",
+        "..",
+        None,
+        {},
+        "page.html",
+        "layer.geojson",
+        "layer.json.html",
+    ],
 )
-def test_resolve_dashboard_file_refuses_escapes(tmp_path, filename):
+def test_require_layer_filename_refuses_anything_but_one_json_entry(filename):
+    """A remote storage takes any of these as a key, so the rule is the only guard; and
+    a web-served one takes the content type from the name, so it must end in .json."""
     with pytest.raises(UnsafePath):
-        resolve_dashboard_file(tmp_path, VALID_UUID, filename)
+        require_layer_filename(filename)
 
 
-def test_resolve_dashboard_file_accepts_a_contained_name(tmp_path):
-    folder, path = resolve_dashboard_file(tmp_path, VALID_UUID, "layer.v2.json")
-    assert folder == (tmp_path / VALID_UUID).resolve()
-    assert path == (tmp_path / VALID_UUID / "layer.v2.json").resolve()
+@pytest.mark.parametrize("filename", ["layer.json", "chart.v2.data.json", "..json"])
+def test_require_layer_filename_accepts_dots_inside_a_name(filename):
+    assert require_layer_filename(filename) == filename
+
+
+@pytest.mark.parametrize(
+    "dashboard_uuid",
+    [
+        f"{VALID_UUID}/sub",
+        VALID_UUID.upper(),
+        "{" + VALID_UUID + "}",
+        "geoglows_plots_cache",
+        "ab\0cd",
+        None,
+        123,
+    ],
+    ids=[
+        "nested_in_a_dashboard",
+        "uppercase",
+        "braced",
+        "plugin_folder",
+        "null_byte",
+        "none",
+        "integer",
+    ],
+)
+def test_require_canonical_dashboard_uuid_refuses_any_other_spelling(dashboard_uuid):
+    with pytest.raises(UnsafePath):
+        require_canonical_dashboard_uuid(dashboard_uuid)
+
+
+def test_require_canonical_dashboard_uuid_accepts_the_canonical_form():
+    assert require_canonical_dashboard_uuid(VALID_UUID) == VALID_UUID
 
 
 @pytest.mark.parametrize("bad", ["a\0b.json", "ab\0cd"])
 def test_embedded_null_bytes_are_refused_not_raised_raw(tmp_path, bad):
-    """Pins the except arm: without it a raw ValueError escapes to the generic
-    handler and the response message becomes 'embedded null byte'."""
-    with pytest.raises(UnsafePath):
-        resolve_dashboard_file(tmp_path, VALID_UUID, bad)
+    """Refused as UnsafePath by the uuid parse, before the path is ever resolved, so
+    no raw 'embedded null byte' ValueError reaches the caller."""
     with pytest.raises(UnsafePath):
         resolve_dashboard_folder(tmp_path, bad)
-
-
-def test_a_symlink_inside_the_folder_cannot_point_outward(tmp_path):
-    workspace = tmp_path / "workspace"
-    folder = workspace / VALID_UUID
-    folder.mkdir(parents=True)
-    outside = tmp_path / "outside.json"
-    outside.write_text("{}")
-    (folder / "link.json").symlink_to(outside)
-
-    with pytest.raises(UnsafePath):
-        resolve_dashboard_file(workspace, VALID_UUID, "link.json")
-
-
-def test_non_string_identifiers_are_refused_rather_than_coerced(tmp_path):
-    """A coerced None would resolve to a literal folder named 'None' and
-    succeed silently instead of failing."""
-    with pytest.raises(UnsafePath):
-        resolve_dashboard_file(tmp_path, None, None)
-    assert not (tmp_path / "None").exists()
 
 
 @pytest.mark.parametrize(

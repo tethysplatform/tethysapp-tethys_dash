@@ -933,10 +933,11 @@ const MapVisualization = ({
       const layersChanged =
         layers && !valuesEqual(layers, currentLayers.current);
       const baseMapChanged = !valuesEqual(baseMap, currentBaseMap.current);
-      // A refresh prepares every layer again from its saved config: saved
-      // style and GeoJSON files are downloaded again, and the map rebuilds the
-      // vector layers, so one drawn from a URL or a feature service fetches its
-      // features again. Plugin layers refetch on their own, in the fetcher.
+      // A refresh prepares every layer again from its saved config, and the
+      // map rebuilds the vector layers, so one drawn from a URL or a feature
+      // service fetches its features again. Saved style and GeoJSON files come
+      // from the page's download cache: a saved file never changes. Plugin
+      // layers refetch on their own, in the fetcher.
       const refreshed = refreshCount !== currentRefreshCount.current;
       if (layersChanged || baseMapChanged || refreshed) {
         const previousBaseMap = currentBaseMap.current;
@@ -1263,18 +1264,19 @@ const MapVisualization = ({
   // and `aliases` are the attribute maps to read them through, keyed by
   // sublayer: a click passes the maps it merged across its layers, and hover
   // passes the hovered feature's own layer's, since hover keeps no merged set.
+  // `variables` is always a map: the merged one starts empty, and hover calls
+  // only for a layer whose map links the feature's sublayer.
   const updateVariableInputsForFeature = (
     selectedFeature,
     { variables, aliases },
   ) => {
     const layerName = selectedFeature.layerName;
     const attributes = selectedFeature.attributes ?? {};
-    const mapAttributeVariables = variables ?? {};
 
     // for mapped variable inputs, get the selected feature values and set the variable inputs accordingly
-    if (layerName && mapAttributeVariables[layerName]) {
+    if (layerName && variables[layerName]) {
       let updatedVariableInputs = {};
-      for (const layerAttributeOrAlias in mapAttributeVariables[layerName]) {
+      for (const layerAttributeOrAlias in variables[layerName]) {
         // Try to derive both the alias and the original field name from attributeAliases
         let layerAttribute = layerAttributeOrAlias;
         let layerAttributeAlias = layerAttributeOrAlias;
@@ -1293,8 +1295,7 @@ const MapVisualization = ({
           }
         }
 
-        const variableInputName =
-          mapAttributeVariables[layerName][layerAttributeOrAlias];
+        const variableInputName = variables[layerName][layerAttributeOrAlias];
 
         // Prefer the field, fall back to the alias only when the field is
         // genuinely absent. A `||` here would also discard a real 0, "" or

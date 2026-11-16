@@ -43,6 +43,7 @@ import {
   attributePropsPropType,
   saveLayerJSON,
   hasLegend,
+  dynamicLayerPlaceholderGeoJSON,
 } from "components/map/utilities";
 import {
   resolveTablePopupType,
@@ -80,11 +81,37 @@ const StyledModalBody = styled(Modal.Body)`
   overflow-y: auto;
 `;
 
+// Laid over the Layer Templates row rather than in the footer's flow, so a
+// message never moves the buttons, and no wider than that row, so it never
+// covers them. Nor taller than the footer: its padding and margins leave 1rem
+// above and below the row, and the alert takes all but 0.25rem of each, so a
+// longer message scrolls inside it, beneath the close button. Padded like the
+// buttons beside it, which leaves room for two lines; the close button is
+// centred on the first.
 const StyledAlert = styled(Alert)`
-  left: 0;
   position: absolute;
-  margin-left: 1rem;
-  max-width: 75%;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  max-height: calc(100% + 1.5rem);
+  display: flex;
+  flex-direction: column;
+
+  .btn-close {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+`;
+
+// A long unbroken word, such as a URL in a template's error, would otherwise
+// set the alert's narrowest width and push it over the buttons.
+const AlertMessage = styled.div`
+  min-height: 0;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
 `;
 
 const FooterContent = styled.div`
@@ -101,6 +128,7 @@ const LeftGroup = styled.div`
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  position: relative;
 `;
 
 const RightGroup = styled.div`
@@ -108,12 +136,6 @@ const RightGroup = styled.div`
   gap: 0.5rem;
   align-items: center;
 `;
-
-const DYNAMIC_LAYER_PLACEHOLDER_GEOJSON = {
-  type: "FeatureCollection",
-  features: [],
-  crs: { type: "name", properties: { name: "EPSG:4326" } },
-};
 
 /**
  * The saved style of a raster layer (GeoTIFF or Zarr, static or dynamic): the
@@ -532,7 +554,7 @@ const MapLayerModal = ({
               : {
                   type: "GeoJSON",
                   props: {},
-                  geojson: DYNAMIC_LAYER_PLACEHOLDER_GEOJSON,
+                  geojson: dynamicLayerPlaceholderGeoJSON(),
                 },
             pluginSource: {
               source: sourceProps.source,
@@ -655,6 +677,22 @@ const MapLayerModal = ({
     if (!isRuntime && sourceProps.type === "GeoJSON") {
       const geoStr = (sourceProps.geojson ?? "").trim();
       const isJsonBody = geoStr.startsWith("{") || geoStr.startsWith("[");
+      // The map loads JSON text, or a URL, which it tells apart by the "/" in
+      // it. Anything else it would ask the server for as one of the
+      // dashboard's stored files -- names only an upload hands out -- so the
+      // layer would only fail later, as the map loads. The one such name kept
+      // is the layer's own, still there while the Source tab is downloading
+      // it, or when that download failed -- and, for a layer saved before this
+      // check, whatever it was saved with, which the Source tab never showed.
+      const savedGeoJSON = layerInfo?.sourceProps?.geojson;
+      const isSavedFile =
+        typeof savedGeoJSON === "string" &&
+        savedGeoJSON !== "" &&
+        geoStr === savedGeoJSON;
+      if (!isJsonBody && !geoStr.includes("/") && !isSavedFile) {
+        setErrorMessage("Enter GeoJSON, or a URL to a GeoJSON file.");
+        return;
+      }
       mapConfiguration.configuration.props.source.props = {};
       if (isJsonBody) {
         const apiResponse = await saveLayerJSON({
@@ -1119,17 +1157,17 @@ const MapLayerModal = ({
                   }),
                 }}
               />
+              {errorMessage && (
+                <StyledAlert
+                  key="danger"
+                  variant="danger"
+                  dismissible
+                  onClose={() => setErrorMessage("")}
+                >
+                  <AlertMessage>{errorMessage}</AlertMessage>
+                </StyledAlert>
+              )}
             </LeftGroup>
-            {errorMessage && (
-              <StyledAlert
-                key="danger"
-                variant="danger"
-                dismissible
-                onClose={() => setErrorMessage("")}
-              >
-                {errorMessage}
-              </StyledAlert>
-            )}
             <RightGroup>
               <Button
                 variant="secondary"

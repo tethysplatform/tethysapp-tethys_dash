@@ -1,10 +1,16 @@
-"""Path rules for a dashboard's files in the app workspace.
+"""Name rules for a dashboard's layer files.
 
-A dashboard's files live in a folder named by its canonical uuid, directly under
-the app workspace, which is shared with plugins. Paths are checked after they
-are resolved, so ``..`` segments, absolute names and symlinks are all held to
-the same rule. The request handlers and the model's cleanup sweeps share these
-helpers.
+A dashboard's layer files are stored through the default storage under a
+directory named by its canonical uuid, and each file is named by a single
+component ending in ``.json``: a remote backend takes "../other/file" as a key
+like any other, so a name is held to the rule before it is built rather than
+checked after it is resolved.
+
+They used to live in a folder of the same name directly under the app
+workspace, which is shared with plugins. The workspace rule remains for the
+sweeps that move those folders' files into the storage: there, a folder is
+checked after it is resolved, so a symlink cannot carry it out of the
+workspace.
 """
 
 from pathlib import Path
@@ -22,37 +28,11 @@ def canonical_dashboard_uuid(value):
     return str(UUID(str(value)))
 
 
-def _resolve_contained(parent, name):
-    """Resolve ``name`` under ``parent``, or raise :class:`UnsafePath`.
+def require_canonical_dashboard_uuid(dashboard_uuid):
+    """Return the uuid if it is already canonical, or raise :class:`UnsafePath`.
 
-    Rejects a name that is not a string rather than coercing it: coercion turns
-    a null or structured value into a literal folder called ``None`` or
-    ``{'a': 1}``, which succeeds silently instead of failing loudly.
-
-    Equality with the parent is refused alongside containment, because a path
-    is relative to itself -- without it an empty or ``.`` name would resolve
-    onto the parent and address the folder rather than something inside it.
-    """
-    if not isinstance(name, str) or not name:
-        raise UnsafePath()
-    try:
-        resolved = (parent / name).resolve()
-    except (ValueError, OSError):
-        # Embedded null bytes land here.
-        raise UnsafePath()
-
-    if not resolved.is_relative_to(parent) or resolved == parent:
-        raise UnsafePath()
-
-    return resolved
-
-
-def resolve_dashboard_folder(workspace_path, dashboard_uuid):
-    """Resolve a dashboard's folder, or raise :class:`UnsafePath`.
-
-    The uuid must already be canonical, not merely convertible: an uppercase or
-    braced spelling would name a different folder from the one the dashboard's
-    stored uuid names.
+    Canonical, not merely convertible: an uppercase or braced spelling would name a
+    different directory from the one the dashboard's stored uuid names.
     """
     try:
         is_canonical = canonical_dashboard_uuid(dashboard_uuid) == dashboard_uuid
@@ -60,14 +40,40 @@ def resolve_dashboard_folder(workspace_path, dashboard_uuid):
         is_canonical = False
     if not is_canonical:
         raise UnsafePath()
-    return _resolve_contained(Path(workspace_path).resolve(), dashboard_uuid)
+    return dashboard_uuid
 
 
-def resolve_dashboard_file(workspace_path, dashboard_uuid, filename):
-    """Resolve a file inside a dashboard's folder, or raise :class:`UnsafePath`.
+def require_layer_filename(filename):
+    """Return the filename if it can name a layer file, or raise :class:`UnsafePath`.
 
-    Returns the folder as well, because the write path needs it to create the
-    directory once the name has been cleared.
+    That is one entry -- a non-empty string holding no path separator or null byte
+    that is not ``.`` or ``..`` -- ending in ``.json``. The ending matters because a
+    web-served media storage takes a file's content type from it: stored as
+    ``page.html``, a layer file would be served as a page from the portal's own
+    domain. A name that is not a string is refused rather than coerced: coercion
+    turns a null or structured value into a literal file called ``None`` or
+    ``{'a': 1}``, which succeeds silently instead of failing loudly.
     """
-    dashboard_folder = resolve_dashboard_folder(workspace_path, dashboard_uuid)
-    return dashboard_folder, _resolve_contained(dashboard_folder, filename)
+    if (
+        not isinstance(filename, str)
+        or filename in ("", ".", "..")
+        or any(character in filename for character in ("/", "\\", "\x00"))
+        or not filename.endswith(".json")
+    ):
+        raise UnsafePath()
+    return filename
+
+
+def resolve_dashboard_folder(workspace_path, dashboard_uuid):
+    """Resolve a dashboard's workspace folder, or raise :class:`UnsafePath`.
+
+    A canonical uuid names one entry directly under the workspace, but that entry
+    may be a symlink, so the folder is checked once resolved: it must still lie
+    inside the workspace, and must not be the workspace itself, which a path is
+    always relative to.
+    """
+    workspace = Path(workspace_path).resolve()
+    resolved = (workspace / require_canonical_dashboard_uuid(dashboard_uuid)).resolve()
+    if not resolved.is_relative_to(workspace) or resolved == workspace:
+        raise UnsafePath()
+    return resolved

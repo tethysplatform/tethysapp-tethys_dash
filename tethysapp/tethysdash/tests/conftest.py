@@ -171,6 +171,8 @@ def mock_app_get_ps_db(session_maker, mocker):
         mock_app.get_persistent_store_database.return_value = session_maker
         mock_app.root_url = "tethysdash"
         mock_app.package = "tethysdash"
+        # An unset custom setting reads as None, as Tethys answers one.
+        mock_app.get_custom_setting.return_value = None
         return mock_app
 
     return mock_app_factory
@@ -474,6 +476,8 @@ def mock_app(mocker):
         mock_app.render.return_value = HttpResponse("Success")
         mock_app.root_url = "app_root"
         mock_app.package = "tethysdash"
+        # An unset custom setting reads as None, as Tethys answers one.
+        mock_app.get_custom_setting.return_value = None
         return mock_app
 
     return mocked_path

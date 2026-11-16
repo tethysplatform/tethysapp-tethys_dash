@@ -22,7 +22,7 @@ from tethysapp.tethysdash.model import (
     copy_named_dashboard,
     delete_named_dashboard,
     update_named_dashboard,
-    clean_up_jsons,
+    clean_up_dashboard_files,
     get_user_permission_groups,
     update_permission_groups,
     delete_permission_groups,
@@ -37,6 +37,8 @@ from tethysapp.tethysdash.model import (
     delete_thumbnail,
     can_edit_dashboard,
     can_view_dashboard,
+    read_layer_file,
+    store_layer_file,
 )
 from django.core.cache import cache
 from tethysapp.tethysdash.visualizations import (
@@ -45,8 +47,12 @@ from tethysapp.tethysdash.visualizations import (
     get_restricted_visualizations,
 )
 from tethysapp.tethysdash.auth import require_login
-from tethysapp.tethysdash.exceptions import INVALID_FILE_PATH, VisualizationError
-from tethysapp.tethysdash.paths import resolve_dashboard_file
+from tethysapp.tethysdash.exceptions import (
+    INVALID_FILE_PATH,
+    LayerStorageQuotaExceeded,
+    UnsafePath,
+    VisualizationError,
+)
 from tethysapp.tethysdash.utilities import sanitize_json_values
 from sqlalchemy.exc import SQLAlchemyError
 from tethysapp.tethysdash.plugin_helpers import send_websocket_message
@@ -318,7 +324,7 @@ def dashboards(request):
     API controller for retrieving user and public dashboards.
 
     Gets all dashboards accessible to the current user, along with their
-    permission groups. Also performs cleanup of old JSON files.
+    permission groups.
 
     Args:
         request: Django HTTP request object
@@ -347,7 +353,6 @@ def dashboards(request):
     if support_info:
         response["support_info"] = support_info
 
-    clean_up_jsons(user)
     return JsonResponse(response)
 
 
@@ -903,12 +908,24 @@ def update_dashboard(request):
 
     dashboard_id = dashboard_updates.pop("id")
     user = request.user
+    saves_layers = "tabs" in dashboard_updates
 
     try:
         updated_dashboard = update_named_dashboard(
             user, dashboard_id, dashboard_updates
         )
         print(f"Successfully updated the dashboard {dashboard_id}")
+
+        # The save is committed by now, so a sweep that fails must not report it as
+        # failed; the files it missed are swept with the next save.
+        if saves_layers:
+            try:
+                clean_up_dashboard_files(dashboard_id)
+            except Exception as error:
+                print(
+                    f"Could not remove the unused layer files of dashboard "
+                    f"{dashboard_id}: {error}"
+                )
 
         return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
     except Exception as e:
@@ -1026,28 +1043,29 @@ def delete_permission_group(request):
 
 
 @api_view(["POST"])
-@controller(url="tethysdash/json/upload", login_required=True, app_workspace=True)
+@controller(url="tethysdash/json/upload", login_required=True)
 @require_login
-def upload_json(request, app_workspace):
+def upload_json(request):
     """
-    API controller for uploading JSON data files.
+    API controller for uploading a map layer's JSON file.
 
-    Uploads and sanitizes JSON data to the application workspace. Creates
-    necessary directories and user-specific tracking files.
+    Sanitizes the JSON and stores it through the default storage among the
+    dashboard's layer files, counted against the uploader's layer storage limit.
+    The file is named here, with a fresh uuid, and never by the caller: a
+    web-served media storage takes a file's content type from its name, so a
+    caller-chosen ``page.html`` would be served as a page from the portal's domain.
 
     Args:
         request: Django HTTP request object with JSON body containing:
             - data: String containing JSON data to upload
-            - filename: String filename for the JSON file
             - dashboard_uuid: uuid of an existing dashboard the caller holds
               editor or admin permission on; any refusal answers
               "Invalid file path."
-        app_workspace: Tethys app workspace directory for storing files
 
     Returns:
         JsonResponse: Dictionary containing:
             - success: Boolean indicating if upload was successful
-            - filename: Name of the uploaded file if successful
+            - filename: The name the file was stored under, if successful
             - message: Error message if unsuccessful
     """
 
@@ -1055,7 +1073,6 @@ def upload_json(request, app_workspace):
 
     try:
         data = json_data["data"]
-        filename = json_data["filename"]
         dashboard_uuid = json_data["dashboard_uuid"]
         if not can_edit_dashboard(request.user, dashboard_uuid):
             print(
@@ -1063,6 +1080,7 @@ def upload_json(request, app_workspace):
                 f"for {request.user.username}"
             )
             return JsonResponse({"success": False, "message": INVALID_FILE_PATH})
+        filename = f"{uuid.uuid4()}.json"
         print(f"Uploading {filename}")
 
         try:
@@ -1070,35 +1088,44 @@ def upload_json(request, app_workspace):
         except (TypeError, ValueError):
             # Fail here, where the cause can be named, rather than at download
             # time where every failure reports the same refusal.
-            raise Exception("The uploaded content is not valid JSON.")
+            return JsonResponse(
+                {"success": False, "message": "The uploaded content is not valid JSON."}
+            )
         clean_data = json.dumps(sanitize_json_values(parsed))
 
-        dashboard_folder, dashboard_file = resolve_dashboard_file(
-            app_workspace.path, dashboard_uuid, filename
+        store_layer_file(
+            request.user, dashboard_uuid, filename, clean_data.encode("utf-8")
         )
-        dashboard_folder.mkdir(exist_ok=True)
-
-        with open(dashboard_file, "w") as outfile:
-            outfile.write(clean_data)
 
         return JsonResponse({"success": True, "filename": filename})
 
     except KeyError:
         return JsonResponse({"success": False, "message": INVALID_FILE_PATH})
+    except (UnsafePath, LayerStorageQuotaExceeded) as e:
+        return JsonResponse({"success": False, "message": str(e)})
     except Exception as e:
-        message = _get_error_message(
-            e, "Failed to upload the json. Check server for logs."
+        # A storage backend's own message names its bucket, keys or credentials, so
+        # it stays in the log.
+        print(f"Failed to upload a layer file: {e}")
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "Failed to upload the json. Check server for logs.",
+            }
         )
-        return JsonResponse({"success": False, "message": message})
 
 
 @api_view(["GET"])
-@controller(url="tethysdash/json/download", login_required=False, app_workspace=True)
-def download_json(request, app_workspace):
+@controller(url="tethysdash/json/download", login_required=False)
+def download_json(request):
     """
-    API controller for downloading JSON data files.
+    API controller for downloading a map layer's JSON file.
 
-    Downloads and sanitizes JSON data from the application workspace.
+    Reads one of the dashboard's layer files from the default storage and sanitizes
+    it. The app hands out no storage URL for these files, so the reads it makes all
+    come through here and take the dashboard's view permission. A storage that is
+    itself served on the web, as media usually is, still answers anyone who has a
+    file's exact name, as it does for thumbnails.
 
     Args:
         request: Django HTTP request object with query parameters:
@@ -1106,7 +1133,6 @@ def download_json(request, app_workspace):
             - dashboard_uuid: uuid of a dashboard the caller may view (public
               dashboards included, signed out); any refusal answers
               "Invalid file path."
-        app_workspace: Tethys app workspace directory containing files
 
     Returns:
         JsonResponse: Dictionary containing:
@@ -1122,11 +1148,7 @@ def download_json(request, app_workspace):
             return JsonResponse({"success": False, "message": INVALID_FILE_PATH})
         print(f"Getting data from {filename}")
 
-        _, dashboard_file = resolve_dashboard_file(
-            app_workspace.path, dashboard_uuid, filename
-        )
-        with open(dashboard_file, "r") as file:
-            data = sanitize_json_values(json.load(file))
+        data = sanitize_json_values(read_layer_file(dashboard_uuid, filename))
 
         return JsonResponse({"success": True, "data": data})
     except Exception as e:

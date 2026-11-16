@@ -1923,37 +1923,92 @@ describe("MapLayerModal GeoTIFF save path", () => {
 });
 
 describe("MapLayerModal save-path nullish fallbacks and sub-modal zIndex", () => {
-  test("GeoJSON save with no `geojson` key falls back to '' and stores empty string", async () => {
-    // Covers the right side of `(sourceProps.geojson ?? "").trim()` at
-    // line 282. With geojson undefined, geoStr is "", isJsonBody is false,
-    // so the URL/filename branch stores the empty string verbatim.
-    const handleModalClose = jest.fn();
+  test("refuses GeoJSON typed as text that is neither JSON nor a URL", async () => {
+    const uploadSpy = jest.spyOn(appAPI, "uploadJSON");
     const addMapLayer = jest.fn();
-    const layerInfo = {
-      layerProps: { name: "GeoJSON No Geojson" },
-      sourceProps: {
-        type: "GeoJSON",
-        props: {},
-        // No geojson key.
-      },
-    };
-
     render(
       <TestingComponent
         showModal={true}
-        handleModalClose={handleModalClose}
+        handleModalClose={jest.fn()}
         addMapLayer={addMapLayer}
-        layerInfo={layerInfo}
+        layerInfo={{
+          layerProps: { name: "GeoJSON Layer" },
+          sourceProps: { type: "GeoJSON", props: {}, geojson: "{}" },
+        }}
+      />,
+    );
+
+    fireEvent.click(await screen.findByText("Source"));
+    fireEvent.change(screen.getByLabelText("geojson-source-text-area"), {
+      target: { value: "python3 -c 'print(1)' | clip.exe" },
+    });
+    fireEvent.click(screen.getByLabelText("Create Layer Button"));
+
+    expect(
+      await screen.findByText("Enter GeoJSON, or a URL to a GeoJSON file."),
+    ).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+    expect(uploadSpy).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["nothing", undefined],
+    ["an empty string", ""],
+    ["only whitespace", "   "],
+  ])("refuses a GeoJSON layer holding %s", async (_, geojson) => {
+    const uploadSpy = jest.spyOn(appAPI, "uploadJSON");
+    const addMapLayer = jest.fn();
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          layerProps: { name: "GeoJSON Layer" },
+          sourceProps: { type: "GeoJSON", props: {}, geojson },
+        }}
       />,
     );
 
     fireEvent.click(await screen.findByLabelText("Create Layer Button"));
-    await waitFor(() => {
-      expect(addMapLayer).toHaveBeenCalledTimes(1);
-    });
+
+    expect(
+      await screen.findByText("Enter GeoJSON, or a URL to a GeoJSON file."),
+    ).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+    expect(uploadSpy).not.toHaveBeenCalled();
+  });
+
+  test("keeps the layer's own stored file while the Source tab is still downloading it", async () => {
+    const downloadSpy = jest
+      .spyOn(appAPI, "downloadJSON")
+      .mockReturnValue(new Promise(() => {}));
+    const uploadSpy = jest.spyOn(appAPI, "uploadJSON");
+    const addMapLayer = jest.fn();
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          layerProps: { name: "Stored GeoJSON" },
+          sourceProps: { type: "GeoJSON", props: {}, geojson: "stored.json" },
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(downloadSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ filename: "stored.json" }),
+      ),
+    );
+    fireEvent.click(screen.getByLabelText("Create Layer Button"));
+
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
     expect(
       addMapLayer.mock.calls[0][0].configuration.props.source.geojson,
-    ).toBe("");
+    ).toBe("stored.json");
+    expect(uploadSpy).not.toHaveBeenCalled();
   });
 
   test("a ramp-styled GeoTIFF always guards the alpha band", async () => {
@@ -1992,11 +2047,10 @@ describe("MapLayerModal save-path nullish fallbacks and sub-modal zIndex", () =>
   });
 });
 
-describe("MapLayerModal GeoJSON URL/filename path", () => {
+describe("MapLayerModal GeoJSON URL path", () => {
   test("save with a GeoJSON URL string stores it directly without uploading", async () => {
-    // Covers line 306: when sourceProps.geojson is a non-empty string that
-    // doesn't start with `{` or `[`, save bypasses the saveLayerJSON upload
-    // and stores the URL/filename directly on source.geojson.
+    // A URL bypasses the saveLayerJSON upload and is stored directly on
+    // source.geojson, for the map to fetch.
     const uploadSpy = jest
       .spyOn(appAPI, "uploadJSON")
       .mockResolvedValue({ success: true, filename: "should-not-upload.json" });

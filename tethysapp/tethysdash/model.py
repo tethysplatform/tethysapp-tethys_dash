@@ -7,6 +7,7 @@ It also provides functions for creating, updating, and managing these entities.
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (
+    BigInteger,
     Column,
     Integer,
     String,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.orm import relationship
 import json
@@ -26,14 +28,20 @@ from tethys_sdk.paths import get_app_workspace
 from urllib.parse import urlsplit
 import base64
 from alembic import command, script, config
-from sqlalchemy.exc import ProgrammingError, OperationalError
+from sqlalchemy.exc import IntegrityError, ProgrammingError, OperationalError
 from sqlalchemy import CheckConstraint
 from pathlib import Path
 import subprocess
 from tethysapp.tethysdash.utilities import sanitize_html
-from tethysapp.tethysdash.exceptions import DASHBOARD_NOT_FOUND, UnsafePath
+from tethysapp.tethysdash.exceptions import (
+    DASHBOARD_NOT_FOUND,
+    LayerStorageQuotaExceeded,
+    UnsafePath,
+)
 from tethysapp.tethysdash.paths import (
     canonical_dashboard_uuid,
+    require_canonical_dashboard_uuid,
+    require_layer_filename,
     resolve_dashboard_folder,
 )
 from django.contrib.auth import get_user_model
@@ -98,24 +106,28 @@ def _versioned(url, saved_at):
     return f"{url}?v={int(saved_at.timestamp() * 1000)}"
 
 
-def save_thumbnail(dashboard_uuid, content):
-    """Write a thumbnail through the default storage, replacing any existing one.
+def _save_replacing(name, content):
+    """Write content under name through the default storage, replacing any existing one.
 
     Storage backends suffix a name that is already taken rather than overwriting it, so the
     old object is deleted first; deleting a name that is absent is a no-op. If the backend
     still hands back a different name then a concurrent save took the canonical one. That
     object is unreachable, because every read rebuilds the canonical name, so it is removed
-    and the caller told, rather than left behind as an orphan the URL never points at.
+    and the caller told, rather than left behind as an orphan nothing points at.
     """
-    name = thumbnail_name(dashboard_uuid)
     default_storage.delete(name)
     saved = default_storage.save(name, ContentFile(content))
     if saved != name:
         default_storage.delete(saved)
         raise RuntimeError(
-            f"thumbnail for {dashboard_uuid} could not be stored as {name}: the storage "
-            f"returned {saved}, so another save holds that name"
+            f"{name} could not be stored: the storage returned {saved}, so another save "
+            "holds that name"
         )
+
+
+def save_thumbnail(dashboard_uuid, content):
+    """Write a thumbnail through the default storage, replacing any existing one."""
+    _save_replacing(thumbnail_name(dashboard_uuid), content)
 
 
 def thumbnail_url(dashboard_uuid):
@@ -184,33 +196,88 @@ def copy_thumbnail(source_uuid, target_uuid):
         save_thumbnail(target_uuid, handle.read())
 
 
-def copy_dashboard_files(source_uuid, target_uuid):
-    """Copy one dashboard's layer files into another's folder, if it has any.
+def layer_file_directory(dashboard_uuid):
+    """Return the default storage directory holding one dashboard's layer files.
 
-    Grid items name their GeoJSON and style files without a folder, and each dashboard
-    reads them from its own, so a copy without the files fails every file-backed layer.
-    Only regular files are copied; symlinks are not followed.
+    A sibling of the thumbnail directory, so listing the thumbnails never meets it. Raises
+    UnsafePath unless the uuid is canonical.
     """
     from tethysapp.tethysdash.app import App
 
-    workspace_path = get_app_workspace(App).path
-    source = resolve_dashboard_folder(workspace_path, source_uuid)
-    if not source.is_dir():
-        return
-    target = resolve_dashboard_folder(workspace_path, target_uuid)
-    target.mkdir(exist_ok=True)
-    for entry in os.scandir(source):
-        if entry.is_file(follow_symlinks=False):
-            shutil.copy2(entry.path, target / entry.name)
+    return f"{App.package}/layers/{require_canonical_dashboard_uuid(dashboard_uuid)}"
+
+
+def layer_file_name(dashboard_uuid, filename):
+    """Return the default storage name of one of a dashboard's layer files.
+
+    Map layers name their GeoJSON and style files without a directory, and each dashboard
+    reads them from its own. Raises UnsafePath unless the filename is a single entry
+    ending in .json.
+    """
+    return f"{layer_file_directory(dashboard_uuid)}/{require_layer_filename(filename)}"
+
+
+def copy_dashboard_files(source_uuid, target_uuid):
+    """Fill a dashboard copy's layer files from the original's.
+
+    A copy's grid items name the original's files, so a copy without them fails every
+    file-backed layer. copy_named_dashboard has already indexed the copy's files, charged
+    to its new owner in the same transaction as the check against their allowance, so
+    this only copies what the index lists. A file that cannot be copied -- gone from the
+    storage, or a storage error, which a remote backend may report for a missing object
+    too -- is logged and its row dropped, so the index never lists a file the storage
+    lacks, and the copy goes on to the rest.
+    """
+    from tethysapp.tethysdash.app import App
+
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+
+    try:
+        target = session.query(Dashboard).filter(Dashboard.uuid == target_uuid).first()
+        if target is None:
+            return
+        for record in list(target.layer_files):
+            filename = record.filename
+            try:
+                with default_storage.open(
+                    layer_file_name(source_uuid, filename), "rb"
+                ) as handle:
+                    content = handle.read()
+                _save_replacing(layer_file_name(target_uuid, filename), content)
+            except Exception as error:
+                print(
+                    f"Skipped the layer file {filename} while copying dashboard "
+                    f"{source_uuid}: {error}"
+                )
+                # Its own attempt, so a failure here costs only this row -- left
+                # charged for a file that never arrived -- and the rest still copy.
+                try:
+                    session.delete(record)
+                    session.commit()
+                except Exception as drop_error:
+                    session.rollback()
+                    print(
+                        f"Could not drop the index row of {filename} from the copy "
+                        f"{target_uuid}: {drop_error}"
+                    )
+    finally:
+        session.close()
 
 
 def delete_dashboard_files(dashboard_uuid):
-    """Remove a dashboard's layer-file folder, if it has one."""
-    from tethysapp.tethysdash.app import App
+    """Remove a dashboard's layer files from the default storage.
 
-    folder = resolve_dashboard_folder(get_app_workspace(App).path, dashboard_uuid)
-    if folder.is_dir():
-        shutil.rmtree(folder)
+    Runs once the dashboard and its index rows are gone, so the storage itself is listed,
+    which also catches a file stored without a row.
+    """
+    directory = layer_file_directory(dashboard_uuid)
+    try:
+        _, files = default_storage.listdir(directory)
+    except FileNotFoundError:
+        return
+    for name in files:
+        default_storage.delete(f"{directory}/{name}")
 
 
 def delete_thumbnail(dashboard_uuid):
@@ -238,6 +305,7 @@ class Dashboard(Base):
         last_updated (datetime): Timestamp of last modification
         permissions (relationship): Related dashboard permissions
         grid_items (relationship): Related grid items in the dashboard
+        layer_files (relationship): Index of the dashboard's stored layer files
     """
 
     __tablename__ = "dashboards"
@@ -272,6 +340,11 @@ class Dashboard(Base):
         back_populates="dashboard",
         cascade="all, delete-orphan",
         order_by="DashboardTab.tab_order",
+    )
+    layer_files = relationship(
+        "LayerFile",
+        back_populates="dashboard",
+        cascade="all, delete-orphan",
     )
 
 
@@ -398,6 +471,39 @@ class DashboardPermission(Base):
 
     dashboard = relationship("Dashboard", back_populates="permissions")
     group = relationship("PermissionGroup")
+
+
+class LayerFile(Base):
+    """
+    SQLAlchemy model indexing one map layer file kept in the default storage.
+
+    The table is the record of which files a dashboard holds, so copying, sweeping and
+    quota checks read it rather than listing the storage, where every listing is a network
+    round trip on a remote backend. It also records whose layer storage allowance the file
+    counts against: the user who uploaded it.
+
+    Attributes:
+        id (int): Primary key identifier
+        dashboard_id (int): Foreign key to the dashboard holding the file
+        filename (str): The file's name, as the dashboard's map layers reference it
+        size (int): The stored size in bytes
+        username (str): The user whose layer storage allowance the file counts against
+        dashboard (relationship): Reference to the dashboard
+    """
+
+    __tablename__ = "layer_files"
+
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id"), nullable=False)
+    filename = Column(String, nullable=False)
+    size = Column(BigInteger, nullable=False)
+    username = Column(String, nullable=False, index=True)
+
+    __table_args__ = (
+        UniqueConstraint("dashboard_id", "filename", name="_dashboard_layer_file"),
+    )
+
+    dashboard = relationship("Dashboard", back_populates="layer_files")
 
 
 class VisualizationPermission(Base):
@@ -871,6 +977,16 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
         ):
             raise _dashboard_not_found("copy", id, user)
 
+        # The copy's layer files count against its new owner, so a copy that would take
+        # them past their allowance is refused before anything is created. On
+        # PostgreSQL the check holds the owner's rows locked until the copy's own rows
+        # are committed below, so copies made side by side cannot each pass on the
+        # same total.
+        original_layer_files = list(original_dashboard.layer_files)
+        ensure_layer_storage(
+            session, user, sum(record.size for record in original_layer_files)
+        )
+
         copied_dashboard_uuid = original_dashboard.uuid
 
         new_dashboard = Dashboard(
@@ -937,6 +1053,18 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
         )
         session.add(admin_permission)
         new_dashboard.permissions = [admin_permission]
+
+        # Charged to the new owner now, in the transaction the check ran in; the files
+        # themselves are filled in by copy_dashboard_files once this is committed.
+        for record in original_layer_files:
+            session.add(
+                LayerFile(
+                    dashboard_id=new_dashboard.id,
+                    filename=record.filename,
+                    size=record.size,
+                    username=stored_identity(user),
+                )
+            )
 
         session.commit()  # Save everything
     finally:
@@ -2164,139 +2292,228 @@ def get_dashboards(user, dashboard_view=False, id=None):
         session.close()
 
 
-def clean_up_jsons(user):
-    """
-    Remove unused JSON files from the workspace.
+LAYER_STORAGE_QUOTA_SETTING = "layer_storage_quota_mb"
 
-    Identifies and removes JSON files that are no longer referenced by any
-    of the user's dashboards, particularly GeoJSON and style files used
-    in map visualizations.
+
+def layer_storage_quota_bytes(user):
+    """The most layer file storage a user may hold, in bytes, or None for no limit.
+
+    Portal superusers are not limited. The app setting is in megabytes and reads its
+    declared default while left blank; zero or less turns the limit off.
+    """
+    if getattr(user, "is_superuser", False):
+        return None
+
+    from tethysapp.tethysdash.app import App
+
+    megabytes = App.get_custom_setting(LAYER_STORAGE_QUOTA_SETTING)
+    if megabytes is None or megabytes <= 0:
+        return None
+    return megabytes * 1024 * 1024
+
+
+def layer_storage_used(session, username):
+    """Total size in bytes of the layer files counted against a user."""
+    return (
+        session.query(func.coalesce(func.sum(LayerFile.size), 0))
+        .filter(LayerFile.username == username)
+        .scalar()
+    )
+
+
+def _lock_layer_storage(session, username):
+    """Lock a user's index rows until the session's transaction ends.
+
+    Taken by every store that checks or changes what a user is charged, so that one
+    user's stores take turns. Locking an already-held lock again is a no-op. Only on
+    PostgreSQL: SQLite has no row locks, and SQLAlchemy emits nothing for this there.
+    """
+    session.query(LayerFile.id).filter(
+        LayerFile.username == username
+    ).with_for_update().all()
+
+
+def ensure_layer_storage(session, user, size):
+    """Raise LayerStorageQuotaExceeded if size more bytes take user past their limit.
+
+    Storing nothing is never refused, so a user already over the limit -- as moving old
+    workspace files can leave an owner -- can still copy a dashboard that holds no files.
+
+    On PostgreSQL the user's rows stay locked until the caller's transaction ends, so
+    their stores are checked one at a time rather than each passing on the same total.
+    A user with no rows yet has nothing to lock, so only their first stores can race
+    past the limit. On SQLite nothing is locked, and stores made at the same moment can
+    each pass.
+    """
+    limit = layer_storage_quota_bytes(user)
+    if limit is None or size <= 0:
+        return
+    username = stored_identity(user)
+    _lock_layer_storage(session, username)
+    used = layer_storage_used(session, username)
+    if used + size > limit:
+        raise LayerStorageQuotaExceeded(used, limit)
+
+
+def store_layer_file(user, dashboard_uuid, filename, content):
+    """Store a new layer file for a dashboard and count it against the uploader.
+
+    The caller has checked that user may edit the dashboard, and names the file afresh:
+    upload_json mints a uuid for every upload. A name is stored once and never replaced,
+    so what a name holds never changes, and the browser can keep what it has downloaded.
 
     Args:
-        user: User object to clean up files for
-    """
-    username = stored_identity(user)
-    if username is None:
-        # A user with no identity can edit nothing, so has nothing to sweep.
-        return
+        user: The uploading user
+        dashboard_uuid (str): Canonical uuid of the dashboard the file belongs to
+        filename (str): The name the dashboard's map layers reference it by
+        content (bytes): The file's content
 
-    print("Checking to see if there are any unused json files to remove")
+    Raises:
+        UnsafePath: If the uuid or filename cannot name a stored file, no dashboard has
+            the uuid, or the dashboard already holds a file of that name
+        LayerStorageQuotaExceeded: If the file would take user past their allowance
+    """
+    # Checked before anything is looked up, so a refused name touches nothing.
+    name = layer_file_name(dashboard_uuid, filename)
+    username = stored_identity(user)
+
     from tethysapp.tethysdash.app import App
 
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
+
     try:
-        # Get all dashboards the user can edit (editor or admin permission)
-        user_dashboards = (
-            session.query(Dashboard)
-            .join(DashboardPermission)
-            .filter(
-                (DashboardPermission.username == username)
-                & (
-                    DashboardPermission.permission.in_(
-                        [
-                            "admin",
-                            "editor",
-                        ]
-                    )
-                )
-            )
-            .all()
+        dashboard = (
+            session.query(Dashboard).filter(Dashboard.uuid == dashboard_uuid).first()
         )
-        # Also include dashboards where user is in a group with editor/admin permission
-        user_groups = (
-            session.query(PermissionGroup.id)
-            .join(
-                PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id
+        if dashboard is None:
+            raise UnsafePath()
+        ensure_layer_storage(session, user, len(content))
+
+        # The row goes in before the file, and its unique constraint is what refuses
+        # a name already stored -- including one a concurrent store has yet to
+        # commit, which this waits on rather than writing over. A failed write rolls
+        # the row back with the session.
+        session.add(
+            LayerFile(
+                dashboard_id=dashboard.id,
+                filename=filename,
+                size=len(content),
+                username=username,
             )
-            .filter(PermissionGroupUser.username == username)
-            .all()
         )
-        user_group_ids = [g[0] for g in user_groups]
-        group_dashboards = (
-            session.query(Dashboard)
-            .join(DashboardPermission)
-            .filter(
-                (DashboardPermission.group_id.in_(user_group_ids))
-                & (
-                    DashboardPermission.permission.in_(
-                        [
-                            "admin",
-                            "editor",
-                        ]
-                    )
-                )
-            )
-            .all()
-        )
-        # Combine and deduplicate dashboards
-        all_dashboards = {d.id: d for d in user_dashboards + group_dashboards}.values()
+        try:
+            session.flush()
+        except IntegrityError:
+            raise UnsafePath() from None
 
-        app_workspace = get_app_workspace(App)
-        for dashboard in all_dashboards:
-            dashboard_uuid = dashboard.uuid
-            try:
-                dashboard_folder = resolve_dashboard_folder(
-                    app_workspace.path, dashboard_uuid
-                )
-            except UnsafePath:
-                # Only a canonical dashboard uuid names a folder.
-                print(f"Skipping cleanup of non-canonical uuid {dashboard_uuid}")
-                continue
-            if not dashboard_folder.exists():
-                continue
-            # Collect all in-use jsons for this dashboard
-            in_use_jsons = []
-            maps_grid_items_layers = flatten(
-                [
-                    json.loads(grid_item.args_string)["layers"]
-                    for grid_item in dashboard.grid_items
-                    if grid_item.source == "Map"
-                ]
-            )
-            if maps_grid_items_layers:
-                json_files = [
-                    maps_grid_items_layer["configuration"]["props"]["source"]["geojson"]
-                    for maps_grid_items_layer in maps_grid_items_layers
-                    if maps_grid_items_layer["configuration"]["props"]["source"]["type"]
-                    == "GeoJSON"
-                ]
-                in_use_jsons.extend(json_files)
-
-                stylejson_files = [
-                    maps_grid_items_layer["configuration"]["style"]
-                    for maps_grid_items_layer in maps_grid_items_layers
-                    if "style" in maps_grid_items_layer["configuration"]
-                ]
-                in_use_jsons.extend(stylejson_files)
-
-            # Remove unused files in dashboard folder
-            existing_files = os.listdir(dashboard_folder)
-            unused_files = [f for f in existing_files if f not in in_use_jsons]
-            for unused_file in unused_files:
-                unused_path = os.path.join(dashboard_folder, unused_file)
-                if not os.path.isfile(unused_path):
-                    # Uploads only write files here; leave anything else alone.
-                    continue
-                print(f"Removing the {unused_file} file from {dashboard_folder}")
-                os.remove(unused_path)
+        _save_replacing(name, content)
+        try:
+            session.commit()
+        except Exception:
+            # Unindexed, the file would never be charged, copied or swept.
+            default_storage.delete(name)
+            raise
     finally:
         session.close()
 
-    return
+
+def read_layer_file(dashboard_uuid, filename):
+    """Return the parsed JSON of one of a dashboard's stored layer files."""
+    with default_storage.open(
+        layer_file_name(dashboard_uuid, filename), "rb"
+    ) as handle:
+        return json.load(handle)
 
 
-def flatten(xss):
+def _collect_layer_file_names(source, args, names):
+    """Add every file name a Map grid item's layers reference to names.
+
+    A layer references its style by ``configuration.style`` and its GeoJSON by
+    ``configuration.props.source.geojson``, except a plugin layer, whose GeoJSON is
+    never read. Any string there counts: an inline value or a URL simply matches no
+    file. Maps nested in a layer's popup layout
+    (``popupConfig.gridItems``) count too, whether their args are held as a string or an
+    object. A shape that is not the expected one adds nothing.
     """
-    Flatten a list of lists into a single list.
+    if source != "Map":
+        return
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except ValueError:
+            return
+    layers = args.get("layers") if isinstance(args, dict) else None
+    if not isinstance(layers, list):
+        return
+    for layer in layers:
+        if not isinstance(layer, dict):
+            continue
+        configuration = layer.get("configuration")
+        if isinstance(configuration, dict):
+            props = configuration.get("props")
+            props = props if isinstance(props, dict) else {}
+            layer_source = props.get("source")
+            # A plugin layer's GeoJSON is a placeholder its plugin's features replace,
+            # never read, so a file an older import stored it as is let go.
+            geojson = (
+                layer_source.get("geojson")
+                if isinstance(layer_source, dict) and not props.get("pluginSource")
+                else None
+            )
+            for value in (configuration.get("style"), geojson):
+                if isinstance(value, str):
+                    names.add(value)
+        popup = layer.get("popupConfig")
+        nested_items = popup.get("gridItems") if isinstance(popup, dict) else None
+        if isinstance(nested_items, list):
+            for nested in nested_items:
+                if isinstance(nested, dict):
+                    _collect_layer_file_names(
+                        nested.get("source"), nested.get("args_string"), names
+                    )
+
+
+def clean_up_dashboard_files(dashboard_id):
+    """Delete the layer files a dashboard's saved map layers no longer reference.
+
+    Runs after the dashboard's tabs are saved, the one moment its references change, and
+    reads the index rather than listing the storage. Deleting a file frees its size from
+    the allowance of whoever it counted against. Each row is let go before its file, one
+    at a time, so a failure part way leaves at most one stored file unindexed rather
+    than rows charging for files already gone.
 
     Args:
-        xss (list): List of lists to flatten
-
-    Returns:
-        list: Flattened list containing all elements
+        dashboard_id (int): ID of the dashboard that was saved
     """
-    return [x for xs in xss for x in xs]
+    from tethysapp.tethysdash.app import App
+
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+
+    try:
+        dashboard = (
+            session.query(Dashboard).filter(Dashboard.id == dashboard_id).first()
+        )
+        if dashboard is None:
+            return
+        in_use = set()
+        for grid_item in dashboard.grid_items:
+            _collect_layer_file_names(grid_item.source, grid_item.args_string, in_use)
+        dashboard_uuid = dashboard.uuid
+        for record in list(dashboard.layer_files):
+            if record.filename in in_use:
+                continue
+            filename = record.filename
+            print(
+                f"Removing the unused layer file {filename} from dashboard "
+                f"{dashboard_uuid}"
+            )
+            session.delete(record)
+            session.commit()
+            default_storage.delete(layer_file_name(dashboard_uuid, filename))
+    finally:
+        session.close()
 
 
 def get_user_app_permissions(user):
@@ -2440,7 +2657,7 @@ def cleanup_old_jsons():
                             app_workspace.path, dashboard_uuid
                         )
                     except UnsafePath:
-                        # Same rule as clean_up_jsons.
+                        # Only a canonical dashboard uuid names a folder.
                         continue
                     if not os.path.exists(dashboard_folder):
                         os.makedirs(dashboard_folder, exist_ok=True)
@@ -2462,6 +2679,70 @@ def cleanup_old_jsons():
                         os.rmdir(dirpath)
 
         remove_empty_dirs(app_workspace.path)
+    finally:
+        session.close()
+
+
+def move_workspace_layer_files():
+    """Move dashboards' layer files out of the app workspace into the default storage.
+
+    Layer files used to be written to <app workspace>/<dashboard uuid>/, on the disk of
+    whichever server took the upload, which a portal running in containers loses with the
+    container. Each existing dashboard's folder is moved into its storage directory and
+    indexed against the dashboard's owner, since no uploader was recorded; moved files
+    count toward the owner's allowance but are never refused for exceeding it. Folders not
+    named by a dashboard are left alone, because plugins share the workspace, and so are
+    symlinks, folder or file, and any file whose name cannot be stored. A file the index
+    already lists is not stored again, so a run that stopped part way is finished by the
+    next.
+    """
+    from tethysapp.tethysdash.app import App
+
+    workspace_path = get_app_workspace(App).path
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+
+    try:
+        for dashboard in session.query(Dashboard).all():
+            try:
+                folder = resolve_dashboard_folder(workspace_path, dashboard.uuid)
+            except UnsafePath:
+                continue
+            # A symlink named by the uuid may point at another folder in the workspace,
+            # whose files are not this dashboard's to move.
+            if Path(workspace_path, dashboard.uuid).is_symlink() or not folder.is_dir():
+                continue
+            indexed = {record.filename for record in dashboard.layer_files}
+            with os.scandir(folder) as entries:
+                files = [
+                    entry for entry in entries if entry.is_file(follow_symlinks=False)
+                ]
+            for entry in files:
+                if entry.name not in indexed:
+                    try:
+                        name = layer_file_name(dashboard.uuid, entry.name)
+                    except UnsafePath:
+                        print(
+                            f"Left {entry.path} in the workspace: it cannot be "
+                            "stored as a layer file"
+                        )
+                        continue
+                    with open(entry.path, "rb") as handle:
+                        content = handle.read()
+                    _save_replacing(name, content)
+                    session.add(
+                        LayerFile(
+                            dashboard_id=dashboard.id,
+                            filename=entry.name,
+                            size=len(content),
+                            username=dashboard.owner,
+                        )
+                    )
+                    session.commit()
+                print(f"Moved {entry.path} into the default storage")
+                os.remove(entry.path)
+            if not any(folder.iterdir()):
+                folder.rmdir()
     finally:
         session.close()
 
@@ -2521,3 +2802,4 @@ def init_primary_db(engine, first_time, clean=True):
 
     if clean:
         cleanup_old_jsons()
+        move_workspace_layer_files()
