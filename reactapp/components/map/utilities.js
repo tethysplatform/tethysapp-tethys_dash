@@ -17,7 +17,7 @@ import Icon from "ol/style/Icon";
 import { toGeometry } from "ol/render/Feature";
 import GeoJSONFormat from "ol/format/GeoJSON";
 import appAPI from "services/api/app";
-import { v4 as uuidv4 } from "uuid";
+import { downloadLayerFile } from "components/map/layerFileCache";
 import JSON5 from "json5";
 import { PMTiles } from "pmtiles";
 import { VectorTile } from "@mapbox/vector-tile";
@@ -1722,7 +1722,7 @@ async function loadStyle(style, layerName, dashboard_uuid, keep_urls) {
       }
       return JSON5.parse(await response.text());
     } else {
-      const styleJSONResponse = await appAPI.downloadJSON({
+      const styleJSONResponse = await downloadLayerFile({
         filename: style,
         dashboard_uuid,
       });
@@ -1747,7 +1747,7 @@ export async function loadGeoJSON(geojson, dashboard_uuid, keep_urls = false) {
     if (!response.ok) throw Error(`Failed to fetch: ${response.statusText}`);
     geojson = JSON5.parse(await response.text());
   } else {
-    const geoJSONResponse = await appAPI.downloadJSON({
+    const geoJSONResponse = await downloadLayerFile({
       filename: geojson,
       dashboard_uuid,
     });
@@ -1764,6 +1764,18 @@ export async function loadGeoJSON(geojson, dashboard_uuid, keep_urls = false) {
   geojson.crs.properties.name = crs;
   return geojson;
 }
+
+/**
+ * What a GeoJSON-driven plugin layer holds as its source's data. Its features
+ * come from the plugin at run time, so this only gives the source a valid, empty
+ * starting point. A new object each time, since layer preparation writes into
+ * the config it is handed.
+ */
+export const dynamicLayerPlaceholderGeoJSON = () => ({
+  type: "FeatureCollection",
+  features: [],
+  crs: { type: "name", properties: { name: "EPSG:4326" } },
+});
 
 export async function loadLayerJSONs(
   mapLayer,
@@ -1787,7 +1799,14 @@ export async function loadLayerJSONs(
 
   // Load GeoJSON if needed
   const source = mapLayer?.configuration?.props?.source;
-  if (source?.type === "GeoJSON" && source?.geojson) {
+  if (source?.type === "GeoJSON" && mapLayer.configuration.props.pluginSource) {
+    // A plugin layer's features come from the plugin at run time, so whatever
+    // its source saved -- the inline placeholder, or a file an older import
+    // stored it as -- is never read. The placeholder goes back in rather than
+    // the saved value being left alone, because the loader would request a
+    // leftover filename as a URL.
+    source.geojson = dynamicLayerPlaceholderGeoJSON();
+  } else if (source?.type === "GeoJSON" && source?.geojson) {
     const geo = source.geojson;
     const isUrlGeoJSON =
       typeof geo === "string" &&
@@ -1915,10 +1934,9 @@ export async function saveLayerJSON({
   }
 
   if (looksLikeJson) {
-    const JSONFilename = `${uuidv4()}.json`;
+    // The server names the file, and answers with the name.
     const JSONInfo = {
       data: JSON.stringify(parsedJSON),
-      filename: JSONFilename,
       dashboard_uuid,
     };
     const apiResponse = await appAPI.uploadJSON(JSONInfo, csrf);

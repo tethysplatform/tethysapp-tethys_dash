@@ -28,7 +28,9 @@ MIGRATION_PATH = (
 
 @pytest.fixture(scope="module")
 def migration():
-    spec = importlib.util.spec_from_file_location("raster_style_migration", MIGRATION_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "raster_style_migration", MIGRATION_PATH
+    )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -357,7 +359,9 @@ def test_downgrade_derives_normalize_and_interpolate(migration):
 
     converted, _ = migration.downgrade_map_args(map_args(half_range, classes, zarr))
 
-    sources = [layer["configuration"]["props"]["source"] for layer in converted["layers"]]
+    sources = [
+        layer["configuration"]["props"]["source"] for layer in converted["layers"]
+    ]
     assert sources[0]["props"]["normalize"] is True
     assert sources[1]["props"]["normalize"] is False
     assert sources[1]["props"]["interpolate"] is False
@@ -449,14 +453,16 @@ def test_upgrade_and_downgrade_rewrite_only_map_rows(migration, griditems_connec
     assert "style" not in downgraded["layers"][0]["configuration"]
 
 
-def test_migration_extends_the_head(migration):
+def test_migration_extends_the_chain_without_forking_it(migration):
     versions = MIGRATION_PATH.parent
-    down_revisions = set()
+    revisions, down_revisions = set(), []
     for path in versions.glob("*.py"):
-        text = path.read_text()
-        for line in text.splitlines():
-            if line.startswith("down_revision"):
-                down_revisions.add(line.split("=")[-1].strip().strip('"'))
+        for line in path.read_text().splitlines():
+            if line.startswith("revision"):
+                revisions.add(line.split("=")[-1].strip().strip('"'))
+            elif line.startswith("down_revision"):
+                down_revisions.append(line.split("=")[-1].strip().strip('"'))
     assert migration.down_revision == "7a3c91be04d2"
-    # Nothing revises this one, so it is the single head.
-    assert migration.revision not in down_revisions
+    # A revision revised twice would fork the chain, leaving two heads.
+    assert len(down_revisions) == len(set(down_revisions))
+    assert len(revisions - set(down_revisions)) == 1

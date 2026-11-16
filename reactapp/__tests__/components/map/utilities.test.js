@@ -3517,8 +3517,66 @@ test("loadLayerJSONs files", async () => {
   const response = await loadLayerJSONs(mapLayer, "123", false);
 
   expect(mapLayer.configuration.style).toStrictEqual(style);
-  expect(mapLayer.configuration.props.source.geojson).toStrictEqual(geojson);
+  // The CRS is inferred onto the downloaded copy, not onto the response the
+  // download answered with.
+  expect(mapLayer.configuration.props.source.geojson).toStrictEqual({
+    ...geojson,
+    crs: { properties: { name: "EPSG:4326" } },
+  });
   expect(response.success).toBe(true);
+});
+
+test("loadLayerJSONs gives a plugin layer the placeholder, never its saved file", async () => {
+  // An older import stored the placeholder as a file; the plugin's features
+  // replace it at run time, so only the style is downloaded.
+  const download = jest
+    .spyOn(appAPI, "downloadJSON")
+    .mockResolvedValue({ success: true, data: { default: {} } });
+  const mapLayer = {
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "Plugin Layer",
+        pluginSource: { source: "some_plugin", args: {} },
+        source: { type: "GeoJSON", props: {}, geojson: "placeholder.json" },
+      },
+      style: "style.json",
+    },
+  };
+
+  const response = await loadLayerJSONs(mapLayer, "123", false);
+
+  expect(response.success).toBe(true);
+  expect(download).toHaveBeenCalledTimes(1);
+  expect(download).toHaveBeenCalledWith({
+    filename: "style.json",
+    dashboard_uuid: "123",
+  });
+  expect(mapLayer.configuration.props.source.geojson).toStrictEqual({
+    type: "FeatureCollection",
+    features: [],
+    crs: { type: "name", properties: { name: "EPSG:4326" } },
+  });
+});
+
+test("loadLayerJSONs reuses the files it downloaded when a layer is prepared again", async () => {
+  const download = jest
+    .spyOn(appAPI, "downloadJSON")
+    .mockResolvedValue({ success: true, data: { default: {} } });
+  const savedLayer = () => ({
+    configuration: {
+      type: "VectorLayer",
+      props: { name: "Layer", source: { type: "WFS", props: {} } },
+      style: "style.json",
+    },
+  });
+
+  await loadLayerJSONs(savedLayer(), "123", false);
+  const again = savedLayer();
+  await loadLayerJSONs(again, "123", false);
+
+  expect(download).toHaveBeenCalledTimes(1);
+  expect(again.configuration.style).toStrictEqual({ default: {} });
 });
 
 test("loadLayerJSONs files keep_urls shouldn't affect it", async () => {
@@ -3575,7 +3633,12 @@ test("loadLayerJSONs files keep_urls shouldn't affect it", async () => {
   const response = await loadLayerJSONs(mapLayer, "123", true);
 
   expect(mapLayer.configuration.style).toStrictEqual(style);
-  expect(mapLayer.configuration.props.source.geojson).toStrictEqual(geojson);
+  // The CRS is inferred onto the downloaded copy, not onto the response the
+  // download answered with.
+  expect(mapLayer.configuration.props.source.geojson).toStrictEqual({
+    ...geojson,
+    crs: { properties: { name: "EPSG:4326" } },
+  });
   expect(response.success).toBe(true);
 });
 

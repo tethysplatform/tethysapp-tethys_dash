@@ -933,10 +933,11 @@ const MapVisualization = ({
       const layersChanged =
         layers && !valuesEqual(layers, currentLayers.current);
       const baseMapChanged = !valuesEqual(baseMap, currentBaseMap.current);
-      // A refresh prepares every layer again from its saved config: saved
-      // style and GeoJSON files are downloaded again, and the map rebuilds the
-      // vector layers, so one drawn from a URL or a feature service fetches its
-      // features again. Plugin layers refetch on their own, in the fetcher.
+      // A refresh prepares every layer again from its saved config, and the
+      // map rebuilds the vector layers, so one drawn from a URL or a feature
+      // service fetches its features again. Saved style and GeoJSON files come
+      // from the page's download cache: a saved file never changes. Plugin
+      // layers refetch on their own, in the fetcher.
       const refreshed = refreshCount !== currentRefreshCount.current;
       if (layersChanged || baseMapChanged || refreshed) {
         const previousBaseMap = currentBaseMap.current;

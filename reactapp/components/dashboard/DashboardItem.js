@@ -335,8 +335,11 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
           };
         }
 
+        // A plugin layer's data is only a placeholder its plugin's features
+        // replace at run time, so it is kept inline rather than stored.
         if (
           mapLayer.configuration.props.source.type === "GeoJSON" &&
+          !mapLayer.configuration.props.pluginSource &&
           mapLayer.configuration.props.source.geojson &&
           typeof mapLayer.configuration.props.source.geojson === "object"
         ) {

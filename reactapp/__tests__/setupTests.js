@@ -10,6 +10,7 @@ import { server } from "./utilities/server.js";
 import "jest-location-mock";
 import { createMocks } from "react-idle-timer";
 import { MockWebSocket } from "./utilities/mockWebSocket.js";
+import { clearLayerFileCache } from "components/map/layerFileCache";
 
 // CI runs all suites in parallel on limited cores with coverage instrumentation,
 // which slows heavy async suites (e.g. the map) enough to trip Testing Library's
@@ -59,6 +60,9 @@ afterEach(() => {
   jest.clearAllMocks();
   jest.restoreAllMocks();
   global.__wsInstances = [];
+  // Saved layer files are downloaded once per page, and the tests answer the
+  // same file names differently.
+  clearLayerFileCache();
 });
 
 afterAll(() => {

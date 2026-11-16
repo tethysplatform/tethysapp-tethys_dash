@@ -66,7 +66,8 @@ class App(TethysAppBase):
         Returns:
             tuple: Optional settings configurable by administrators:
             ``support_email`` is displayed to users on support pages;
-            ``support_github`` is the URL of the project's GitHub repository.
+            ``support_github`` is the URL of the project's GitHub repository;
+            ``layer_storage_quota_mb`` caps the map layer files each user may store.
         """
         custom_settings = (
             CustomSetting(
@@ -80,6 +81,17 @@ class App(TethysAppBase):
                 type=CustomSetting.TYPE_STRING,
                 description="Support GitHub URL",
                 required=False,
+            ),
+            CustomSetting(
+                name="layer_storage_quota_mb",
+                type=CustomSetting.TYPE_INTEGER,
+                description=(
+                    "Most map layer file storage (GeoJSON and style files) each user "
+                    "may hold, in megabytes. 0 removes the limit. Portal superusers "
+                    "are not limited."
+                ),
+                required=False,
+                default=500,
             ),
         )
 

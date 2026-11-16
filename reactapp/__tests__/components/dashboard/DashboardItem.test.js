@@ -2381,6 +2381,51 @@ test("handleGridItemImport with map and no layers", async () => {
   });
 });
 
+test("handleGridItemImport keeps a plugin layer's placeholder inline", async () => {
+  // Its plugin's features replace the placeholder at run time, so storing it
+  // would only be a file nothing reads.
+  const upload = jest
+    .spyOn(appAPI, "uploadJSON")
+    .mockResolvedValue({ success: true, filename: "style.json" });
+  const placeholder = {
+    type: "FeatureCollection",
+    features: [],
+    crs: { type: "name", properties: { name: "EPSG:4326" } },
+  };
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: {
+      layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "Plugin Layer",
+              pluginSource: { source: "some_plugin", args: {} },
+              source: { type: "GeoJSON", props: {}, geojson: placeholder },
+            },
+            style: exampleStyle,
+          },
+        },
+      ],
+    },
+    metadata_string: {},
+  };
+
+  const response = await handleGridItemImport(gridItem, "123456789");
+
+  expect(response.success).toBe(true);
+  expect(upload).toHaveBeenCalledTimes(1);
+  const [layer] = JSON.parse(response.importedGridItem.args_string).layers;
+  expect(layer.configuration.props.source.geojson).toStrictEqual(placeholder);
+  expect(layer.configuration.style).toBe("style.json");
+});
+
 test("handleGridItemImport with map geojson layer and style", async () => {
   const mockUploadJSON = jest.fn();
   mockUploadJSON.mockResolvedValueOnce({
@@ -2968,12 +3013,8 @@ describe("handleGridItemImport identity normalization", () => {
     });
   });
 
-  test("still rehydrates geojson and style files while minting the layer id", async () => {
+  test("still rehydrates the style file while minting the layer id", async () => {
     const mockUploadJSON = jest.fn();
-    mockUploadJSON.mockResolvedValueOnce({
-      success: true,
-      filename: "geojson.json",
-    });
     mockUploadJSON.mockResolvedValueOnce({
       success: true,
       filename: "style.json",
@@ -2991,20 +3032,16 @@ describe("handleGridItemImport identity normalization", () => {
 
     expect(response.success).toBe(true);
     const normalizedLayer = argsOf(response).layers[0];
-    // Same two uploads, in the same order, with the geojson CRS-checked and the
-    // style not -- the identity pass runs beside that walk, not inside it.
-    expect(mockUploadJSON).toHaveBeenCalledTimes(2);
-    expect(mockUploadJSON.mock.calls[0][0]).toStrictEqual({
-      data: JSON.stringify(exampleGeoJSON),
-      filename: `${MINTED_UUID}.json`,
-      dashboard_uuid: undefined,
-    });
-    expect(mockUploadJSON.mock.calls[0][1]).toBe("123456789");
-    expect(mockUploadJSON.mock.calls[1][0].data).toBe(
+    // The style is uploaded as before -- the identity pass runs beside that
+    // walk, not inside it -- while a plugin layer's data stays inline: its
+    // plugin's features replace it at run time.
+    expect(mockUploadJSON).toHaveBeenCalledTimes(1);
+    expect(mockUploadJSON.mock.calls[0][0].data).toBe(
       JSON.stringify(exampleStyle),
     );
-    expect(normalizedLayer.configuration.props.source.geojson).toBe(
-      "geojson.json",
+    expect(mockUploadJSON.mock.calls[0][1]).toBe("123456789");
+    expect(normalizedLayer.configuration.props.source.geojson).toStrictEqual(
+      exampleGeoJSON,
     );
     expect(normalizedLayer.configuration.style).toBe("style.json");
     expect(normalizedLayer.configuration.props.layerId).toBe(MINTED_UUID);

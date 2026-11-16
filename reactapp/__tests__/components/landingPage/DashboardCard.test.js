@@ -1038,6 +1038,34 @@ test("DashboardCard editable, copy fail", async () => {
   ).toBeInTheDocument();
 });
 
+test("DashboardCard editable, copy refused shows the server's reason", async () => {
+  const reason =
+    "This would exceed your layer storage limit: 1.5 MB of 2.0 MB is in use.";
+  jest
+    .spyOn(appAPI, "copyDashboard")
+    .mockResolvedValue({ success: false, message: reason });
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <DashboardCard {...userDashboard} />
+        </MemoryRouter>
+      ),
+    }),
+  );
+
+  await userEvent.click(
+    await screen.findByLabelText("dashboard-item-dropdown-toggle"),
+  );
+  await userEvent.click(await screen.findByText("Copy"));
+
+  expect(await screen.findByText(reason)).toBeInTheDocument();
+  expect(
+    screen.queryByText("Failed to copy dashboard"),
+  ).not.toBeInTheDocument();
+});
+
 test("DashboardCard editable, export", async () => {
   const spyDownloadJSONFile = jest
     .spyOn(utils, "downloadJSONFile")

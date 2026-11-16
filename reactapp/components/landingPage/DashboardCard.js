@@ -244,7 +244,7 @@ const DashboardCard = ({
     setErrorMessage("");
     copyDashboard(id, name).then((response) => {
       if (!response["success"]) {
-        setErrorMessage("Failed to copy dashboard");
+        setErrorMessage(response["message"] ?? "Failed to copy dashboard");
       }
     });
   }

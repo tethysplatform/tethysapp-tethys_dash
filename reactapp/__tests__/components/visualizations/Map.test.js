@@ -1596,7 +1596,7 @@ test("removing the base map keeps the other layers", async () => {
   expect(downloadJSON).toHaveBeenCalledTimes(2);
 });
 
-test("a refresh downloads the layer files again and rebuilds vector layers", async () => {
+test("a refresh rebuilds vector layers from the layer files it already downloaded", async () => {
   const downloadJSON = stubLayerFiles();
   mockedApplyStyle.mockResolvedValue(true);
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
@@ -1615,7 +1615,9 @@ test("a refresh downloads the layer files again and rebuilds vector layers", asy
     expect(layerNames(removeLayerSpy)).toContain("GeoJSON Layer");
   });
   expect(layerNames(addLayerSpy)).toContain("GeoJSON Layer");
-  expect(downloadJSON).toHaveBeenCalledTimes(4);
+  // A saved file never changes under its name, so the style and GeoJSON come
+  // from the first load's downloads.
+  expect(downloadJSON).toHaveBeenCalledTimes(2);
   // The base map has nothing to fetch again, and stays.
   expect(layerNames(removeLayerSpy)).not.toContain("World Light Gray Base");
 });

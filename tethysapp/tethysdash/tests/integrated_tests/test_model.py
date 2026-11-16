@@ -16,7 +16,6 @@ from tethysapp.tethysdash.model import (
     Message,
     parse_db_dashboard,
     parse_group_permissions,
-    clean_up_jsons,
     cleanup_old_jsons,
     copy_dashboard_files,
     delete_dashboard_files,
@@ -42,15 +41,28 @@ from tethysapp.tethysdash.model import (
     thumbnail_url,
     thumbnail_urls,
     _versioned,
+    LayerFile,
+    _collect_layer_file_names,
+    clean_up_dashboard_files,
+    layer_file_name,
+    layer_storage_used,
+    move_workspace_layer_files,
+    read_layer_file,
+    store_layer_file,
 )
 from unittest.mock import MagicMock, call
+from tethysapp.tethysdash import model as model_module
 import base64
 import os
 from pathlib import Path
 from types import SimpleNamespace
 from sqlalchemy.exc import ProgrammingError
 from django.contrib.auth.models import AnonymousUser
-from tethysapp.tethysdash.exceptions import DASHBOARD_NOT_FOUND
+from tethysapp.tethysdash.exceptions import (
+    DASHBOARD_NOT_FOUND,
+    LayerStorageQuotaExceeded,
+    UnsafePath,
+)
 from django.test import override_settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -1500,222 +1512,684 @@ def test_parse_db_dashboard_dashboard_view(
     }
 
 
+def _file_layer(geojson=None, style=None, popup_items=None):
+    """A map layer naming the given GeoJSON and style files."""
+    configuration = {
+        "type": "VectorLayer",
+        "props": {"name": "layer", "source": {"type": "GeoJSON", "props": {}}},
+    }
+    if geojson is not None:
+        configuration["props"]["source"]["geojson"] = geojson
+    if style is not None:
+        configuration["style"] = style
+    layer = {"configuration": configuration}
+    if popup_items is not None:
+        layer["popupConfig"] = {"gridItems": popup_items}
+    return layer
+
+
+def _map_item(i, *layers):
+    return {
+        "i": str(i),
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1,
+        "source": "Map",
+        "args_string": json.dumps({"layers": list(layers)}),
+        "metadata_string": json.dumps({}),
+        "uuid": str(uuid4()),
+    }
+
+
+def _stored_bytes(dashboard_uuid, filename):
+    """The stored content of a layer file, or None when the storage holds none."""
+    name = layer_file_name(dashboard_uuid, filename)
+    if not default_storage.exists(name):
+        return None
+    with default_storage.open(name, "rb") as handle:
+        return handle.read()
+
+
+def _layer_file_rows(db_session, dashboard_id):
+    """The index rows of a dashboard, read afresh: other sessions wrote them."""
+    return {
+        record.filename: (record.size, record.username)
+        for record in db_session.query(LayerFile)
+        .filter_by(dashboard_id=dashboard_id)
+        .populate_existing()
+    }
+
+
+def _add_dashboard(db_session, owner):
+    other = Dashboard(uuid=str(uuid4()), name="other", owner=owner)
+    db_session.add(other)
+    db_session.commit()
+    db_session.refresh(other)
+    return other
+
+
 @pytest.mark.django_db
-def test_clean_up_jsons(
-    dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
+def test_store_layer_file_stores_and_indexes_against_the_uploader(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
-    workspace_path = tmp_path
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
-    )
-    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
+    store_layer_file(test_owner_user, dashboard.uuid, "layer.json", b'{"a": 1}')
 
-    grid_items = [
+    assert _stored_bytes(dashboard.uuid, "layer.json") == b'{"a": 1}'
+    assert _layer_file_rows(db_session, dashboard.id) == {
+        "layer.json": (8, test_owner_user.username)
+    }
+    assert read_layer_file(dashboard.uuid, "layer.json") == {"a": 1}
+
+
+@pytest.mark.django_db
+def test_store_layer_file_refuses_a_name_already_stored(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user, test_admin_user
+):
+    """A name holds one file for good, which is what lets the browser keep what it
+    has downloaded."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    store_layer_file(test_owner_user, dashboard.uuid, "layer.json", b"{}")
+
+    with pytest.raises(UnsafePath):
+        store_layer_file(test_admin_user, dashboard.uuid, "layer.json", b'{"b": 22}')
+
+    assert _stored_bytes(dashboard.uuid, "layer.json") == b"{}"
+    assert _layer_file_rows(db_session, dashboard.id) == {
+        "layer.json": (2, test_owner_user.username)
+    }
+
+
+@pytest.mark.django_db
+def test_store_layer_file_refuses_a_file_past_the_users_limit(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user
+):
+    mock_app_get_ps_db(
+        "tethysapp.tethysdash.app.App"
+    ).get_custom_setting.return_value = 1
+    store_layer_file(test_owner_user, dashboard.uuid, "first.json", b"x" * 600_000)
+
+    with pytest.raises(LayerStorageQuotaExceeded, match="0.6 MB of 1.0 MB is in use"):
+        store_layer_file(test_owner_user, dashboard.uuid, "second.json", b"x" * 600_000)
+
+    assert _stored_bytes(dashboard.uuid, "second.json") is None
+    assert set(_layer_file_rows(db_session, dashboard.id)) == {"first.json"}
+
+
+@pytest.mark.django_db
+def test_another_users_files_do_not_count_against_the_uploader(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user, test_admin_user
+):
+    mock_app_get_ps_db(
+        "tethysapp.tethysdash.app.App"
+    ).get_custom_setting.return_value = 1
+    store_layer_file(test_owner_user, dashboard.uuid, "owner.json", b"x" * 900_000)
+
+    store_layer_file(test_admin_user, dashboard.uuid, "editor.json", b"x" * 900_000)
+
+    assert layer_storage_used(db_session, test_admin_user.username) == 900_000
+    assert layer_storage_used(db_session, test_owner_user.username) == 900_000
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("setting", [0, -5, None])
+def test_a_limit_of_zero_or_unset_does_not_limit(
+    dashboard, mock_app_get_ps_db, test_owner_user, setting
+):
+    app = mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    app.get_custom_setting.return_value = setting
+
+    store_layer_file(test_owner_user, dashboard.uuid, "big.json", b"x" * 2_000_000)
+
+    assert _stored_bytes(dashboard.uuid, "big.json") is not None
+
+
+@pytest.mark.django_db
+def test_superusers_are_not_limited(dashboard, mock_app_get_ps_db, admin_user):
+    mock_app_get_ps_db(
+        "tethysapp.tethysdash.app.App"
+    ).get_custom_setting.return_value = 1
+
+    store_layer_file(admin_user, dashboard.uuid, "big.json", b"x" * 2_000_000)
+
+    assert _stored_bytes(dashboard.uuid, "big.json") is not None
+
+
+@pytest.mark.django_db
+def test_store_layer_file_refuses_an_unknown_dashboard(
+    mock_app_get_ps_db, test_owner_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    unknown_uuid = str(uuid4())
+
+    with pytest.raises(UnsafePath):
+        store_layer_file(test_owner_user, unknown_uuid, "layer.json", b"{}")
+
+    assert _stored_bytes(unknown_uuid, "layer.json") is None
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "dashboard_uuid, filename",
+    [
+        (None, "../escape.json"),
+        (None, "sub/layer.json"),
+        (None, "page.html"),
+        ("../outside", "layer.json"),
+    ],
+)
+def test_store_layer_file_refuses_an_unsafe_name_before_looking_anything_up(
+    dashboard, mock_app_get_ps_db, test_owner_user, mocker, dashboard_uuid, filename
+):
+    app = mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    save = mocker.spy(default_storage, "save")
+
+    with pytest.raises(UnsafePath):
+        store_layer_file(
+            test_owner_user, dashboard_uuid or dashboard.uuid, filename, b"{}"
+        )
+
+    save.assert_not_called()
+    app.get_persistent_store_database.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_copying_a_dashboard_copies_its_files_and_counts_them_against_the_copier(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user, test_admin_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    store_layer_file(test_owner_user, dashboard.uuid, "kept.json", b'{"k": 1}')
+    store_layer_file(test_owner_user, dashboard.uuid, "lost.json", b"{}")
+    # Indexed but no longer stored, as on a portal that lost its files.
+    default_storage.delete(layer_file_name(dashboard.uuid, "lost.json"))
+    copy_uuid = str(uuid4())
+
+    copy_id, _ = copy_named_dashboard(test_admin_user, dashboard.id, "copy", copy_uuid)
+    copy_dashboard_files(dashboard.uuid, copy_uuid)
+
+    assert _stored_bytes(copy_uuid, "kept.json") == b'{"k": 1}'
+    assert _layer_file_rows(db_session, copy_id) == {
+        "kept.json": (8, test_admin_user.username)
+    }
+    assert _stored_bytes(dashboard.uuid, "kept.json") == b'{"k": 1}'
+
+
+@pytest.mark.django_db
+def test_a_copy_is_charged_to_the_copier_as_it_is_checked(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user, test_admin_user
+):
+    """Charged in the transaction the check runs in, rather than as its files arrive,
+    so a copy whose files are still on their way already counts against the next."""
+    mock_app_get_ps_db(
+        "tethysapp.tethysdash.app.App"
+    ).get_custom_setting.return_value = 1
+    store_layer_file(test_owner_user, dashboard.uuid, "layer.json", b"x" * 400_000)
+
+    for name in ["first", "second"]:
+        copy_named_dashboard(test_admin_user, dashboard.id, name, str(uuid4()))
+
+    assert layer_storage_used(db_session, test_admin_user.username) == 800_000
+    with pytest.raises(LayerStorageQuotaExceeded):
+        copy_named_dashboard(test_admin_user, dashboard.id, "third", str(uuid4()))
+
+
+@pytest.mark.django_db
+def test_copy_named_dashboard_refuses_a_copy_past_the_users_limit(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user
+):
+    mock_app_get_ps_db(
+        "tethysapp.tethysdash.app.App"
+    ).get_custom_setting.return_value = 1
+    store_layer_file(test_owner_user, dashboard.uuid, "layer.json", b"x" * 600_000)
+    dashboards_before = db_session.query(Dashboard).count()
+
+    with pytest.raises(LayerStorageQuotaExceeded):
+        copy_named_dashboard(test_owner_user, dashboard.id, "copy", str(uuid4()))
+
+    assert db_session.query(Dashboard).count() == dashboards_before
+
+
+@pytest.mark.django_db
+def test_copying_or_sweeping_an_unknown_dashboard_touches_nothing(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    store_layer_file(test_owner_user, dashboard.uuid, "layer.json", b"{}")
+
+    copy_dashboard_files(dashboard.uuid, str(uuid4()))
+    clean_up_dashboard_files(10**9)
+
+    assert _stored_bytes(dashboard.uuid, "layer.json") == b"{}"
+    assert db_session.query(LayerFile).count() == 1
+
+
+@pytest.mark.django_db
+def test_delete_dashboard_files_removes_only_that_dashboards_files(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    other = _add_dashboard(db_session, test_owner_user.username)
+    store_layer_file(test_owner_user, dashboard.uuid, "layer.json", b"{}")
+    store_layer_file(test_owner_user, other.uuid, "layer.json", b"{}")
+
+    delete_dashboard_files(dashboard.uuid)
+
+    assert _stored_bytes(dashboard.uuid, "layer.json") is None
+    assert _stored_bytes(other.uuid, "layer.json") == b"{}"
+    # A dashboard with no files has nothing to remove.
+    delete_dashboard_files(str(uuid4()))
+
+
+@pytest.mark.django_db
+def test_deleting_a_dashboard_drops_its_index_rows(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    store_layer_file(test_owner_user, dashboard.uuid, "layer.json", b"{}")
+
+    delete_named_dashboard(test_owner_user, dashboard.id)
+
+    assert _layer_file_rows(db_session, dashboard.id) == {}
+    assert layer_storage_used(db_session, test_owner_user.username) == 0
+
+
+@pytest.mark.django_db
+def test_clean_up_dashboard_files_keeps_referenced_files_and_frees_the_rest(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    for filename in [
+        "data.json",
+        "style.json",
+        "popup_data.json",
+        "popup_style.json",
+        "unused.json",
+    ]:
+        store_layer_file(test_owner_user, dashboard.uuid, filename, b"{}")
+    # Popup layouts hold their grid items' args as a string or as an object.
+    popup_items = [
+        _map_item(1, _file_layer(geojson="popup_data.json")),
         {
-            "i": "1",
-            "x": 1,
-            "y": 1,
-            "w": 1,
-            "h": 1,
             "source": "Map",
-            "args_string": json.dumps(
+            "args_string": {"layers": [_file_layer(style="popup_style.json")]},
+        },
+    ]
+    update_named_dashboard(
+        test_owner_user,
+        dashboard.id,
+        {
+            "tabs": [
+                {
+                    "name": "Tab 1",
+                    "gridItems": [
+                        _map_item(
+                            1,
+                            _file_layer(
+                                geojson="data.json",
+                                style="style.json",
+                                popup_items=popup_items,
+                            ),
+                        )
+                    ],
+                }
+            ]
+        },
+    )
+
+    clean_up_dashboard_files(dashboard.id)
+
+    kept = ["data.json", "style.json", "popup_data.json", "popup_style.json"]
+    assert set(_layer_file_rows(db_session, dashboard.id)) == set(kept)
+    assert all(_stored_bytes(dashboard.uuid, name) == b"{}" for name in kept)
+    assert _stored_bytes(dashboard.uuid, "unused.json") is None
+    assert layer_storage_used(db_session, test_owner_user.username) == 2 * len(kept)
+
+
+@pytest.mark.parametrize(
+    "source, args, expected",
+    [
+        (
+            "Map",
+            json.dumps({"layers": [_file_layer("a.json", "b.json")]}),
+            {"a.json", "b.json"},
+        ),
+        ("Map", {"layers": [_file_layer(style="b.json")]}, {"b.json"}),
+        ("Text", json.dumps({"layers": [_file_layer("a.json")]}), set()),
+        ("Map", "{not json", set()),
+        ("Map", json.dumps(["not", "a", "dict"]), set()),
+        ("Map", json.dumps({"layers": "not a list"}), set()),
+        ("Map", json.dumps({"layers": ["not a dict", {"configuration": "x"}]}), set()),
+        (
+            "Map",
+            json.dumps(
+                {
+                    "layers": [
+                        {
+                            "configuration": {
+                                "props": {"source": {"geojson": {"type": "Feature"}}},
+                                "style": {"rampName": "turbo"},
+                            }
+                        }
+                    ]
+                }
+            ),
+            set(),
+        ),
+        (
+            "Map",
+            json.dumps(
+                {
+                    "layers": [
+                        _file_layer(
+                            popup_items=[
+                                "not a dict",
+                                _map_item(1, _file_layer("nested.json")),
+                            ]
+                        )
+                    ]
+                }
+            ),
+            {"nested.json"},
+        ),
+        (
+            "Map",
+            json.dumps(
                 {
                     "layers": [
                         {
                             "configuration": {
                                 "props": {
+                                    "pluginSource": {"source": "plugin", "args": {}},
                                     "source": {
                                         "type": "GeoJSON",
-                                        "geojson": "used_geojson.geojson",
-                                    }
+                                        "geojson": "placeholder.json",
+                                    },
                                 },
-                                "style": "used_style.json",
-                            },
+                                "style": "style.json",
+                            }
                         }
                     ]
                 }
             ),
-            "metadata_string": json.dumps({"refreshRate": 0}),
-            "uuid": str(uuid4()),
-        },
-    ]
+            {"style.json"},
+        ),
+    ],
+    ids=[
+        "string_args",
+        "object_args",
+        "not_a_map",
+        "unparseable_args",
+        "args_not_an_object",
+        "layers_not_a_list",
+        "layers_not_objects",
+        "inline_values",
+        "popup_nested_map",
+        "plugin_layer_placeholder",
+    ],
+)
+def test_collect_layer_file_names(source, args, expected):
+    names = set()
 
-    dashboard_folder = os.path.join(workspace_path, dashboard.uuid)
-    os.makedirs(dashboard_folder, exist_ok=True)
+    _collect_layer_file_names(source, args, names)
 
-    used_geojson_file = os.path.join(dashboard_folder, "used_geojson.geojson")
-    Path(used_geojson_file).touch()
-
-    unused_geojson_file = os.path.join(dashboard_folder, "unused_geojson.geojson")
-    Path(unused_geojson_file).touch()
-
-    nonuser_geojson_file = os.path.join(dashboard_folder, "nonuser_geojson.geojson")
-    Path(nonuser_geojson_file).touch()
-
-    used_style_file = os.path.join(dashboard_folder, "used_style.json")
-    Path(used_style_file).touch()
-
-    unused_style_file = os.path.join(dashboard_folder, "unused_style.json")
-    Path(unused_style_file).touch()
-
-    nonuser_style_file = os.path.join(dashboard_folder, "nonuser_style.json")
-    Path(nonuser_style_file).touch()
-
-    # Add rows/cells and update dashboards
-    update_named_dashboard(
-        test_owner_user,
-        dashboard.id,
-        {"tabs": [{"name": "Tab 1", "gridItems": grid_items}]},
-    )
-
-    clean_up_jsons(test_owner_user)
-
-    assert os.path.exists(used_geojson_file)
-    assert not os.path.exists(unused_geojson_file)
-    assert not os.path.exists(nonuser_geojson_file)
-
-    assert os.path.exists(used_style_file)
-    assert not os.path.exists(unused_style_file)
-    assert not os.path.exists(nonuser_style_file)
+    assert names == expected
 
 
 @pytest.mark.django_db
-def test_clean_up_jsons_sweeps_nothing_when_signed_out(
-    dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path, permission_group_table
+def test_move_workspace_layer_files_moves_each_dashboards_folder_into_storage(
+    dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    workspace = tmp_path / "workspace"
+    folder = workspace / dashboard.uuid
+    folder.mkdir(parents=True)
+    (folder / "data.json").write_text('{"d": 1}')
+    (folder / "style.json").write_text("{}")
+    (tmp_path / "outside.json").write_text('{"outside": true}')
+    (folder / "link.json").symlink_to(tmp_path / "outside.json")
+    plugin_folder = workspace / "geoglows_plots_cache"
+    plugin_folder.mkdir()
+    (plugin_folder / "cached.json").write_text("{}")
+    orphan_uuid = str(uuid4())
+    (workspace / orphan_uuid).mkdir()
+    (workspace / orphan_uuid / "left.json").write_text("{}")
+    # A dashboard with no folder, and one whose stored uuid would name a folder
+    # outside the workspace, are both passed over.
+    _add_dashboard(db_session, dashboard.owner)
+    escaping = _add_dashboard(db_session, dashboard.owner)
+    escaping.uuid = "../outside"
+    db_session.commit()
+    (tmp_path / "outside").mkdir()
+    (tmp_path / "outside" / "kept.json").write_text("{}")
+    mocker.patch("tethysapp.tethysdash.model.get_app_workspace").return_value = (
+        MagicMock(path=workspace)
+    )
+
+    move_workspace_layer_files()
+
+    assert _stored_bytes(dashboard.uuid, "data.json") == b'{"d": 1}'
+    assert _stored_bytes(dashboard.uuid, "style.json") == b"{}"
+    assert _layer_file_rows(db_session, dashboard.id) == {
+        "data.json": (8, dashboard.owner),
+        "style.json": (2, dashboard.owner),
+    }
+    assert sorted(path.name for path in folder.iterdir()) == ["link.json"]
+    assert _stored_bytes(dashboard.uuid, "link.json") is None
+    assert (plugin_folder / "cached.json").exists()
+    assert (workspace / orphan_uuid / "left.json").exists()
+    assert (tmp_path / "outside" / "kept.json").exists()
+    assert db_session.query(LayerFile).count() == 2
+
+
+@pytest.mark.django_db
+def test_move_workspace_layer_files_finishes_a_run_that_stopped_part_way(
+    dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
+):
+    """A file already indexed is not stored again; its workspace copy is just removed,
+    and the emptied folder goes with it."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    store_layer_file(test_owner_user, dashboard.uuid, "data.json", b'{"stored": 1}')
+    folder = tmp_path / dashboard.uuid
+    folder.mkdir()
+    (folder / "data.json").write_text('{"workspace": 1}')
+    mocker.patch("tethysapp.tethysdash.model.get_app_workspace").return_value = (
+        MagicMock(path=tmp_path)
+    )
+    save = mocker.spy(default_storage, "save")
+
+    move_workspace_layer_files()
+
+    save.assert_not_called()
+    assert _stored_bytes(dashboard.uuid, "data.json") == b'{"stored": 1}'
+    assert len(_layer_file_rows(db_session, dashboard.id)) == 1
+    assert not folder.exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("filename", ["back\\slash.json", "page.html"])
+def test_move_workspace_layer_files_leaves_a_name_it_cannot_store(
+    dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path, filename
+):
+    """An upload once took the caller's name, so the workspace may hold a page that a
+    web-served storage would serve from the portal's domain."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    folder = tmp_path / dashboard.uuid
+    folder.mkdir()
+    (folder / filename).write_text("{}")
+    mocker.patch("tethysapp.tethysdash.model.get_app_workspace").return_value = (
+        MagicMock(path=tmp_path)
+    )
+    save = mocker.spy(default_storage, "save")
+
+    move_workspace_layer_files()
+
+    assert (folder / filename).exists()
+    assert _layer_file_rows(db_session, dashboard.id) == {}
+    save.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_clean_up_dashboard_files_stopped_part_way_leaves_no_row_for_a_missing_file(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user, mocker
+):
+    """Each row goes before its file, so a storage error part way through can leave
+    a stored file unindexed, but never an index row charging for a file that is gone."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    for filename in ["a.json", "b.json", "c.json"]:
+        store_layer_file(test_owner_user, dashboard.uuid, filename, b"{}")
+    real_delete = default_storage.delete
+
+    def delete_failing_on_b(name):
+        if name.endswith("/b.json"):
+            raise OSError("storage is unreachable")
+        real_delete(name)
+
+    mocker.patch.object(default_storage, "delete", side_effect=delete_failing_on_b)
+
+    with pytest.raises(OSError):
+        clean_up_dashboard_files(dashboard.id)
+
+    rows = _layer_file_rows(db_session, dashboard.id)
+    assert "b.json" not in rows
+    assert all(_stored_bytes(dashboard.uuid, name) == b"{}" for name in rows)
+
+
+@pytest.mark.django_db
+def test_copy_dashboard_files_goes_on_when_a_failed_files_row_cannot_be_dropped(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user, mocker
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    for filename in ["a.json", "b.json", "c.json"]:
+        store_layer_file(test_owner_user, dashboard.uuid, filename, b"{}")
+    copy_uuid = str(uuid4())
+    copy_named_dashboard(test_owner_user, dashboard.id, "copy", copy_uuid)
+    real_save = model_module._save_replacing
+
+    def save_failing_on_b(name, content):
+        if name.endswith("/b.json"):
+            raise RuntimeError("storage is unreachable")
+        real_save(name, content)
+
     mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace",
-        return_value=MagicMock(path=tmp_path),
+        "tethysapp.tethysdash.model._save_replacing", side_effect=save_failing_on_b
     )
-    db_session.add(
-        DashboardPermission(dashboard_id=dashboard.id, username="", permission="editor")
+    # Only the drop of the failed file's row commits during a copy.
+    mocker.patch(
+        "sqlalchemy.orm.Session.commit", side_effect=RuntimeError("database went away")
     )
-    # A group grant's username is NULL, which a None identity would match.
+
+    copy_dashboard_files(dashboard.uuid, copy_uuid)
+
+    assert _stored_bytes(copy_uuid, "a.json") == b"{}"
+    assert _stored_bytes(copy_uuid, "c.json") == b"{}"
+
+
+@pytest.mark.django_db
+def test_copy_dashboard_files_drops_only_the_file_it_could_not_copy(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user, mocker
+):
+    """A storage error part way through costs only that file: its row goes, so the
+    index never lists a file the storage lacks, and the copy goes on to the rest."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    for filename in ["a.json", "b.json", "c.json"]:
+        store_layer_file(test_owner_user, dashboard.uuid, filename, b"{}")
+    copy_uuid = str(uuid4())
+    copy_id, _ = copy_named_dashboard(test_owner_user, dashboard.id, "copy", copy_uuid)
+    real_save = model_module._save_replacing
+
+    def save_failing_on_b(name, content):
+        if name.endswith("/b.json"):
+            raise RuntimeError("storage is unreachable")
+        real_save(name, content)
+
+    mocker.patch(
+        "tethysapp.tethysdash.model._save_replacing", side_effect=save_failing_on_b
+    )
+
+    copy_dashboard_files(dashboard.uuid, copy_uuid)
+
+    assert set(_layer_file_rows(db_session, copy_id)) == {"a.json", "c.json"}
+    assert _stored_bytes(copy_uuid, "a.json") == b"{}"
+    assert _stored_bytes(copy_uuid, "b.json") is None
+    assert _stored_bytes(copy_uuid, "c.json") == b"{}"
+
+
+@pytest.mark.django_db
+def test_store_layer_file_indexes_nothing_when_the_storage_write_fails(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user, mocker
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch.object(
+        default_storage, "save", side_effect=OSError("storage is unreachable")
+    )
+
+    with pytest.raises(OSError):
+        store_layer_file(test_owner_user, dashboard.uuid, "layer.json", b"{}")
+
+    assert _layer_file_rows(db_session, dashboard.id) == {}
+
+
+@pytest.mark.django_db
+def test_store_layer_file_removes_a_new_file_it_could_not_index(
+    dashboard, mock_app_get_ps_db, test_owner_user, mocker
+):
+    """Unindexed, the file would never be charged, copied or swept."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch(
+        "sqlalchemy.orm.Session.commit", side_effect=RuntimeError("database went away")
+    )
+
+    with pytest.raises(RuntimeError):
+        store_layer_file(test_owner_user, dashboard.uuid, "layer.json", b"{}")
+
+    assert _stored_bytes(dashboard.uuid, "layer.json") is None
+
+
+@pytest.mark.django_db
+def test_a_user_over_the_limit_can_still_copy_an_empty_dashboard(
+    dashboard, db_session, mock_app_get_ps_db, test_owner_user
+):
+    """Moving old workspace files can leave an owner over the limit; only a store
+    that adds to their usage is refused."""
+    app = mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    store_layer_file(test_owner_user, dashboard.uuid, "big.json", b"x" * 2_000_000)
+    empty = _add_dashboard(db_session, test_owner_user.username)
     db_session.add(
         DashboardPermission(
-            dashboard_id=dashboard.id,
-            group_id=permission_group_table.id,
-            permission="editor",
+            dashboard_id=empty.id, username=test_owner_user.username, permission="admin"
         )
     )
     db_session.commit()
-    dashboard_folder = tmp_path / dashboard.uuid
-    dashboard_folder.mkdir()
-    unreferenced = dashboard_folder / "unreferenced.json"
-    unreferenced.touch()
+    app.get_custom_setting.return_value = 1
 
-    clean_up_jsons(AnonymousUser())
+    copy_named_dashboard(test_owner_user, empty.id, "copy", str(uuid4()))
 
-    assert unreferenced.exists()
-
-
-@pytest.mark.django_db
-def test_clean_up_jsons_no_existing_dashboard_folder(
-    dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
-):
-    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-
-    workspace_path = tmp_path
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
-    )
-    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
-
-    grid_items = [
-        {
-            "i": "1",
-            "x": 1,
-            "y": 1,
-            "w": 1,
-            "h": 1,
-            "source": "Map",
-            "args_string": json.dumps(
-                {
-                    "layers": [
-                        {
-                            "configuration": {
-                                "props": {
-                                    "source": {
-                                        "type": "GeoJSON",
-                                        "geojson": "used_geojson.geojson",
-                                    }
-                                },
-                                "style": "used_style.json",
-                            },
-                        }
-                    ]
-                }
-            ),
-            "metadata_string": json.dumps({"refreshRate": 0}),
-            "uuid": str(uuid4()),
-        },
-    ]
-
-    # Add rows/cells and update dashboards
-    update_named_dashboard(
-        test_owner_user,
-        dashboard.id,
-        {"tabs": [{"name": "Tab 1", "gridItems": grid_items}]},
-    )
-
-    mock_remove = mocker.patch("os.remove")
-    clean_up_jsons(test_owner_user)
-    mock_remove.assert_not_called()
+    assert layer_storage_used(db_session, test_owner_user.username) == 2_000_000
+    with pytest.raises(LayerStorageQuotaExceeded):
+        store_layer_file(test_owner_user, dashboard.uuid, "more.json", b"{}")
 
 
 @pytest.mark.django_db
-def test_clean_up_jsons_skips_a_dashboard_whose_uuid_escapes_the_workspace(
-    dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
+def test_move_workspace_layer_files_passes_over_a_symlinked_dashboard_folder(
+    dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path
 ):
-    """A stored uuid that is not canonical is skipped, so the sweep never lists or
-    removes a folder outside the workspace."""
+    """A uuid naming a symlink to another folder in the workspace moves nothing out
+    of that folder."""
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-
-    workspace_path = tmp_path / "workspace"
-    workspace_path.mkdir()
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
+    plugin_folder = tmp_path / "geoglows_plots_cache"
+    plugin_folder.mkdir()
+    (plugin_folder / "cached.json").write_text("{}")
+    (tmp_path / dashboard.uuid).symlink_to(plugin_folder)
+    mocker.patch("tethysapp.tethysdash.model.get_app_workspace").return_value = (
+        MagicMock(path=tmp_path)
     )
-    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
 
-    outside_dir = tmp_path / "outside"
-    outside_dir.mkdir()
-    kept_file = outside_dir / "keep.json"
-    kept_file.write_text("keep")
+    move_workspace_layer_files()
 
-    db_dashboard = db_session.query(Dashboard).filter_by(id=dashboard.id).first()
-    db_dashboard.uuid = "../outside"
-    db_session.commit()
-
-    clean_up_jsons(test_owner_user)
-
-    assert kept_file.exists()
-    assert kept_file.read_text() == "keep"
-
-
-@pytest.mark.django_db
-def test_clean_up_jsons_leaves_a_directory_and_still_sweeps_files(
-    dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
-):
-    """The sweep removes only files; anything else in the folder is left alone."""
-    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
-    )
-    mock_get_app_workspace.return_value = MagicMock(path=tmp_path)
-
-    dashboard_folder = tmp_path / dashboard.uuid
-    (dashboard_folder / "subfolder").mkdir(parents=True)
-    unused_file = dashboard_folder / "unused.json"
-    unused_file.touch()
-
-    clean_up_jsons(test_owner_user)
-
-    assert (dashboard_folder / "subfolder").is_dir()
-    assert not unused_file.exists()
+    assert (plugin_folder / "cached.json").exists()
+    assert _layer_file_rows(db_session, dashboard.id) == {}
 
 
 def test_cleanup_old_jsons_skips_a_dashboard_whose_uuid_escapes_the_workspace(
@@ -1759,54 +2233,6 @@ def test_cleanup_old_jsons_skips_a_dashboard_whose_uuid_escapes_the_workspace(
     cleanup_old_jsons()
 
     assert not (tmp_path / "outside").exists()
-
-
-def test_copy_dashboard_files_copies_files_but_not_symlinks(mocker, tmp_path):
-    """Regular files are copied; symlinks are not followed."""
-    workspace_path = tmp_path / "workspace"
-    source_uuid, target_uuid = str(uuid4()), str(uuid4())
-    source = workspace_path / source_uuid
-    source.mkdir(parents=True)
-    (source / "layer.json").write_text("{}")
-    (tmp_path / "outside.json").write_text('{"outside": true}')
-    (source / "link.json").symlink_to(tmp_path / "outside.json")
-    mocker.patch("tethysapp.tethysdash.model.get_app_workspace").return_value = (
-        MagicMock(path=workspace_path)
-    )
-
-    copy_dashboard_files(source_uuid, target_uuid)
-
-    assert sorted(p.name for p in (workspace_path / target_uuid).iterdir()) == [
-        "layer.json"
-    ]
-
-
-def test_copy_dashboard_files_without_a_source_folder_creates_nothing(mocker, tmp_path):
-    workspace_path = tmp_path / "workspace"
-    workspace_path.mkdir()
-    mocker.patch("tethysapp.tethysdash.model.get_app_workspace").return_value = (
-        MagicMock(path=workspace_path)
-    )
-
-    copy_dashboard_files(str(uuid4()), str(uuid4()))
-
-    assert not any(workspace_path.iterdir())
-
-
-def test_delete_dashboard_files_removes_the_folder(mocker, tmp_path):
-    dashboard_uuid = str(uuid4())
-    folder = tmp_path / dashboard_uuid
-    folder.mkdir()
-    (folder / "layer.json").write_text("{}")
-    mocker.patch("tethysapp.tethysdash.model.get_app_workspace").return_value = (
-        MagicMock(path=tmp_path)
-    )
-
-    delete_dashboard_files(dashboard_uuid)
-
-    assert not folder.exists()
-    # A dashboard with no files has nothing to remove.
-    delete_dashboard_files(str(uuid4()))
 
 
 @pytest.mark.django_db
@@ -2797,30 +3223,6 @@ def test_update_visualization_permissions_nonexistent_user_and_groups(
     )
 
 
-def test_flatten():
-    # Test with typical list of lists
-    input_data = [[1, 2], [3, 4], [5]]
-    expected = [1, 2, 3, 4, 5]
-    from tethysapp.tethysdash.model import flatten
-
-    assert flatten(input_data) == expected
-
-    # Test with empty list
-    input_data = []
-    expected = []
-    assert flatten(input_data) == expected
-
-    # Test with nested empty lists
-    input_data = [[], [], []]
-    expected = []
-    assert flatten(input_data) == expected
-
-    # Test with mixed empty and non-empty lists
-    input_data = [[1], [], [2, 3], []]
-    expected = [1, 2, 3]
-    assert flatten(input_data) == expected
-
-
 def test_get_user_app_permissions_basic():
     class MockUser:
         def get_all_permissions(self):
@@ -2989,8 +3391,12 @@ def test_init_primary_db_moves_json_and_geojson_files(
         ],
     )
     mock_query.return_value.all.return_value = [dashboard_1]
+    # Moving the folders into the storage has tests of its own.
+    mock_move = mocker.patch("tethysapp.tethysdash.model.move_workspace_layer_files")
 
     init_primary_db(engine=mock_engine, first_time=True)
+
+    mock_move.assert_called_once_with()
 
     # Check that files have been deleted from original locations
     assert not os.path.exists(os.path.join(json_dir, "a.json"))
