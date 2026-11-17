@@ -27,6 +27,7 @@ import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
 import { preloadPluginVariableInputs } from "components/loader/variableInputPreload";
 import { clearPreloadedVisualizations } from "components/visualizations/preloadedVisualizationCache";
+import { migrateTabsAnnotationLayers } from "components/map/annotationGroups";
 
 /**
  * Scans grid items for the variable input values the dashboard owns: each
@@ -212,7 +213,13 @@ const DashboardLoader = ({
         const response = await appAPI.getDashboard({ id });
         if (abandoned) return;
         if (response.success) {
-          const dashboardTabs = response.dashboard.tabs;
+          // Annotations layers saved before annotations moved into a map's
+          // settings are converted here, before anything renders, so every
+          // component sees one shape. Unsaved: the conversion is written back
+          // with the dashboard's next save.
+          const dashboardTabs = migrateTabsAnnotationLayers(
+            response.dashboard.tabs,
+          );
           const { seeds, dateFormats } = updateVariableInputValuesWithGridItems(
             dashboardTabs,
             { replacesAllTabs: true },
