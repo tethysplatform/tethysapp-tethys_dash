@@ -1,7 +1,11 @@
 import {
   ANNOTATION_GROUP_KEY,
   ANNOTATIONS_METADATA_KEY,
+  annotationGroupLayerName,
   buildAnnotationGroupLayers,
+  groupNameError,
+  nextGroupName,
+  withAnnotationGroups,
   migrateGridItemAnnotationLayers,
   migrateMapAnnotationLayers,
   migrateTabsAnnotationLayers,
@@ -72,6 +76,16 @@ describe("normalizeAnnotationGroups", () => {
       ]),
     ).toEqual([{ name: "Notes", defaults: {}, items: [], future: 1 }]);
   });
+
+  it("makes repeated names unique, including ones that differ only in spaces", () => {
+    expect(
+      normalizeAnnotationGroups([
+        { name: "Notes" },
+        { name: "Notes " },
+        { name: "Notes" },
+      ]).map((group) => group.name),
+    ).toEqual(["Notes", "Notes (2)", "Notes (3)"]);
+  });
 });
 
 describe("buildAnnotationGroupLayers", () => {
@@ -104,7 +118,7 @@ describe("buildAnnotationGroupLayers", () => {
     expect(entry.configuration.props.title).toBe("Stations");
   });
 
-  it("keeps duplicate group names apart in the internal name", () => {
+  it("keeps duplicate group names apart, in the name and the layer", () => {
     const entries = buildAnnotationGroupLayers([
       { name: "Notes" },
       { name: "Notes" },
@@ -113,7 +127,7 @@ describe("buildAnnotationGroupLayers", () => {
     expect(new Set(names).size).toBe(2);
     expect(entries.map((entry) => entry.configuration.props.title)).toEqual([
       "Notes",
-      "Notes",
+      "Notes (2)",
     ]);
   });
 
@@ -376,5 +390,81 @@ describe("migrateTabsAnnotationLayers", () => {
 
   it("passes a non-list through", () => {
     expect(migrateTabsAnnotationLayers(undefined)).toBe(undefined);
+  });
+});
+
+describe("annotationGroupLayerName", () => {
+  it("is the name the group's layer is built with", () => {
+    const [entry] = buildAnnotationGroupLayers([{ name: "Flood notes" }]);
+    expect(annotationGroupLayerName("Flood notes")).toBe(
+      entry.configuration.props.name,
+    );
+  });
+});
+
+describe("nextGroupName", () => {
+  it("offers the first free Annotations N", () => {
+    expect(nextGroupName([])).toBe("Annotations 1");
+    expect(nextGroupName(undefined)).toBe("Annotations 1");
+    expect(
+      nextGroupName([{ name: "Annotations 1" }, { name: "Annotations 3" }]),
+    ).toBe("Annotations 2");
+  });
+});
+
+describe("groupNameError", () => {
+  const groups = [{ name: "Flood notes" }, { name: "Site visits" }];
+
+  it("accepts a new name, trimmed", () => {
+    expect(groupNameError("  Gauges ", groups)).toBeNull();
+  });
+
+  it("rejects an empty name", () => {
+    expect(groupNameError("   ", groups)).toBe("Enter a name for the group.");
+    expect(groupNameError(undefined, groups)).toBe(
+      "Enter a name for the group.",
+    );
+  });
+
+  it("rejects another group's name, but lets a group keep its own", () => {
+    expect(groupNameError(" Site visits ", groups, "Flood notes")).toBe(
+      'This map already has a group named "Site visits".',
+    );
+    expect(groupNameError("Flood notes", groups, "Flood notes")).toBeNull();
+  });
+});
+
+describe("withAnnotationGroups", () => {
+  const groups = [{ name: "Flood notes", defaults: {}, items: [] }];
+
+  it("sets the groups and keeps every other setting", () => {
+    expect(
+      JSON.parse(withAnnotationGroups('{"refreshRate":5}', groups)),
+    ).toEqual({ refreshRate: 5, annotations: groups });
+  });
+
+  it("removes the key when no groups are left", () => {
+    expect(
+      JSON.parse(
+        withAnnotationGroups(
+          JSON.stringify({ refreshRate: 5, annotations: groups }),
+          [],
+        ),
+      ),
+    ).toEqual({ refreshRate: 5 });
+  });
+
+  it("treats empty or missing settings as none", () => {
+    expect(JSON.parse(withAnnotationGroups("", groups))).toEqual({
+      annotations: groups,
+    });
+    expect(JSON.parse(withAnnotationGroups(undefined, groups))).toEqual({
+      annotations: groups,
+    });
+  });
+
+  it("refuses settings it cannot read rather than overwrite them", () => {
+    expect(withAnnotationGroups("{oops", groups)).toBeNull();
+    expect(withAnnotationGroups("[1]", groups)).toBeNull();
   });
 });

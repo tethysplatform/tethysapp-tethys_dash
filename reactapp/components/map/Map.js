@@ -9,6 +9,9 @@ import { isDecorationLayerConfig } from "components/map/decorationLayers";
 import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
 import useLinkedExtentOutlines from "components/map/useLinkedExtentOutlines";
 import AnnotationEditor from "components/map/AnnotationEditor";
+import AnnotationControl, {
+  annotationControlPropType,
+} from "components/map/AnnotationControl";
 import { registerCaptureMap } from "components/map/captureLockedLayers";
 // Importing this registers the coordinate reference systems that layers name by
 // code. Module evaluation completes before any render, so registration is in
@@ -568,6 +571,7 @@ const MapComponent = ({
   runtimeLayerState,
   layerPrepStatus,
   runtimeLayerFetchStatus,
+  annotationControl,
 }) => {
   const [errorMessage, setErrorMessage] = useState("");
   // Per-layer load state, keyed on layer name, for every source read in the
@@ -1999,18 +2003,40 @@ const MapComponent = ({
         )}
         {/* The viewer drawing tool would claim clicks meant for an annotation
             editing session, so it steps aside while one is open. */}
-        {mapDrawing && !mapContext?.annotationEditSession && (
-          <DrawInteractions
-            mapDrawing={mapDrawing}
-            visualizationRef={visualizationRef}
-            drawing={drawing}
-          />
-        )}
+        {mapDrawing &&
+          !mapContext?.annotationEditSession &&
+          !annotationControl?.session && (
+            <DrawInteractions
+              mapDrawing={mapDrawing}
+              visualizationRef={visualizationRef}
+              drawing={drawing}
+            />
+          )}
         {mapContext?.extentDrawMode && (
           <ExtentInteraction visualizationRef={visualizationRef} />
         )}
+        {/* The DataViewer's layer editor session: it reads only the items
+            Done hands back, through MapContext. */}
         {mapContext?.annotationEditSession && (
-          <AnnotationEditor visualizationRef={visualizationRef} />
+          <AnnotationEditor
+            visualizationRef={visualizationRef}
+            session={mapContext.annotationEditSession}
+            doneLabel="Save"
+            onDone={(items) => {
+              mapContext.setEditedAnnotations(items);
+              mapContext.setAnnotationEditSession(null);
+            }}
+            onCancel={() => mapContext.setAnnotationEditSession(null)}
+          />
+        )}
+        {/* The dashboard's annotation button, offered only while the
+            dashboard is being edited (see visualizations/Map.js). */}
+        {annotationControl && (
+          <AnnotationControl
+            visualizationRef={visualizationRef}
+            mapDivRef={mapDivRef}
+            {...annotationControl}
+          />
         )}
         {layerControl && (
           <LayersControl
@@ -2068,6 +2094,9 @@ MapComponent.propTypes = {
       percent: PropTypes.number,
     }),
   ),
+  // The annotation button's groups, writer and session, present only while
+  // the dashboard is being edited. See AnnotationControl.
+  annotationControl: annotationControlPropType,
   layerPrepStatus: PropTypes.objectOf(
     PropTypes.shape({
       state: PropTypes.string,

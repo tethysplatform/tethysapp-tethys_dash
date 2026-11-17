@@ -419,6 +419,30 @@ const DashboardLoader = ({
     [tabs, activeTabId, variableInputValues],
   );
 
+  // Change one grid item, found by uuid, against the latest tabs rather than a
+  // copy read during render: two tiles writing in the same tick (two maps'
+  // annotation editors acting on one key press) each land on what the other
+  // wrote. `update` gets the item and returns its replacement, or the item
+  // itself to change nothing. For edits to a grid item's settings only, which
+  // never define variable inputs, so the variable-input rebuild `updateTab`
+  // runs is not needed here.
+  const updateGridItem = useCallback((tabId, gridItemUUID, update) => {
+    setTabs((prevTabs) =>
+      prevTabs.map((tab) => {
+        if (tab.id !== tabId || !Array.isArray(tab.gridItems)) return tab;
+        const index = tab.gridItems.findIndex(
+          (item) => item?.uuid === gridItemUUID,
+        );
+        if (index === -1) return tab;
+        const updated = update(tab.gridItems[index]);
+        if (updated === tab.gridItems[index]) return tab;
+        const gridItems = [...tab.gridItems];
+        gridItems[index] = updated;
+        return { ...tab, gridItems };
+      }),
+    );
+  }, []);
+
   // Commit a whole tab list in one write: one `setTabs`, and one
   // variable-input rebuild over the complete list. Callers that edit grid
   // items on more than one tab at once use this rather than several
@@ -554,6 +578,7 @@ const DashboardLoader = ({
       importTabs,
       updateTab,
       updateTabs,
+      updateGridItem,
       deleteTab,
       reorderTabs,
       resetTabs,
@@ -567,6 +592,7 @@ const DashboardLoader = ({
       importTabs,
       updateTab,
       updateTabs,
+      updateGridItem,
       deleteTab,
       reorderTabs,
       resetTabs,

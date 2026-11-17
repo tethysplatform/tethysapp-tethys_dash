@@ -11,6 +11,7 @@ import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { isDecorationLayerEntry } from "components/map/decorationLayers";
 import { buildAnnotationGroupLayers } from "components/map/annotationGroups";
+import useAnnotationEditing from "components/map/useAnnotationEditing";
 import MapComponent from "components/map/Map";
 import AttributeValue from "components/map/AttributeValue";
 import HoverTooltip, {
@@ -464,6 +465,20 @@ const MapVisualization = ({
   const mapContextValue = useMapContext();
   const extentDrawMode = mapContextValue?.extentDrawMode ?? null;
   const annotationEditSession = mapContextValue?.annotationEditSession ?? null;
+  // The dashboard's annotation button, offered while the dashboard is being
+  // edited, and whether it has a drawing session open.
+  const { annotationControl, sessionOpen: annotationSessionOpen } =
+    useAnnotationEditing({ dataviewerViz });
+  // Either kind of annotation session -- the layer editor's in the data
+  // viewer, or the button's on the dashboard -- has the pointer busy.
+  const editingAnnotations = Boolean(
+    annotationEditSession || annotationSessionOpen,
+  );
+  // Read by onMapClick, which MapComponent binds only when the layers change.
+  // Only the button's session stops clicks: the data viewer's map has always
+  // let clicks through during its own session, and that path goes in phase 5.
+  const annotationSessionOpenRef = useRef(annotationSessionOpen);
+  annotationSessionOpenRef.current = annotationSessionOpen;
 
   const safeActiveFeatureIndex =
     popupContent && popupContent.length > 0
@@ -479,7 +494,7 @@ const MapVisualization = ({
   const showModal =
     !modalDismissed &&
     !extentDrawMode &&
-    !annotationEditSession &&
+    !editingAnnotations &&
     hasModalPopup(activeFeature);
   const activeModalFeature = showModal ? activeFeature : null;
 
@@ -542,13 +557,26 @@ const MapVisualization = ({
     }
   }, [cancelHover]);
 
+  // Opening an annotation session clears what an earlier click left on the
+  // map -- its popup, outline and pin -- so none of it sits over the drawing,
+  // and none of it can be acted on while clicks belong to the editor.
+  useEffect(() => {
+    if (!annotationSessionOpen) return;
+    dismissPopupBeforeSwap();
+    if (markerLayer.current) {
+      visualizationRef.current?.removeLayer(markerLayer.current);
+      markerLayer.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [annotationSessionOpen]);
+
   // No tooltip while an extent is being drawn or annotations edited: the
   // pointer is doing something else. One already up comes down as the mode
   // starts, rather than waiting for the next move.
   useEffect(() => {
-    hoverBlockedRef.current = Boolean(extentDrawMode || annotationEditSession);
+    hoverBlockedRef.current = Boolean(extentDrawMode || editingAnnotations);
     if (hoverBlockedRef.current) cancelHover();
-  }, [extentDrawMode, annotationEditSession, cancelHover]);
+  }, [extentDrawMode, editingAnnotations, cancelHover]);
 
   const { getMessageForRequest } = useContext(WebsocketContext) ?? {};
   const { errorsByLayerId, loadingByLayerId, rasterLegendByLayerId } =
@@ -1371,6 +1399,9 @@ const MapVisualization = ({
 
     // istanbul ignore next
     if (drawing.current || isProcessing) return;
+    // A click while annotations are being drawn on the dashboard belongs to
+    // the editor: it must not drop a pin, query layers or open a popup.
+    if (annotationSessionOpenRef.current) return;
 
     // Compute the queryable layer set FIRST, before any side effects. If
     // nothing is click-eligible (e.g., the map has only hover-tagged
@@ -2041,6 +2072,7 @@ const MapVisualization = ({
         runtimeLayerState={runtimeLayerState}
         layerPrepStatus={layerPrepStatus}
         runtimeLayerFetchStatus={runtimeLayerFetchStatus}
+        annotationControl={annotationControl}
       />
       <PopupModal
         show={!!activeModalFeature}

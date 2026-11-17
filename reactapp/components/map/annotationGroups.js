@@ -56,6 +56,81 @@ export function uniqueGroupName(base, taken) {
 }
 
 /**
+ * The internal name of the layer that draws the group named `name`. Group
+ * names are unique on a map wherever the GUI writes them, so this is the name
+ * `buildAnnotationGroupLayers` gives that group's layer.
+ *
+ * @param {string} name a group name
+ * @returns {string}
+ */
+export function annotationGroupLayerName(name) {
+  return `${GROUP_LAYER_NAME_PREFIX}${name}`;
+}
+
+/**
+ * The name the GUI offers a new group: the first free `Annotations N`.
+ *
+ * @param {Array<object>} groups the map's groups
+ * @returns {string}
+ */
+export function nextGroupName(groups) {
+  const taken = new Set(
+    normalizeAnnotationGroups(groups).map((group) => group.name),
+  );
+  let number = 1;
+  while (taken.has(`Annotations ${number}`)) number += 1;
+  return `Annotations ${number}`;
+}
+
+/**
+ * Why `name` cannot be used for a group, or null when it can. Names are
+ * trimmed before they are compared or saved.
+ *
+ * @param {string} name the proposed name
+ * @param {Array<object>} groups the map's groups
+ * @param {string} [currentName] the group being renamed, which may keep its
+ *   own name
+ * @returns {string|null}
+ */
+export function groupNameError(name, groups, currentName) {
+  const trimmed = typeof name === "string" ? name.trim() : "";
+  if (trimmed === "") return "Enter a name for the group.";
+  const clash = normalizeAnnotationGroups(groups).some(
+    (group) => group.name === trimmed && group.name !== currentName,
+  );
+  return clash ? `This map already has a group named "${trimmed}".` : null;
+}
+
+/**
+ * A grid item's settings string with its annotation groups replaced. With no
+ * groups left the key is removed rather than saved empty. Returns null when
+ * the settings do not parse into an object, so a caller never overwrites
+ * settings it could not read.
+ *
+ * @param {string} metadataString the grid item's `metadata_string`
+ * @param {Array<object>} groups the groups to save
+ * @returns {string|null}
+ */
+export function withAnnotationGroups(metadataString, groups) {
+  let metadata = {};
+  if (typeof metadataString === "string" && metadataString.trim() !== "") {
+    try {
+      metadata = JSON.parse(metadataString);
+    } catch {
+      return null;
+    }
+  }
+  if (!isPlainObject(metadata)) return null;
+  const next = { ...metadata };
+  if (Array.isArray(groups) && groups.length > 0) {
+    next[ANNOTATIONS_METADATA_KEY] = groups;
+  } else {
+    delete next[ANNOTATIONS_METADATA_KEY];
+  }
+  return JSON.stringify(next);
+}
+
+/**
  * A saved `annotations` setting as a list of well-formed groups. Entries that
  * are not objects or have no name are dropped; names are trimmed; `defaults`
  * and `items` are always present. Any other key on a group is kept, so a
@@ -66,41 +141,42 @@ export function uniqueGroupName(base, taken) {
  */
 export function normalizeAnnotationGroups(value) {
   if (!Array.isArray(value)) return [];
+  // Names are made unique here, so a name always picks out one group -- the
+  // panel finds groups by name, and the editor hides a group's layer by it.
+  // Only a hand-edited setting (or two names that differ only in spaces) can
+  // repeat one; the later copy is suffixed, as a migration would name it.
+  const used = new Set();
   return value
     .filter((group) => isPlainObject(group) && isNonEmptyString(group.name))
-    .map((group) => ({
-      ...group,
-      name: group.name.trim(),
-      ...normalizeAnnotations(group),
-    }));
+    .map((group) => {
+      const name = uniqueGroupName(group.name.trim(), used);
+      used.add(name);
+      return { ...group, name, ...normalizeAnnotations(group) };
+    });
 }
 
 /**
  * The layer entries the map draws for a list of groups, in group order, so a
  * later group draws above an earlier one once appended after the map layers.
- * Duplicate group names, which only a hand-edited setting can produce, are
- * kept apart by suffixing the internal name.
+ * Group names are unique once normalized, so each layer's name is unique too.
  *
  * @param {unknown} groups the saved setting
  * @returns {Array<object>} `layers[i]`-shaped entries
  */
 export function buildAnnotationGroupLayers(groups) {
-  const used = new Set();
-  return normalizeAnnotationGroups(groups).map((group) => {
-    const key = uniqueGroupName(group.name, used);
-    used.add(key);
-    return buildDecorationLayerEntry({
+  return normalizeAnnotationGroups(groups).map((group) =>
+    buildDecorationLayerEntry({
       sourceType: ANNOTATION_SOURCE_TYPE,
       layerProps: {
         ...(isPlainObject(group.layerProps) ? group.layerProps : {}),
-        name: `${GROUP_LAYER_NAME_PREFIX}${key}`,
+        name: annotationGroupLayerName(group.name),
         title: group.name,
         [ANNOTATION_GROUP_KEY]: group.name,
       },
       layerVisibility: group.layerVisibility,
       annotations: group,
-    });
-  });
+    }),
+  );
 }
 
 function isAnnotationLayerEntry(entry) {

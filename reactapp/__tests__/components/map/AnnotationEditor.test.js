@@ -13,13 +13,17 @@ import VectorLayer from "ol/layer/Vector.js";
 import VectorSource from "ol/source/Vector.js";
 import Draw from "ol/interaction/Draw.js";
 import Select from "ol/interaction/Select.js";
+import Translate from "ol/interaction/Translate.js";
+import Modify from "ol/interaction/Modify.js";
 import DoubleClickZoom from "ol/interaction/DoubleClickZoom.js";
 import { transform } from "ol/proj.js";
 import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
 import AnnotationEditor from "components/map/AnnotationEditor";
-import { rotateHandleCoordinate } from "components/map/textRotateInteraction";
+import TextRotateInteraction, {
+  rotateHandleCoordinate,
+} from "components/map/textRotateInteraction";
 
 // ol/Map observes its target's size; jsdom has no ResizeObserver.
 beforeAll(() => {
@@ -52,6 +56,8 @@ let olMap;
 let target;
 let context;
 let editorLayer;
+// Each `onChange` the editor reported, in order.
+let changes = [];
 const realSetMap = VectorLayer.prototype.setMap;
 
 // Mirrors map/Map.js: the editor mounts only while a session is open.
@@ -66,8 +72,20 @@ const Host = ({ session, mapRef }) => {
       context.setAnnotationEditSession(session);
     }
   });
+  // The same adapter map/Map.js uses for the data viewer's session, plus a
+  // record of every change the editor reports along the way.
   return context.annotationEditSession ? (
-    <AnnotationEditor visualizationRef={ref} />
+    <AnnotationEditor
+      visualizationRef={ref}
+      session={context.annotationEditSession}
+      doneLabel="Save"
+      onChange={(items) => changes.push(items)}
+      onDone={(items) => {
+        context.setEditedAnnotations(items);
+        context.setAnnotationEditSession(null);
+      }}
+      onCancel={() => context.setAnnotationEditSession(null)}
+    />
   ) : null;
 };
 Host.propTypes = { session: PropTypes.object, mapRef: PropTypes.object };
@@ -98,6 +116,7 @@ const save = () =>
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
 beforeEach(() => {
+  changes = [];
   target = document.createElement("div");
   document.body.appendChild(target);
   olMap = new Map({
@@ -564,7 +583,12 @@ test("renders nothing and installs nothing without a session", () => {
   const before = olMap.getInteractions().getLength();
   const { container } = render(
     <MapContextProvider>
-      <AnnotationEditor visualizationRef={{ current: olMap }} />
+      <AnnotationEditor
+        visualizationRef={{ current: olMap }}
+        session={null}
+        onDone={jest.fn()}
+        onCancel={jest.fn()}
+      />
     </MapContextProvider>,
   );
 
@@ -1158,5 +1182,149 @@ describe("the selected annotation's side panel", () => {
     await waitFor(() =>
       expect(feature.get("annotationStyle")).toEqual({ haloColor: "#00ffff" }),
     );
+  });
+});
+
+// The dashboard's annotation button writes every change into the dashboard's
+// unsaved edits as it happens, so the editor reports each completed edit --
+// and only completed ones: a drag is one change, not one per pointer move.
+describe("reporting changes as they happen", () => {
+  const lastChange = () => changes[changes.length - 1];
+
+  it("reports a drawn line once, when it is finished", () => {
+    mount(session());
+    act(() => {
+      interaction(Draw).appendCoordinates([
+        [0, 0],
+        [10000, 0],
+      ]);
+    });
+    expect(changes).toHaveLength(0);
+
+    act(() => interaction(Draw).finishDrawing());
+
+    expect(changes).toHaveLength(1);
+    expect(lastChange()).toEqual([
+      expect.objectContaining({ id: "a1", kind: "line" }),
+    ]);
+  });
+
+  it("reports a move or a reshape when the drag ends, not during it", () => {
+    mount(session({ items: [line] }));
+    const feature = featureById("a1");
+    selectFeature(feature);
+
+    act(() => feature.getGeometry().translate(1000, 0));
+    act(() => feature.getGeometry().translate(1000, 0));
+    expect(changes).toHaveLength(0);
+
+    act(() => interaction(Translate).dispatchEvent("translateend"));
+    expect(changes).toHaveLength(1);
+    expect(lastChange()[0].coordinates).not.toEqual(line.coordinates);
+
+    act(() => interaction(Modify).dispatchEvent("modifyend"));
+    expect(changes).toHaveLength(2);
+  });
+
+  it("reports a rotation when the rotate drag ends", () => {
+    mount(session({ items: [text] }));
+    selectFeature(featureById("a2"));
+    const rotate = interaction(TextRotateInteraction);
+
+    // Stands in for a grab on the handle: jsdom gives the map no size, so
+    // the handle has no pixel to press. The press-to-release path itself is
+    // covered in textRotateInteraction.test.js.
+    act(() => {
+      rotate.feature_ = featureById("a2");
+      rotate.handleUpEvent();
+    });
+
+    expect(changes).toHaveLength(1);
+  });
+
+  it("reports committed text, but not text abandoned with Escape", () => {
+    mount(session({ items: [text] }));
+    fireEvent.click(screen.getByRole("button", { name: "Text" }));
+    hitReturns(featureById("a2"));
+    singleClick([0, 0]);
+
+    const box = screen.getByLabelText("Annotation text");
+    fireEvent.change(box, { target: { value: "Gauge" } });
+    fireEvent.keyDown(box, { key: "Escape" });
+    // Reverting puts the stored text back, and reports it unchanged.
+    expect(lastChange()).toEqual([text]);
+
+    singleClick([0, 0]);
+    const reopened = screen.getByLabelText("Annotation text");
+    fireEvent.change(reopened, { target: { value: "Gauge" } });
+    fireEvent.keyDown(reopened, { key: "Enter" });
+    expect(lastChange()).toEqual([{ ...text, text: "Gauge" }]);
+  });
+
+  it("reports a style change at once, and panel text once it is left", () => {
+    mount(session({ items: [line, text] }));
+    selectFeature(featureById("a1"));
+    fireEvent.change(screen.getByLabelText("Line Width"), {
+      target: { value: "6" },
+    });
+    expect(lastChange()[0]).toEqual({ ...line, style: { lineWidth: 6 } });
+
+    selectFeature(featureById("a2"));
+    const before = changes.length;
+    const field = screen.getByLabelText("Selected annotation text");
+    fireEvent.focus(field);
+    fireEvent.change(field, { target: { value: "N" } });
+    fireEvent.change(field, { target: { value: "New" } });
+    expect(changes).toHaveLength(before);
+
+    fireEvent.blur(field);
+    expect(changes).toHaveLength(before + 1);
+    expect(lastChange()[1]).toEqual({ ...text, text: "New" });
+  });
+
+  it("reports a deletion", () => {
+    mount(session({ items: [line, text] }));
+    selectFeature(featureById("a1"));
+    fireEvent.click(deleteButton());
+    expect(lastChange()).toEqual([text]);
+  });
+
+  it("reports nothing when only opened and closed", () => {
+    mount(session({ items: [line, text] }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(changes).toHaveLength(0);
+  });
+});
+
+// Two maps on one dashboard can each have a session open, and both listen for
+// keys on the document: only the one the author last pointed at acts on them.
+describe("keys with more than one map", () => {
+  it("ignores keys once the author has pressed outside this map, until back", () => {
+    mount(session({ items: [line, text] }));
+    selectFeature(featureById("a1"));
+
+    const elsewhere = document.createElement("div");
+    document.body.appendChild(elsewhere);
+    fireEvent.pointerDown(elsewhere);
+    fireEvent.keyDown(document, { key: "Delete" });
+    expect(workingFeatures()).toHaveLength(2);
+    expect(changes).toHaveLength(0);
+
+    // Back inside the map's element (not on the viewport itself, whose own
+    // pointer handling needs PointerEvent, which jsdom lacks).
+    const inside = document.createElement("div");
+    olMap.getTargetElement().appendChild(inside);
+    fireEvent.pointerDown(inside);
+    fireEvent.keyDown(document, { key: "Delete" });
+    expect(workingFeatures()).toHaveLength(1);
+    expect(changes[changes.length - 1]).toEqual([text]);
+    elsewhere.remove();
+  });
+
+  it("acts on keys from the start, as the session was opened from this map", () => {
+    mount(session({ items: [line, text] }));
+    selectFeature(featureById("a1"));
+    fireEvent.keyDown(document, { key: "Delete" });
+    expect(workingFeatures()).toHaveLength(1);
   });
 });

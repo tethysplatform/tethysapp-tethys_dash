@@ -268,3 +268,92 @@ test("an annotation group's layer carries its group name and title", async () =>
   expect(layer.get(ANNOTATION_GROUP_KEY)).toBe("Flood notes");
   expect(layer.getSource().getFeatures()).toHaveLength(2);
 });
+
+describe("the annotation button on a dashboard map", () => {
+  const groups = [
+    { name: "Flood notes", items: annotationsLayer().annotations.items },
+  ];
+  const groupLayerConfig = () => {
+    const [entry] = buildAnnotationGroupLayers(groups);
+    return {
+      ...entry.configuration,
+      props: { ...entry.configuration.props, zIndex: 1 },
+    };
+  };
+
+  let startSession;
+  const ButtonHarness = () => {
+    const visualizationRef = useRef();
+    const { mapReady } = useMapContext();
+    const [session, setSession] = useState(null);
+    startSession = setSession;
+    mapRef = visualizationRef;
+    return (
+      <div>
+        <MapComponent
+          visualizationRef={visualizationRef}
+          layers={[groupLayerConfig()]}
+          baseMap={null}
+          annotationControl={{
+            groups: [{ ...groups[0], defaults: {} }],
+            onGroupsChange: jest.fn(),
+            session,
+            onSessionChange: jest.fn(),
+          }}
+        />
+        <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      </div>
+    );
+  };
+  const mountButton = async () => {
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <ButtonHarness />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(layerNamed(groupLayerConfig().props.name)).toBeTruthy(),
+    );
+  };
+
+  it("shows the button on the map", async () => {
+    await mountButton();
+    expect(
+      screen.getByRole("button", { name: "Show Annotation Control" }),
+    ).toBeInTheDocument();
+  });
+
+  it("draws the editor and hides the group's saved layer during a session", async () => {
+    await mountButton();
+    // As a click on Draw would, once the map is there.
+    act(() =>
+      startSession({
+        groupName: "Flood notes",
+        layerName: groupLayerConfig().props.name,
+        title: "Flood notes",
+        defaults: {},
+        items: groups[0].items,
+        startItems: groups[0].items,
+      }),
+    );
+
+    expect(
+      screen.getByRole("toolbar", { name: "Annotation editor" }),
+    ).toHaveTextContent("Editing annotations: Flood notes");
+    expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Show Annotation Control" }),
+    ).toBeNull();
+    // The working copy draws in its place, so it is not drawn twice.
+    await waitFor(() =>
+      expect(layerNamed(groupLayerConfig().props.name).getVisible()).toBe(
+        false,
+      ),
+    );
+  });
+});
