@@ -139,6 +139,28 @@ describe("writing groups", () => {
     });
   });
 
+  it("applies an updater to the groups as they are when the write lands", () => {
+    const { result } = renderEditing();
+    const addGroup = (groupsNow) => [
+      ...groupsNow,
+      { name: "Annotations 2", defaults: {}, items: [] },
+    ];
+    act(() => result.current.annotationControl.onGroupsChange(addGroup));
+
+    // A write from the same map got there first and renamed the group.
+    const latest = {
+      ...mapItem(),
+      metadata_string: JSON.stringify({
+        annotations: [{ name: "Renamed", defaults: {}, items: [] }],
+      }),
+    };
+    expect(
+      JSON.parse(applyWrite(latest).metadata_string).annotations.map(
+        (group) => group.name,
+      ),
+    ).toEqual(["Renamed", "Annotations 2"]);
+  });
+
   it("leaves the item alone when nothing changed or its settings cannot be read", () => {
     const { result } = renderEditing();
     act(() => result.current.annotationControl.onGroupsChange(groups));

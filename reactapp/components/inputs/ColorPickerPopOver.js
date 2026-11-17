@@ -34,9 +34,21 @@ const ColorPickerPopover = ({
   containerRef,
   divProps,
   hideLabel = false,
+  onClose,
 }) => {
   const divTarget = useRef(null);
   const [showColorPopover, setShowColorPopover] = useState(false);
+  // Read by `close`: one click on the swatch can close the picker twice --
+  // the swatch's own handler, then the overlay's root close for a click
+  // outside it -- and `onClose` must fire once.
+  const openRef = useRef(false);
+  openRef.current = showColorPopover;
+  const close = () => {
+    if (!openRef.current) return;
+    openRef.current = false;
+    setShowColorPopover(false);
+    onClose?.();
+  };
 
   return (
     <FlexDiv {...divProps}>
@@ -51,7 +63,7 @@ const ColorPickerPopover = ({
       <ColorSwatch
         ref={divTarget}
         aria-label={`${label} color popover square`}
-        onClick={() => setShowColorPopover(!showColorPopover)}
+        onClick={() => (showColorPopover ? close() : setShowColorPopover(true))}
         $color={color || "#cccccc"}
         title={`Click to change ${label.toLowerCase()} color`}
       />
@@ -61,7 +73,7 @@ const ColorPickerPopover = ({
         show={showColorPopover}
         placement="right"
         rootClose
-        onHide={() => setShowColorPopover(false)}
+        onHide={close}
       >
         <Popover className="color-picker-popover">
           <StyledPopoverBody>
@@ -89,6 +101,9 @@ ColorPickerPopover.propTypes = {
   divProps: PropTypes.object,
   // Hide the visible label text; the accessible name is unaffected.
   hideLabel: PropTypes.bool,
+  // Called when the picker closes, for a caller that keeps one change per
+  // pick rather than one per step of a drag through the colors.
+  onClose: PropTypes.func,
 };
 
 export default ColorPickerPopover;

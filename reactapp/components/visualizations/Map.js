@@ -464,19 +464,11 @@ const MapVisualization = ({
   const { gridItemUUID } = useContext(GridItemContext) ?? {};
   const mapContextValue = useMapContext();
   const extentDrawMode = mapContextValue?.extentDrawMode ?? null;
-  const annotationEditSession = mapContextValue?.annotationEditSession ?? null;
   // The dashboard's annotation button, offered while the dashboard is being
   // edited, and whether it has a drawing session open.
   const { annotationControl, sessionOpen: annotationSessionOpen } =
     useAnnotationEditing({ dataviewerViz });
-  // Either kind of annotation session -- the layer editor's in the data
-  // viewer, or the button's on the dashboard -- has the pointer busy.
-  const editingAnnotations = Boolean(
-    annotationEditSession || annotationSessionOpen,
-  );
   // Read by onMapClick, which MapComponent binds only when the layers change.
-  // Only the button's session stops clicks: the data viewer's map has always
-  // let clicks through during its own session, and that path goes in phase 5.
   const annotationSessionOpenRef = useRef(annotationSessionOpen);
   annotationSessionOpenRef.current = annotationSessionOpen;
 
@@ -494,7 +486,7 @@ const MapVisualization = ({
   const showModal =
     !modalDismissed &&
     !extentDrawMode &&
-    !editingAnnotations &&
+    !annotationSessionOpen &&
     hasModalPopup(activeFeature);
   const activeModalFeature = showModal ? activeFeature : null;
 
@@ -574,9 +566,9 @@ const MapVisualization = ({
   // pointer is doing something else. One already up comes down as the mode
   // starts, rather than waiting for the next move.
   useEffect(() => {
-    hoverBlockedRef.current = Boolean(extentDrawMode || editingAnnotations);
+    hoverBlockedRef.current = Boolean(extentDrawMode || annotationSessionOpen);
     if (hoverBlockedRef.current) cancelHover();
-  }, [extentDrawMode, editingAnnotations, cancelHover]);
+  }, [extentDrawMode, annotationSessionOpen, cancelHover]);
 
   const { getMessageForRequest } = useContext(WebsocketContext) ?? {};
   const { errorsByLayerId, loadingByLayerId, rasterLegendByLayerId } =

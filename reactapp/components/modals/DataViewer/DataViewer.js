@@ -162,12 +162,10 @@ export function DataViewerContent({
   setShowGridItemMessage,
 }) {
   const mapContext = useMapContext();
-  // A static image's extent or a layer's annotations being edited on the
-  // preview map. Only the map and its own Done/Cancel stay on screen, so the
-  // author is never offered the visualization's inputs or Save mid-edit.
-  const editingOnMap = Boolean(
-    mapContext?.extentDrawMode || mapContext?.annotationEditSession,
-  );
+  // A static image's extent being drawn on the preview map. Only the map and
+  // its own Done/Cancel stay on screen, so the author is never offered the
+  // visualization's inputs or Save mid-edit.
+  const editingOnMap = Boolean(mapContext?.extentDrawMode);
   const {
     gridItemSource,
     gridItemArgsString,

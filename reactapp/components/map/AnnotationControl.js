@@ -26,6 +26,7 @@ import {
   groupNameError,
   nextGroupName,
 } from "components/map/annotationGroups";
+import usePendingCommit from "components/map/usePendingCommit";
 
 // The dashboard's annotation button: a map control, like the layers list and
 // the legend, that lists the map's annotation groups and starts drawing into
@@ -33,10 +34,15 @@ import {
 // edited, by a map that can write its own settings (see visualizations/Map.js),
 // which owns the groups and the session; this component only presents them.
 //
-// Every change goes out through `onGroupsChange` at once, into the dashboard's
-// unsaved edits: the header's Save keeps it and its Cancel throws it away, as
-// for any other edit. A drawing session's own Cancel puts back the group as it
-// was when the session started.
+// Changes go out through `onGroupsChange` into the dashboard's unsaved edits:
+// the header's Save keeps them and its Cancel throws them away, as for any
+// other edit. Each is an updater, `(groups) => groups`, applied to the groups
+// as they are when the write lands, so two writes in one tick both count.
+// Adding, renaming and deleting go out at once; a default style is held as a
+// draft while it is being edited and goes out once the edit is finished (see
+// usePendingCommit) -- the panel shows the draft, the map shows it from then.
+// A drawing session's own Cancel puts back the group as it was when the
+// session started.
 
 // Top-right: the layers list and the legend hold the bottom corners. Moves to
 // the button layout setting once that exists.
@@ -233,17 +239,27 @@ const AnnotationControl = ({
   const containerRef = useRef(null);
   // Ids for linking each row's error message to its name field.
   const idBase = useId();
-  // The editor reports changes through handlers bound when its session
-  // started; they must write into the groups as they are now.
-  const groupsRef = useRef(groups);
-  groupsRef.current = groups;
+  // A default being edited, `{groupName, defaults}`: shown in the panel at
+  // every step of the edit and written once it is finished, so a drag through
+  // the color picker is one write to the dashboard, not hundreds.
+  const [draftDefaults, setDraftDefaults] = useState(null);
+  const draftRef = useRef(null);
+  const { markPending: markDefaultsPending, flush: flushDefaults } =
+    usePendingCommit(() => {
+      const draft = draftRef.current;
+      draftRef.current = null;
+      setDraftDefaults(null);
+      onGroupsChange((latest) =>
+        replaceGroup(latest, draft.groupName, (group) => ({
+          ...group,
+          defaults: draft.defaults,
+        })),
+      );
+    });
 
   const writeItems = (groupName, items) =>
-    onGroupsChange(
-      replaceGroup(groupsRef.current, groupName, (group) => ({
-        ...group,
-        items,
-      })),
+    onGroupsChange((latest) =>
+      replaceGroup(latest, groupName, (group) => ({ ...group, items })),
     );
 
   if (session) {
@@ -280,9 +296,9 @@ const AnnotationControl = ({
   };
 
   const addGroup = () => {
-    onGroupsChange([
-      ...groups,
-      { name: nextGroupName(groups), defaults: {}, items: [] },
+    onGroupsChange((latest) => [
+      ...latest,
+      { name: nextGroupName(latest), defaults: {}, items: [] },
     ]);
   };
 
@@ -294,16 +310,21 @@ const AnnotationControl = ({
     }
     const name = renaming.value.trim();
     if (name !== renaming.name) {
-      onGroupsChange(
-        replaceGroup(groups, renaming.name, (group) => ({ ...group, name })),
+      // A default still pending for this group is written under its old
+      // name first, so the rename does not leave it with nowhere to go.
+      flushDefaults();
+      const from = renaming.name;
+      onGroupsChange((latest) =>
+        replaceGroup(latest, from, (group) => ({ ...group, name })),
       );
-      if (defaultsOpen === renaming.name) setDefaultsOpen(name);
+      if (defaultsOpen === from) setDefaultsOpen(name);
     }
     setRenaming(null);
   };
 
   const deleteGroup = (name) => {
-    onGroupsChange(groups.filter((group) => group.name !== name));
+    flushDefaults();
+    onGroupsChange((latest) => latest.filter((group) => group.name !== name));
     setConfirmingDelete(null);
     if (defaultsOpen === name) setDefaultsOpen(null);
   };
@@ -316,22 +337,37 @@ const AnnotationControl = ({
     }
   };
 
-  const setDefault = (groupName, field, value) => {
-    onGroupsChange(
-      replaceGroup(groups, groupName, (group) => {
-        const defaults = { ...group.defaults };
-        if (value === undefined) {
-          delete defaults[field];
-        } else {
-          defaults[field] = value;
-        }
-        return { ...group, defaults };
-      }),
-    );
+  const defaultsOf = (group) =>
+    draftDefaults?.groupName === group.name
+      ? draftDefaults.defaults
+      : group.defaults;
+
+  const setDefault = (group, field, value) => {
+    // A draft for another group is finished by starting this one.
+    if (draftRef.current && draftRef.current.groupName !== group.name) {
+      flushDefaults();
+    }
+    // Built on the draft as last set, not as last rendered: two steps can
+    // arrive before a render.
+    const defaults = {
+      ...(draftRef.current?.groupName === group.name
+        ? draftRef.current.defaults
+        : group.defaults),
+    };
+    if (value === undefined) {
+      delete defaults[field];
+    } else {
+      defaults[field] = value;
+    }
+    const draft = { groupName: group.name, defaults };
+    draftRef.current = draft;
+    setDraftDefaults(draft);
+    markDefaultsPending();
   };
 
   const renderDefaults = (group) => {
-    const resolved = resolveAnnotationDefaults(group.defaults);
+    const defaults = defaultsOf(group);
+    const resolved = resolveAnnotationDefaults(defaults);
     return (
       <Defaults
         role="group"
@@ -346,12 +382,12 @@ const AnnotationControl = ({
                 <AnnotationStyleControl
                   field={field}
                   value={resolved[field]}
-                  storedValue={group.defaults[field]}
-                  onChange={(value) => setDefault(group.name, field, value)}
+                  storedValue={defaults[field]}
+                  onChange={(value) => setDefault(group, field, value)}
+                  onCommit={flushDefaults}
                   ariaPrefix="Default "
                   containerRef={containerRef}
                   arrowheadOptions={DEFAULT_ARROWHEAD_OPTIONS}
-                  compactAnchor
                 />
               </Field>
             ))}
@@ -554,7 +590,10 @@ export const annotationControlPropType = PropTypes.shape({
       items: PropTypes.array.isRequired,
     }),
   ).isRequired,
-  /** Writes a new list of groups into the dashboard's unsaved edits. */
+  /**
+   * Writes the groups into the dashboard's unsaved edits: a new list, or an
+   * updater `(groups) => groups` applied to the groups as they are then.
+   */
   onGroupsChange: PropTypes.func.isRequired,
   /** The open drawing session, or null. */
   session: PropTypes.shape({

@@ -2,7 +2,7 @@ import PropTypes from "prop-types";
 import Form from "react-bootstrap/Form";
 import NormalInput from "components/inputs/NormalInput";
 import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
-import AnchorPicker, { ANCHOR_LABELS } from "components/inputs/AnchorPicker";
+import { ANCHOR_LABELS } from "components/inputs/AnchorPicker";
 import {
   coerceNumericField,
   colorValue,
@@ -46,7 +46,10 @@ const NUMBER_FIELD_LIMITS = {
 /**
  * One annotation style control. `onChange` receives the new value, or
  * `undefined` for a cleared number field -- which means "unset" rather than
- * zero.
+ * zero. It fires on every step of an edit (each move through the color
+ * picker, each keystroke), for a live preview; `onCommit`, when given, fires
+ * once the edit is finished: the picker closed, the number field left, a
+ * choice made.
  */
 const AnnotationStyleControl = ({
   field,
@@ -56,15 +59,21 @@ const AnnotationStyleControl = ({
   ariaPrefix = "",
   containerRef,
   arrowheadOptions,
-  compactAnchor,
+  onCommit,
 }) => {
   const label = `${ariaPrefix}${FIELD_LABELS[field]}`;
+  // A choice is finished the moment it is made.
+  const choose = (next) => {
+    onChange(next);
+    onCommit?.();
+  };
   if (COLOR_FIELDS.includes(field)) {
     return (
       <ColorPickerPopOver
         label={label}
         color={value}
         onChange={(color) => onChange(colorValue(color))}
+        onClose={onCommit}
         containerRef={containerRef}
         hideLabel
       />
@@ -87,6 +96,7 @@ const AnnotationStyleControl = ({
         }}
         ariaLabel={label}
         allowEmpty
+        onBlur={onCommit}
       />
     );
   }
@@ -95,7 +105,7 @@ const AnnotationStyleControl = ({
       <Form.Select
         aria-label={label}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => choose(e.target.value)}
       >
         {arrowheadOptions.map((option) => (
           <option key={option} value={option}>
@@ -105,22 +115,21 @@ const AnnotationStyleControl = ({
       </Form.Select>
     );
   }
-  if (field === "textAnchor" && compactAnchor) {
-    return (
-      <Form.Select
-        aria-label={label}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        {LABEL_ANCHOR_OPTIONS.map((anchor) => (
-          <option key={anchor} value={anchor}>
-            {ANCHOR_LABELS[anchor]}
-          </option>
-        ))}
-      </Form.Select>
-    );
-  }
-  return <AnchorPicker value={value} onChange={onChange} label={label} />;
+  // Text placement: a short list, which fits the editor panel and the
+  // annotation button's panel where the anchor grid would not.
+  return (
+    <Form.Select
+      aria-label={label}
+      value={value}
+      onChange={(e) => choose(e.target.value)}
+    >
+      {LABEL_ANCHOR_OPTIONS.map((anchor) => (
+        <option key={anchor} value={anchor}>
+          {ANCHOR_LABELS[anchor]}
+        </option>
+      ))}
+    </Form.Select>
+  );
 };
 
 AnnotationStyleControl.propTypes = {
@@ -132,7 +141,8 @@ AnnotationStyleControl.propTypes = {
   ariaPrefix: PropTypes.string,
   containerRef: PropTypes.object,
   arrowheadOptions: PropTypes.arrayOf(PropTypes.string),
-  compactAnchor: PropTypes.bool,
+  /** Called once an edit is finished; see the component's comment. */
+  onCommit: PropTypes.func,
 };
 
 export default AnnotationStyleControl;

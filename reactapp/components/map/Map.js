@@ -8,7 +8,6 @@ import moduleLoader, {
 import { isDecorationLayerConfig } from "components/map/decorationLayers";
 import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
 import useLinkedExtentOutlines from "components/map/useLinkedExtentOutlines";
-import AnnotationEditor from "components/map/AnnotationEditor";
 import AnnotationControl, {
   annotationControlPropType,
 } from "components/map/AnnotationControl";
@@ -2003,31 +2002,15 @@ const MapComponent = ({
         )}
         {/* The viewer drawing tool would claim clicks meant for an annotation
             editing session, so it steps aside while one is open. */}
-        {mapDrawing &&
-          !mapContext?.annotationEditSession &&
-          !annotationControl?.session && (
-            <DrawInteractions
-              mapDrawing={mapDrawing}
-              visualizationRef={visualizationRef}
-              drawing={drawing}
-            />
-          )}
+        {mapDrawing && !annotationControl?.session && (
+          <DrawInteractions
+            mapDrawing={mapDrawing}
+            visualizationRef={visualizationRef}
+            drawing={drawing}
+          />
+        )}
         {mapContext?.extentDrawMode && (
           <ExtentInteraction visualizationRef={visualizationRef} />
-        )}
-        {/* The DataViewer's layer editor session: it reads only the items
-            Done hands back, through MapContext. */}
-        {mapContext?.annotationEditSession && (
-          <AnnotationEditor
-            visualizationRef={visualizationRef}
-            session={mapContext.annotationEditSession}
-            doneLabel="Save"
-            onDone={(items) => {
-              mapContext.setEditedAnnotations(items);
-              mapContext.setAnnotationEditSession(null);
-            }}
-            onCancel={() => mapContext.setAnnotationEditSession(null)}
-          />
         )}
         {/* The dashboard's annotation button, offered only while the
             dashboard is being edited (see visualizations/Map.js). */}

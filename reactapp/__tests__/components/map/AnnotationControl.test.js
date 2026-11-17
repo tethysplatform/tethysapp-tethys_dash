@@ -46,12 +46,16 @@ const siteVisits = () => ({ name: "Site visits", defaults: {}, items: [] });
 
 let onGroupsChange;
 let onSessionChange;
+// The groups the control was last rendered with, which an updater write is
+// applied to.
+let currentGroups;
 
 const renderControl = ({
   groups = [floodNotes(), siteVisits()],
   session,
-} = {}) =>
-  render(
+} = {}) => {
+  currentGroups = groups;
+  return render(
     <AnnotationControl
       visualizationRef={{ current: null }}
       groups={groups}
@@ -60,13 +64,19 @@ const renderControl = ({
       onSessionChange={onSessionChange}
     />,
   );
+};
 
 const open = () =>
   fireEvent.click(
     screen.getByRole("button", { name: "Show Annotation Control" }),
   );
 
-const lastWrite = () => onGroupsChange.mock.calls.at(-1)[0];
+// A write is a list or an updater; either way, the groups it leaves.
+const resolve = (write) =>
+  typeof write === "function" ? write(currentGroups) : write;
+const lastWrite = () => resolve(onGroupsChange.mock.calls.at(-1)[0]);
+const resolveFrom = (groups, write) =>
+  typeof write === "function" ? write(groups) : write;
 
 beforeEach(() => {
   onGroupsChange = jest.fn();
@@ -251,7 +261,7 @@ describe("default styles", () => {
     ).toBeInTheDocument();
   });
 
-  it("writes a changed default into its group, and a reset removes it", () => {
+  it("writes a changed default once the edit is finished, and clearing removes it", () => {
     renderControl();
     open();
     fireEvent.click(
@@ -260,18 +270,151 @@ describe("default styles", () => {
     const defaults = screen.getByRole("group", {
       name: "Site visits default style settings",
     });
-    fireEvent.change(within(defaults).getByLabelText("Default Line Width"), {
-      target: { value: "4" },
-    });
+    const width = within(defaults).getByLabelText("Default Line Width");
+    fireEvent.change(width, { target: { value: "4" } });
+    // Shown at once, written only when the field is left.
+    expect(width).toHaveValue("4");
+    expect(onGroupsChange).not.toHaveBeenCalled();
+    fireEvent.blur(width);
+    expect(onGroupsChange).toHaveBeenCalledTimes(1);
     expect(lastWrite()).toEqual([
       floodNotes(),
       { ...siteVisits(), defaults: { lineWidth: 4 } },
     ]);
+  });
 
-    fireEvent.change(within(defaults).getByLabelText("Default Line Width"), {
-      target: { value: "" },
+  it("writes a cleared default as removed", () => {
+    renderControl({
+      groups: [floodNotes(), { ...siteVisits(), defaults: { lineWidth: 4 } }],
     });
+    open();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Site visits default styles" }),
+    );
+    const width = screen.getByLabelText("Default Line Width");
+    fireEvent.change(width, { target: { value: "" } });
+    fireEvent.blur(width);
     expect(lastWrite()).toEqual([floodNotes(), siteVisits()]);
+  });
+
+  it("writes a pending default before the next press anywhere", () => {
+    renderControl();
+    open();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Site visits default styles" }),
+    );
+    fireEvent.change(screen.getByLabelText("Default Line Width"), {
+      target: { value: "4" },
+    });
+    expect(onGroupsChange).not.toHaveBeenCalled();
+    fireEvent.pointerDown(document.body);
+    expect(lastWrite()[1].defaults).toEqual({ lineWidth: 4 });
+  });
+
+  it("writes a pending default when focus moves on, as a keyboard exit does", () => {
+    renderControl();
+    open();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Site visits default styles" }),
+    );
+    fireEvent.change(screen.getByLabelText("Default Line Width"), {
+      target: { value: "4" },
+    });
+    // Tabbing on to the dashboard's Save button, say.
+    const save = document.createElement("button");
+    document.body.appendChild(save);
+    fireEvent.focusIn(save);
+    expect(lastWrite()[1].defaults).toEqual({ lineWidth: 4 });
+    save.remove();
+  });
+
+  it("writes a pending default under the old name before a rename", () => {
+    renderControl();
+    open();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Site visits default styles" }),
+    );
+    fireEvent.change(screen.getByLabelText("Default Line Width"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Rename Site visits" }));
+    fireEvent.change(screen.getByLabelText("New name for Site visits"), {
+      target: { value: "Visits" },
+    });
+    fireEvent.keyDown(screen.getByLabelText("New name for Site visits"), {
+      key: "Enter",
+    });
+
+    // Applied in order to the groups as they are, both writes land.
+    const [draftWrite, renameWrite] = onGroupsChange.mock.calls
+      .slice(-2)
+      .map(([write]) => write);
+    expect(renameWrite(draftWrite(currentGroups))).toEqual([
+      floodNotes(),
+      { name: "Visits", defaults: { lineWidth: 4 }, items: [] },
+    ]);
+  });
+
+  it("finishes one group's pending default when another group's is started", () => {
+    renderControl();
+    open();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Site visits default styles" }),
+    );
+    fireEvent.change(screen.getByLabelText("Default Line Width"), {
+      target: { value: "4" },
+    });
+    // Starting on the other group's defaults (without a press or focus move
+    // in between, which would have written the first one already).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Flood notes default styles" }),
+    );
+    expect(onGroupsChange).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Default Line Width"), {
+      target: { value: "9" },
+    });
+    // Starting the second draft wrote the first, and holds the second.
+    expect(onGroupsChange).toHaveBeenCalledTimes(1);
+    expect(lastWrite()[1].defaults).toEqual({ lineWidth: 4 });
+
+    fireEvent.blur(screen.getByLabelText("Default Line Width"));
+    expect(onGroupsChange).toHaveBeenCalledTimes(2);
+    const final = onGroupsChange.mock.calls
+      .map(([write]) => write)
+      .reduce(resolveFrom, currentGroups);
+    expect(final).toEqual([
+      { ...floodNotes(), defaults: { lineColor: "#0000ff", lineWidth: 9 } },
+      { ...siteVisits(), defaults: { lineWidth: 4 } },
+    ]);
+  });
+
+  it("writes a choice from a list at once", () => {
+    renderControl();
+    open();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Site visits default styles" }),
+    );
+    fireEvent.change(screen.getByLabelText("Default Arrowheads"), {
+      target: { value: "both" },
+    });
+    expect(lastWrite()[1].defaults).toEqual({ arrowheads: "both" });
+
+    fireEvent.change(screen.getByLabelText("Default Text Placement"), {
+      target: { value: "n" },
+    });
+    expect(lastWrite()[1].defaults).toEqual({ textAnchor: "n" });
+  });
+
+  it("never offers no arrowheads as a default: a line with none is a line", () => {
+    renderControl();
+    open();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Site visits default styles" }),
+    );
+    const options = within(screen.getByLabelText("Default Arrowheads"))
+      .getAllByRole("option")
+      .map((option) => option.value);
+    expect(options).not.toContain("none");
   });
 
   it("keeps a renamed group's defaults open", () => {
@@ -290,10 +433,11 @@ describe("default styles", () => {
     expect(lastWrite()[0].name).toBe("Gauge notes");
 
     // The owner saves the write and renders the renamed group back.
+    currentGroups = lastWrite();
     rerender(
       <AnnotationControl
         visualizationRef={{ current: null }}
-        groups={lastWrite()}
+        groups={currentGroups}
         onGroupsChange={onGroupsChange}
         session={null}
         onSessionChange={onSessionChange}

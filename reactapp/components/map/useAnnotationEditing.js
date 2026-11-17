@@ -18,6 +18,16 @@ import {
   withAnnotationGroups,
 } from "components/map/annotationGroups";
 
+// A settings string's annotation groups, normalized; none when unreadable.
+function readGroups(metadataString) {
+  try {
+    const metadata = JSON.parse(metadataString || "{}");
+    return normalizeAnnotationGroups(metadata?.[ANNOTATIONS_METADATA_KEY]);
+  } catch {
+    return [];
+  }
+}
+
 /**
  * The dashboard map's side of the annotation button: whether it is offered,
  * the groups it edits, how it writes them, and the open drawing session.
@@ -55,14 +65,10 @@ export default function useAnnotationEditing({ dataviewerViz }) {
     typeof updateGridItem === "function",
   );
 
-  const groups = useMemo(() => {
-    try {
-      const metadata = JSON.parse(gridItemMetadataString || "{}");
-      return normalizeAnnotationGroups(metadata?.[ANNOTATIONS_METADATA_KEY]);
-    } catch {
-      return [];
-    }
-  }, [gridItemMetadataString]);
+  const groups = useMemo(
+    () => readGroups(gridItemMetadataString),
+    [gridItemMetadataString],
+  );
 
   const [session, setSession] = useState(null);
 
@@ -81,10 +87,16 @@ export default function useAnnotationEditing({ dataviewerViz }) {
   }, [activeTabId]);
 
   const onGroupsChange = useCallback(
-    (nextGroups) => {
+    (next) => {
       // Only the tab on screen can be edited, so it is the one this tile is
       // on; a tile it does not hold is not written at all.
       updateGridItem(activeTabId, gridItemUUID, (item) => {
+        // An updater gets the groups as they are now, not as they rendered:
+        // two writes from this map in one tick then both land.
+        const nextGroups =
+          typeof next === "function"
+            ? next(readGroups(item.metadata_string))
+            : next;
         const metadataString = withAnnotationGroups(
           item.metadata_string,
           nextGroups,

@@ -772,11 +772,13 @@ const VARIABLE_INPUT_TOKEN_RE = /\$\{([^}]+)\}/g;
 // template no longer raises the unset-input warning. That is the deliberate
 // trade for not letting a label blank the map.
 //
-// `annotations` (only at `layers[i].configuration.annotations`) — an
+// `annotations` (only at `layers[i].configuration.annotations`) — an older
 // Annotations layer's authored lines and callouts, scoped exactly like
 // `labels` and for the same reason. Callout text may reference a variable
 // input, but a callout is not the map's data: an unset variable draws as empty
-// text rather than replacing the whole map with the unset-input panel.
+// text rather than replacing the whole map with the unset-input panel. Only a
+// map inside a popup layout can still hold such a layer; a dashboard map's
+// annotations are groups in its settings, which these scanners never walk.
 //
 // Substitution is a separate path: `updateObjectWithVariableInputs` does not
 // consult this set, so label templates and annotation text keep getting their

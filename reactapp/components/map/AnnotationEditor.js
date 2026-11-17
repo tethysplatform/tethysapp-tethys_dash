@@ -32,6 +32,7 @@ import {
   resolveAnnotationStyle,
 } from "components/map/annotations";
 import { createAnnotationStyleFunction } from "components/map/annotationStyle";
+import usePendingCommit from "components/map/usePendingCommit";
 import TextRotateInteraction, {
   rotateHandleCoordinate,
 } from "components/map/textRotateInteraction";
@@ -40,13 +41,13 @@ import AnnotationStyleControl, {
   FIELD_LABELS,
 } from "components/inputs/AnnotationStyleControl";
 
-// The on-map half of annotation editing. It mounts only while its owner holds
-// a session -- `{layerName, title?, defaults, items}` -- and reports back
-// through callbacks: `onChange(items)` after every completed edit (a feature
-// added or removed, a move, reshape or rotation finished, text or a style
-// committed), `onDone(items)` and `onCancel()` when the author leaves. The
-// dashboard's annotation button writes each change straight into the
-// dashboard's unsaved edits; the DataViewer's layer editor only reads Done.
+// The on-map half of annotation editing, opened by the dashboard's annotation
+// button (AnnotationControl). It mounts only while its owner holds a session
+// -- `{layerName, title?, defaults, items}` -- and reports back through
+// callbacks: `onChange(items)` after every completed edit (a feature added or
+// removed, a move, reshape or rotation finished, text or a style committed),
+// `onDone(items)` and `onCancel()` when the author leaves. The owner writes
+// each change straight into the dashboard's unsaved edits.
 //
 // The working copy lives on an unmanaged layer (`setMap`), outside the map's
 // layer collection: reconciliation never removes it and the layer switcher
@@ -259,7 +260,6 @@ const AnnotationEditor = ({
   onChange,
   onDone,
   onCancel,
-  doneLabel = "Done",
 }) => {
   // Read through a ref: the handlers that report changes are bound once per
   // session or per tool, and must reach the owner's latest callback.
@@ -313,6 +313,12 @@ const AnnotationEditor = ({
       featuresToItems(source.getFeatures(), projectionRef.current),
     );
   }, []);
+
+  // A style edit previews on the feature at every step -- each move through
+  // the color picker, each keystroke -- and is reported once, when it is
+  // finished or the next pointer press anywhere on the page comes first.
+  const { markPending: markStylePending, flush: flushStyle } =
+    usePendingCommit(reportChange);
 
   // The side panel reads the selected feature itself, which OpenLayers owns:
   // any change to it -- a drag, a rotation, a text edit -- re-renders it.
@@ -696,7 +702,7 @@ const AnnotationEditor = ({
     }
     feature.set(ANNOTATION_STYLE_KEY, Object.keys(style).length ? style : null);
     feature.changed();
-    reportChange();
+    markStylePending();
   };
 
   const setText = (feature, value) => {
@@ -753,12 +759,15 @@ const AnnotationEditor = ({
                   <ResetButton
                     variant="link"
                     aria-label={`Reset ${label}`}
-                    onClick={() => setOverride(feature, field, undefined)}
+                    onClick={() => {
+                      setOverride(feature, field, undefined);
+                      flushStyle();
+                    }}
                   >
                     Reset to default
                   </ResetButton>
                 ) : (
-                  <DefaultNote>Layer default</DefaultNote>
+                  <DefaultNote>Group default</DefaultNote>
                 )}
               </PanelLabelRow>
               <AnnotationStyleControl
@@ -766,9 +775,9 @@ const AnnotationEditor = ({
                 value={resolved[field]}
                 storedValue={overrides[field]}
                 onChange={(value) => setOverride(feature, field, value)}
+                onCommit={flushStyle}
                 containerRef={layoutRef}
                 arrowheadOptions={ARROWHEAD_OPTIONS}
-                compactAnchor
               />
             </PanelField>
           );
@@ -816,7 +825,7 @@ const AnnotationEditor = ({
               Delete
             </DeleteButton>
             <SaveButton type="button" onClick={handleSave}>
-              {doneLabel}
+              Done
             </SaveButton>
             <ToolButton type="button" onClick={handleCancel}>
               Cancel
@@ -874,8 +883,6 @@ AnnotationEditor.propTypes = {
   /** Called with the final items when the author clicks Done. */
   onDone: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
-  /** The finish button's label. */
-  doneLabel: PropTypes.string,
 };
 
 export default memo(AnnotationEditor);
