@@ -1,5 +1,8 @@
+import { useRef } from "react";
+import PropTypes from "prop-types";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import AnnotationControl from "components/map/AnnotationControl";
+import { GRID_DRAG_CANCEL_CLASS } from "components/dashboard/gridDragCancel";
 
 // The editor is exercised in AnnotationEditor.test.js. Here it stands in with
 // buttons for its three callbacks, so the hand-off can be driven directly.
@@ -50,19 +53,35 @@ let onSessionChange;
 // applied to.
 let currentGroups;
 
+// The map div the control sits in, as map/Map.js renders it.
+const MapDiv = ({ children }) => {
+  const mapDivRef = useRef(null);
+  return (
+    <div data-testid="map-div" ref={mapDivRef}>
+      {children(mapDivRef)}
+    </div>
+  );
+};
+MapDiv.propTypes = { children: PropTypes.func.isRequired };
+
 const renderControl = ({
   groups = [floodNotes(), siteVisits()],
   session,
 } = {}) => {
   currentGroups = groups;
   return render(
-    <AnnotationControl
-      visualizationRef={{ current: null }}
-      groups={groups}
-      onGroupsChange={onGroupsChange}
-      session={session ?? null}
-      onSessionChange={onSessionChange}
-    />,
+    <MapDiv>
+      {(mapDivRef) => (
+        <AnnotationControl
+          visualizationRef={{ current: null }}
+          mapDivRef={mapDivRef}
+          groups={groups}
+          onGroupsChange={onGroupsChange}
+          session={session ?? null}
+          onSessionChange={onSessionChange}
+        />
+      )}
+    </MapDiv>,
   );
 };
 
@@ -85,6 +104,25 @@ beforeEach(() => {
 });
 
 describe("the button", () => {
+  // Shown only in dashboard edit mode, where a press anywhere else in the tile
+  // starts moving the tile; see gridDragCancel.test.js for the layout's side.
+  it("is left out of tile dragging, closed and open", () => {
+    renderControl();
+    const button = screen.getByRole("button", {
+      name: "Show Annotation Control",
+    });
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(button.closest(`.${GRID_DRAG_CANCEL_CLASS}`)).not.toBeNull();
+
+    open();
+    expect(
+      screen
+        .getByRole("button", { name: "Add group" })
+        // eslint-disable-next-line testing-library/no-node-access
+        .closest(`.${GRID_DRAG_CANCEL_CLASS}`),
+    ).not.toBeNull();
+  });
+
   it("opens to the map's groups and closes again", () => {
     renderControl();
     expect(screen.queryByText("Flood notes")).toBeNull();
@@ -261,6 +299,24 @@ describe("default styles", () => {
     ).toBeInTheDocument();
   });
 
+  // The panel scrolls and is too narrow for a picker beside a swatch; one
+  // opened inside it widened the panel into a sideways scroll. One opened in
+  // the map was painted over by any tile later on the page, since a map is
+  // sealed into its tile -- so it opens on the page itself.
+  it("opens a default's color picker on the page, outside the map", () => {
+    renderControl();
+    open();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Site visits default styles" }),
+    );
+    fireEvent.click(
+      screen.getByLabelText("Default Line Color color popover square"),
+    );
+    const picker = screen.getByRole("tooltip");
+    expect(picker).toBeInTheDocument();
+    expect(screen.getByTestId("map-div")).not.toContainElement(picker);
+  });
+
   it("writes a changed default once the edit is finished, and clearing removes it", () => {
     renderControl();
     open();
@@ -435,13 +491,18 @@ describe("default styles", () => {
     // The owner saves the write and renders the renamed group back.
     currentGroups = lastWrite();
     rerender(
-      <AnnotationControl
-        visualizationRef={{ current: null }}
-        groups={currentGroups}
-        onGroupsChange={onGroupsChange}
-        session={null}
-        onSessionChange={onSessionChange}
-      />,
+      <MapDiv>
+        {(mapDivRef) => (
+          <AnnotationControl
+            visualizationRef={{ current: null }}
+            mapDivRef={mapDivRef}
+            groups={currentGroups}
+            onGroupsChange={onGroupsChange}
+            session={null}
+            onSessionChange={onSessionChange}
+          />
+        )}
+      </MapDiv>,
     );
     expect(
       screen.getByRole("group", { name: "Gauge notes default style settings" }),

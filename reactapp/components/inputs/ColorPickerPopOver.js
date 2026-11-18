@@ -35,6 +35,7 @@ const ColorPickerPopover = ({
   divProps,
   hideLabel = false,
   onClose,
+  flip = false,
 }) => {
   const divTarget = useRef(null);
   const [showColorPopover, setShowColorPopover] = useState(false);
@@ -72,6 +73,7 @@ const ColorPickerPopover = ({
         target={divTarget.current}
         show={showColorPopover}
         placement="right"
+        flip={flip}
         rootClose
         onHide={close}
       >
@@ -104,6 +106,9 @@ ColorPickerPopover.propTypes = {
   // Called when the picker closes, for a caller that keeps one change per
   // pick rather than one per step of a drag through the colors.
   onClose: PropTypes.func,
+  // Open on the left instead when the right has no room for the picker.
+  // Off by default: placement is otherwise always to the right.
+  flip: PropTypes.bool,
 };
 
 export default ColorPickerPopover;

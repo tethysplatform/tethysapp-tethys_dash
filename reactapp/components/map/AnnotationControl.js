@@ -44,11 +44,13 @@ import usePendingCommit from "components/map/usePendingCommit";
 // A drawing session's own Cancel puts back the group as it was when the
 // session started.
 
-// Top-right: the layers list and the legend hold the bottom corners. Moves to
-// the button layout setting once that exists.
+// Top-right: the layers list and the legend hold the bottom corners. Sits
+// below the corner itself, which the tile's own menu button (DashboardItem's
+// "dashboard-item-menu") holds in edit mode -- the only mode this button shows
+// in -- and draws over. Moves to the button layout setting once that exists.
 const ControlWrapper = styled(FloatingMapControl)`
   position: absolute;
-  top: 1rem;
+  top: 3.5rem;
   right: 1rem;
 `;
 
@@ -236,7 +238,6 @@ const AnnotationControl = ({
   const [confirmingDelete, setConfirmingDelete] = useState(null);
   // The group whose default styles are showing; one at a time.
   const [defaultsOpen, setDefaultsOpen] = useState(null);
-  const containerRef = useRef(null);
   // Ids for linking each row's error message to its name field.
   const idBase = useId();
   // A default being edited, `{groupName, defaults}`: shown in the panel at
@@ -386,7 +387,6 @@ const AnnotationControl = ({
                   onChange={(value) => setDefault(group, field, value)}
                   onCommit={flushDefaults}
                   ariaPrefix="Default "
-                  containerRef={containerRef}
                   arrowheadOptions={DEFAULT_ARROWHEAD_OPTIONS}
                 />
               </Field>
@@ -542,7 +542,7 @@ const AnnotationControl = ({
         aria-label="Annotation Control"
       >
         {expanded ? (
-          <div ref={containerRef}>
+          <div>
             <b>Annotations</b>
             <CloseButton
               type="button"

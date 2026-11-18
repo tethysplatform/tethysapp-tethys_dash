@@ -323,7 +323,6 @@ const AnnotationEditor = ({
   // The side panel reads the selected feature itself, which OpenLayers owns:
   // any change to it -- a drag, a rotation, a text edit -- re-renders it.
   const [, setRevision] = useState(0);
-  const layoutRef = useRef(null);
   // What the panel's text field held when it took focus, restored if it is
   // left blank: emptying the field is not how text is deleted.
   const panelTextOriginalRef = useRef("");
@@ -776,7 +775,6 @@ const AnnotationEditor = ({
                 storedValue={overrides[field]}
                 onChange={(value) => setOverride(feature, field, value)}
                 onCommit={flushStyle}
-                containerRef={layoutRef}
                 arrowheadOptions={ARROWHEAD_OPTIONS}
               />
             </PanelField>
@@ -793,7 +791,7 @@ const AnnotationEditor = ({
 
   return (
     <>
-      <Layout ref={layoutRef}>
+      <Layout>
         <Wrapper role="toolbar" aria-label="Annotation editor">
           <Row>
             <Title>

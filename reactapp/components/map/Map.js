@@ -33,6 +33,7 @@ import FloatingMapControl from "components/map/FloatingMapControl";
 import LegendControl from "components/map/LegendControl";
 import DrawInteractions from "components/map/DrawInteractions";
 import ExtentInteraction from "components/map/ExtentInteraction";
+import { GRID_DRAG_CANCEL_CLASS } from "components/dashboard/gridDragCancel";
 import {
   legendPropType,
   configurationPropType,
@@ -1958,6 +1959,16 @@ const MapComponent = ({
            dashboard-supplied mapConfig.style replaces that object outright,
            and this must not be something a map config can drop. */
         style={{ ...customMapConfig.style, isolation: "isolate" }}
+        /* While an annotation session is open, presses on the map draw and
+           select; without this the tile, which is a drag handle in dashboard
+           edit mode, would take every one of them as the start of a move. */
+        className={
+          annotationControl?.session
+            ? [customMapConfig.className, GRID_DRAG_CANCEL_CLASS]
+                .filter(Boolean)
+                .join(" ")
+            : customMapConfig.className
+        }
       >
         {(errorMessage || showLayerFailure || showLayerLoading) && (
           <AlertAnchor mapDivRef={mapDivRef}>

@@ -9,6 +9,17 @@ import {
 } from "components/modals/MapLayer/LabelsPane";
 import { LABEL_ANCHOR_OPTIONS } from "components/map/labelStyle";
 
+// Where a color picker opens: the page itself. Annotation styles are edited on
+// a dashboard map, which is sealed into its tile's stacking context, so a
+// picker opened inside the map was painted over by any tile later on the page;
+// and it is turned to whichever side of its swatch has room (`flip`), since a
+// map at the screen's edge leaves none on the right. Presses in the picker
+// still never move the tile: DashboardLayout cancels drags on
+// `.color-picker-popover`.
+const PICKER_CONTAINER = {
+  current: typeof document === "undefined" ? null : document.body,
+};
+
 export const ARROWHEAD_LABELS = {
   none: "None",
   end: "End",
@@ -57,7 +68,6 @@ const AnnotationStyleControl = ({
   storedValue,
   onChange,
   ariaPrefix = "",
-  containerRef,
   arrowheadOptions,
   onCommit,
 }) => {
@@ -74,7 +84,8 @@ const AnnotationStyleControl = ({
         color={value}
         onChange={(color) => onChange(colorValue(color))}
         onClose={onCommit}
-        containerRef={containerRef}
+        containerRef={PICKER_CONTAINER}
+        flip
         hideLabel
       />
     );
@@ -139,7 +150,6 @@ AnnotationStyleControl.propTypes = {
   storedValue: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   onChange: PropTypes.func.isRequired,
   ariaPrefix: PropTypes.string,
-  containerRef: PropTypes.object,
   arrowheadOptions: PropTypes.arrayOf(PropTypes.string),
   /** Called once an edit is finished; see the component's comment. */
   onCommit: PropTypes.func,

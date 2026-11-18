@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import PropTypes from "prop-types";
 import { act, render, screen } from "@testing-library/react";
 import MapComponent from "components/map/Map";
+import { GRID_DRAG_CANCEL_CLASS } from "components/dashboard/gridDragCancel";
 import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
@@ -108,6 +109,22 @@ test("the editor shows only during a session", async () => {
   expect(
     screen.getByRole("toolbar", { name: "Annotation editor" }),
   ).toBeInTheDocument();
+});
+
+// In dashboard edit mode the tile is a drag handle; during a session presses
+// on the map have to draw instead, and outside one the tile moves as before.
+test("the map is left out of tile dragging only during a session", async () => {
+  renderMap();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  const mapDiv = screen.getByLabelText("Map Div");
+  expect(mapDiv).not.toHaveClass(GRID_DRAG_CANCEL_CLASS);
+
+  startSession();
+  expect(mapDiv).toHaveClass(GRID_DRAG_CANCEL_CLASS);
+  expect(mapDiv).toHaveClass("ol-map");
+
+  act(() => setSession(null));
+  expect(mapDiv).not.toHaveClass(GRID_DRAG_CANCEL_CLASS);
 });
 
 test("the viewer drawing tool steps aside during a session and returns after", async () => {
