@@ -12,6 +12,7 @@ import FloatingMapControl, {
 } from "components/map/FloatingMapControl";
 import { canZoomToLayer, zoomToLayer } from "components/map/layerExtent";
 import { SNAP_PREVIEW_LAYER_NAME } from "components/map/snapping";
+import { ANNOTATION_GROUP_KEY } from "components/map/annotationGroups";
 
 // A layer property: set to false, the layer is left out of this control. A
 // click's pin and outline carry it, from the map's Map Selection setting.
@@ -81,6 +82,12 @@ const ZoomButton = styled.button`
     cursor: default;
     opacity: 0.35;
   }
+`;
+
+const SectionHeading = styled.b`
+  display: block;
+  margin-top: 10px;
+  margin-bottom: 5px;
 `;
 
 const CloseButton = styled.button`
@@ -155,6 +162,97 @@ const LayersControl = ({
     setLayerVisibility(updatedLayerVisibility);
   }
 
+  // Annotation groups get a section of their own below the map layers. Each
+  // row keeps its index in the whole list, which is what an unnamed layer's
+  // fallback name (and so its visibility key) was always built from.
+  const indexedLayers = layers.map((layer, index) => ({ layer, index }));
+  const mapLayerRows = indexedLayers.filter(
+    ({ layer }) => !layer.get(ANNOTATION_GROUP_KEY),
+  );
+  const annotationRows = indexedLayers.filter(({ layer }) =>
+    layer.get(ANNOTATION_GROUP_KEY),
+  );
+
+  function renderLayerRow({ layer, index }) {
+    const layerName = layer.get("name") ?? `Layer ${index + 1}`;
+    // A layer can carry a title to show in place of its name, which
+    // stays the key its visibility and status are tracked under.
+    const label = layer.get("title") ?? layerName;
+    const layerId = layer.get("layerId");
+    // Runtime dynamic_map_layer errors are scoped to layers tagged
+    // with a layerId. Static layers render only the visibility
+    // checkbox, as before.
+    const isRuntime = !!layerId;
+    // Loading is reported by the map's banner, not here: this panel
+    // is collapsed by default, so a hairline bar inside it was the
+    // least visible place to say a layer is still working. Failures
+    // stay, because they carry a message that only makes sense
+    // against the layer it belongs to.
+    //
+    // One badge, from whichever source has it. The merged status is
+    // where a runtime fetch's failure already arrives, so reading
+    // both printed every dynamic layer's error twice; the status is
+    // preferred so this panel says exactly what the banner says.
+    const status = layerStatus?.[layerName];
+    const statusError = status?.state === "error" ? status : null;
+    const failure =
+      statusError ?? (isRuntime ? errorsByLayerId[layerId] : null);
+
+    return (
+      <div
+        key={index}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          marginBottom: "5px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flex: 1,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={layerVisibility[layerName]}
+              onChange={(e) =>
+                updateVisibility(layer, layerName, e.target.checked)
+              }
+              style={{ marginRight: "8px" }}
+              aria-label={label + " Set Visible"}
+            />
+            <span>{label}</span>
+          </label>
+          {/* Disabled, not hidden, for a layer that cannot say
+              where it is (a server-rendered WMS or ArcGIS image),
+              so every row keeps the same shape. */}
+          <ZoomButton
+            type="button"
+            aria-label={label + " Zoom to Layer"}
+            title="Zoom to layer"
+            disabled={!canZoomToLayer(layer)}
+            onClick={() => zoomToLayer(visualizationRef.current, layer)}
+          >
+            <FaSearchPlus aria-hidden="true" />
+          </ZoomButton>
+        </div>
+        {/* Message only. The map's banner reports which layers
+            have failed and why; this repeats it against the layer
+            it belongs to, and there is no longer any action to
+            offer -- a failed layer is recovered by reloading. */}
+        {failure && (
+          <ErrorBadge role="alert">
+            <FaExclamationTriangle aria-hidden="true" />
+            <span style={{ flex: 1 }}>{failure.message}</span>
+          </ErrorBadge>
+        )}
+      </div>
+    );
+  }
+
   return (
     <ControlWrapper mapDivRef={mapDivRef}>
       <MapSizedControlContainer
@@ -175,88 +273,16 @@ const LayersControl = ({
               aria-label="Map Layers"
               style={{ marginTop: "20px", width: "100%" }}
             >
-              {layers.map((layer, index) => {
-                const layerName = layer.get("name") ?? `Layer ${index + 1}`;
-                // A layer can carry a title to show in place of its name, which
-                // stays the key its visibility and status are tracked under.
-                const label = layer.get("title") ?? layerName;
-                const layerId = layer.get("layerId");
-                // Runtime dynamic_map_layer errors are scoped to layers tagged
-                // with a layerId. Static layers render only the visibility
-                // checkbox, as before.
-                const isRuntime = !!layerId;
-                // Loading is reported by the map's banner, not here: this panel
-                // is collapsed by default, so a hairline bar inside it was the
-                // least visible place to say a layer is still working. Failures
-                // stay, because they carry a message that only makes sense
-                // against the layer it belongs to.
-                //
-                // One badge, from whichever source has it. The merged status is
-                // where a runtime fetch's failure already arrives, so reading
-                // both printed every dynamic layer's error twice; the status is
-                // preferred so this panel says exactly what the banner says.
-                const status = layerStatus?.[layerName];
-                const statusError = status?.state === "error" ? status : null;
-                const failure =
-                  statusError ?? (isRuntime ? errorsByLayerId[layerId] : null);
-
-                return (
-                  <div
-                    key={index}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      marginBottom: "5px",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center" }}>
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          flex: 1,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={layerVisibility[layerName]}
-                          onChange={(e) =>
-                            updateVisibility(layer, layerName, e.target.checked)
-                          }
-                          style={{ marginRight: "8px" }}
-                          aria-label={label + " Set Visible"}
-                        />
-                        <span>{label}</span>
-                      </label>
-                      {/* Disabled, not hidden, for a layer that cannot say
-                          where it is (a server-rendered WMS or ArcGIS image),
-                          so every row keeps the same shape. */}
-                      <ZoomButton
-                        type="button"
-                        aria-label={label + " Zoom to Layer"}
-                        title="Zoom to layer"
-                        disabled={!canZoomToLayer(layer)}
-                        onClick={() =>
-                          zoomToLayer(visualizationRef.current, layer)
-                        }
-                      >
-                        <FaSearchPlus aria-hidden="true" />
-                      </ZoomButton>
-                    </div>
-                    {/* Message only. The map's banner reports which layers
-                        have failed and why; this repeats it against the layer
-                        it belongs to, and there is no longer any action to
-                        offer -- a failed layer is recovered by reloading. */}
-                    {failure && (
-                      <ErrorBadge role="alert">
-                        <FaExclamationTriangle aria-hidden="true" />
-                        <span style={{ flex: 1 }}>{failure.message}</span>
-                      </ErrorBadge>
-                    )}
-                  </div>
-                );
-              })}
+              {mapLayerRows.map(renderLayerRow)}
             </div>
+            {annotationRows.length > 0 && (
+              <>
+                <SectionHeading>Annotations</SectionHeading>
+                <div aria-label="Annotations" style={{ width: "100%" }}>
+                  {annotationRows.map(renderLayerRow)}
+                </div>
+              </>
+            )}
           </>
         ) : (
           // Collapsed control - show the layers icon button

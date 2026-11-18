@@ -10,6 +10,8 @@ import {
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { isDecorationLayerEntry } from "components/map/decorationLayers";
+import { buildAnnotationGroupLayers } from "components/map/annotationGroups";
+import useAnnotationEditing from "components/map/useAnnotationEditing";
 import MapComponent from "components/map/Map";
 import AttributeValue from "components/map/AttributeValue";
 import HoverTooltip, {
@@ -337,13 +339,34 @@ const MapVisualization = ({
   mapExtent,
   mapDrawing,
   mapSelection,
-  layers,
+  layers: savedLayers,
+  annotationGroups,
   visualizationRef,
   baseMap,
   layerControl,
   dataviewerViz,
   refreshCount,
 }) => {
+  // The map's annotation groups, drawn as decoration layers after its own
+  // layers so annotations always sit on top. Keyed on the groups' content:
+  // the data viewer rebuilds its settings object on every render, and a new
+  // `layers` array each time would rerun every effect that depends on it.
+  // With no groups, `layers` is the saved array itself, untouched; while the
+  // saved layers have not arrived it stays undefined, which the layer pass
+  // waits on, rather than publishing the annotations alone and then again.
+  const annotationGroupsKey = JSON.stringify(annotationGroups ?? null);
+  const annotationLayers = useMemo(
+    () => buildAnnotationGroupLayers(annotationGroups),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [annotationGroupsKey],
+  );
+  const layers = useMemo(
+    () =>
+      savedLayers && annotationLayers.length > 0
+        ? [...savedLayers, ...annotationLayers]
+        : savedLayers,
+    [savedLayers, annotationLayers],
+  );
   const [mapLegend, setMapLegend] = useState();
   const [mapLayers, setMapLayers] = useState();
   // Which layers are still being prepared (style fetch, raster header read).
@@ -441,7 +464,13 @@ const MapVisualization = ({
   const { gridItemUUID } = useContext(GridItemContext) ?? {};
   const mapContextValue = useMapContext();
   const extentDrawMode = mapContextValue?.extentDrawMode ?? null;
-  const annotationEditSession = mapContextValue?.annotationEditSession ?? null;
+  // The dashboard's annotation button, offered while the dashboard is being
+  // edited, and whether it has a drawing session open.
+  const { annotationControl, sessionOpen: annotationSessionOpen } =
+    useAnnotationEditing({ dataviewerViz });
+  // Read by onMapClick, which MapComponent binds only when the layers change.
+  const annotationSessionOpenRef = useRef(annotationSessionOpen);
+  annotationSessionOpenRef.current = annotationSessionOpen;
 
   const safeActiveFeatureIndex =
     popupContent && popupContent.length > 0
@@ -457,7 +486,7 @@ const MapVisualization = ({
   const showModal =
     !modalDismissed &&
     !extentDrawMode &&
-    !annotationEditSession &&
+    !annotationSessionOpen &&
     hasModalPopup(activeFeature);
   const activeModalFeature = showModal ? activeFeature : null;
 
@@ -520,13 +549,26 @@ const MapVisualization = ({
     }
   }, [cancelHover]);
 
+  // Opening an annotation session clears what an earlier click left on the
+  // map -- its popup, outline and pin -- so none of it sits over the drawing,
+  // and none of it can be acted on while clicks belong to the editor.
+  useEffect(() => {
+    if (!annotationSessionOpen) return;
+    dismissPopupBeforeSwap();
+    if (markerLayer.current) {
+      visualizationRef.current?.removeLayer(markerLayer.current);
+      markerLayer.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [annotationSessionOpen]);
+
   // No tooltip while an extent is being drawn or annotations edited: the
   // pointer is doing something else. One already up comes down as the mode
   // starts, rather than waiting for the next move.
   useEffect(() => {
-    hoverBlockedRef.current = Boolean(extentDrawMode || annotationEditSession);
+    hoverBlockedRef.current = Boolean(extentDrawMode || annotationSessionOpen);
     if (hoverBlockedRef.current) cancelHover();
-  }, [extentDrawMode, annotationEditSession, cancelHover]);
+  }, [extentDrawMode, annotationSessionOpen, cancelHover]);
 
   const { getMessageForRequest } = useContext(WebsocketContext) ?? {};
   const { errorsByLayerId, loadingByLayerId, rasterLegendByLayerId } =
@@ -1349,6 +1391,9 @@ const MapVisualization = ({
 
     // istanbul ignore next
     if (drawing.current || isProcessing) return;
+    // A click while annotations are being drawn on the dashboard belongs to
+    // the editor: it must not drop a pin, query layers or open a popup.
+    if (annotationSessionOpenRef.current) return;
 
     // Compute the queryable layer set FIRST, before any side effects. If
     // nothing is click-eligible (e.g., the map has only hover-tagged
@@ -2019,6 +2064,7 @@ const MapVisualization = ({
         runtimeLayerState={runtimeLayerState}
         layerPrepStatus={layerPrepStatus}
         runtimeLayerFetchStatus={runtimeLayerFetchStatus}
+        annotationControl={annotationControl}
       />
       <PopupModal
         show={!!activeModalFeature}
@@ -2072,6 +2118,15 @@ MapVisualization.propTypes = {
   layers: PropTypes.arrayOf(
     PropTypes.shape({
       configuration: configurationPropType,
+    }),
+  ),
+  // The grid item settings' `annotations`: named groups of annotations, drawn
+  // above the layers (see map/annotationGroups.js).
+  annotationGroups: PropTypes.arrayOf(
+    PropTypes.shape({
+      name: PropTypes.string,
+      defaults: PropTypes.object,
+      items: PropTypes.array,
     }),
   ),
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map

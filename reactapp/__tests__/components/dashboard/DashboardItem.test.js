@@ -3625,3 +3625,49 @@ test("Dashboard Item copy re-mints popup-nested grid item uuids", async () => {
   // ...and the top-level rules still ran on the same layer.
   expect(copiedLayer.configuration.props.layerId).toBe("12345678");
 });
+
+test("handleGridItemImport moves a map's Annotations layers into its settings", async () => {
+  const callouts = {
+    configuration: {
+      type: "VectorLayer",
+      props: { name: "Callouts", source: { type: "Annotations", props: {} } },
+      annotations: {
+        defaults: { lineColor: "#ff0000" },
+        items: [
+          { id: "a1", kind: "text", coordinates: [-105, 40], text: "Gauge" },
+        ],
+      },
+    },
+    tablePopupType: "none",
+  };
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: { baseMap: "OpenStreetMap", layers: [callouts] },
+    metadata_string: { refreshRate: 0 },
+  };
+
+  const response = await handleGridItemImport(gridItem, "123456789");
+
+  expect(response.success).toBe(true);
+  expect(JSON.parse(response.importedGridItem.args_string)).toEqual({
+    baseMap: "OpenStreetMap",
+    layers: [],
+  });
+  expect(JSON.parse(response.importedGridItem.metadata_string)).toEqual({
+    refreshRate: 0,
+    annotations: [
+      {
+        name: "Callouts",
+        defaults: { lineColor: "#ff0000" },
+        items: [
+          { id: "a1", kind: "text", coordinates: [-105, 40], text: "Gauge" },
+        ],
+      },
+    ],
+  });
+});

@@ -82,16 +82,6 @@ const expectMapOnlyLayout = () => {
 
 test.each([
   [
-    "an annotation session",
-    () =>
-      mapContext.setAnnotationEditSession({
-        layerName: "Callouts",
-        defaults: {},
-        items: [],
-      }),
-    () => mapContext.setAnnotationEditSession(null),
-  ],
-  [
     "a static image extent draw",
     () => mapContext.setExtentDrawMode({ imageUrl: "https://x/y.png" }),
     () => mapContext.setExtentDrawMode(null),

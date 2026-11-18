@@ -22,6 +22,7 @@ const NormalInput = ({
   max,
   maxLength,
   allowEmpty = false,
+  onBlur,
 }) => {
   const isNumber = type === "number";
   const [rawValue, setRawValue] = useState(String(value ?? ""));
@@ -89,6 +90,7 @@ const NormalInput = ({
         aria-label={ariaLabel || label + " Input"}
         type={isNumber ? "text" : type}
         onChange={handleChange}
+        onBlur={onBlur}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -128,6 +130,7 @@ NormalInput.propTypes = {
   min: PropTypes.number, // minimum value for the input
   max: PropTypes.number, // maximum value for the input
   maxLength: PropTypes.number, // maximum number of characters accepted
+  onBlur: PropTypes.func, // called when the field loses focus
   allowEmpty: PropTypes.bool, // propagate empty-string / "-" / "$" values to the parent. Off by default to preserve last-valid-value during mid-edit typing
 };
 

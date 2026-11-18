@@ -550,7 +550,12 @@ const SourcePane = ({
   // A popup map never joins a linked extent group, so it is not offered a
   // layer that only outlines group members.
   const inPopupLayout = useContext(TabContext)?.activeTabId === POPUP_TAB_ID;
+  // Annotations are no longer a layer type: a map's annotations are groups
+  // drawn from its annotation button. The type stays readable so an old layer
+  // (only a popup layout's map can still hold one) opens and saves intact, but
+  // it is never offered for a new layer.
   const potentialMapLayers = Object.keys(sourcePropertiesOptions)
+    .filter((type) => type !== ANNOTATION_SOURCE_TYPE)
     .filter((type) => !(inPopupLayout && type === LINKED_EXTENT_SOURCE_TYPE))
     .map((option) => ({
       value: option,
@@ -884,8 +889,11 @@ const SourcePane = ({
               {sourceType.value === ANNOTATION_SOURCE_TYPE && (
                 <p>
                   <em>
-                    An Annotations layer has no source to configure. Draw its
-                    lines, arrows and text from the Annotations tab.
+                    Annotations are now drawn from the annotation button on a
+                    dashboard map, in edit mode. This older Annotations layer
+                    still draws, but its annotations can no longer be edited
+                    here. Changing its source type removes its annotations, and
+                    Annotations cannot be chosen again.
                   </em>
                 </p>
               )}

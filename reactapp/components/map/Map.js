@@ -8,7 +8,9 @@ import moduleLoader, {
 import { isDecorationLayerConfig } from "components/map/decorationLayers";
 import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
 import useLinkedExtentOutlines from "components/map/useLinkedExtentOutlines";
-import AnnotationEditor from "components/map/AnnotationEditor";
+import AnnotationControl, {
+  annotationControlPropType,
+} from "components/map/AnnotationControl";
 import { registerCaptureMap } from "components/map/captureLockedLayers";
 // Importing this registers the coordinate reference systems that layers name by
 // code. Module evaluation completes before any render, so registration is in
@@ -31,6 +33,7 @@ import FloatingMapControl from "components/map/FloatingMapControl";
 import LegendControl from "components/map/LegendControl";
 import DrawInteractions from "components/map/DrawInteractions";
 import ExtentInteraction from "components/map/ExtentInteraction";
+import { GRID_DRAG_CANCEL_CLASS } from "components/dashboard/gridDragCancel";
 import {
   legendPropType,
   configurationPropType,
@@ -568,6 +571,7 @@ const MapComponent = ({
   runtimeLayerState,
   layerPrepStatus,
   runtimeLayerFetchStatus,
+  annotationControl,
 }) => {
   const [errorMessage, setErrorMessage] = useState("");
   // Per-layer load state, keyed on layer name, for every source read in the
@@ -1955,6 +1959,16 @@ const MapComponent = ({
            dashboard-supplied mapConfig.style replaces that object outright,
            and this must not be something a map config can drop. */
         style={{ ...customMapConfig.style, isolation: "isolate" }}
+        /* While an annotation session is open, presses on the map draw and
+           select; without this the tile, which is a drag handle in dashboard
+           edit mode, would take every one of them as the start of a move. */
+        className={
+          annotationControl?.session
+            ? [customMapConfig.className, GRID_DRAG_CANCEL_CLASS]
+                .filter(Boolean)
+                .join(" ")
+            : customMapConfig.className
+        }
       >
         {(errorMessage || showLayerFailure || showLayerLoading) && (
           <AlertAnchor mapDivRef={mapDivRef}>
@@ -1999,7 +2013,7 @@ const MapComponent = ({
         )}
         {/* The viewer drawing tool would claim clicks meant for an annotation
             editing session, so it steps aside while one is open. */}
-        {mapDrawing && !mapContext?.annotationEditSession && (
+        {mapDrawing && !annotationControl?.session && (
           <DrawInteractions
             mapDrawing={mapDrawing}
             visualizationRef={visualizationRef}
@@ -2009,8 +2023,14 @@ const MapComponent = ({
         {mapContext?.extentDrawMode && (
           <ExtentInteraction visualizationRef={visualizationRef} />
         )}
-        {mapContext?.annotationEditSession && (
-          <AnnotationEditor visualizationRef={visualizationRef} />
+        {/* The dashboard's annotation button, offered only while the
+            dashboard is being edited (see visualizations/Map.js). */}
+        {annotationControl && (
+          <AnnotationControl
+            visualizationRef={visualizationRef}
+            mapDivRef={mapDivRef}
+            {...annotationControl}
+          />
         )}
         {layerControl && (
           <LayersControl
@@ -2068,6 +2088,9 @@ MapComponent.propTypes = {
       percent: PropTypes.number,
     }),
   ),
+  // The annotation button's groups, writer and session, present only while
+  // the dashboard is being edited. See AnnotationControl.
+  annotationControl: annotationControlPropType,
   layerPrepStatus: PropTypes.objectOf(
     PropTypes.shape({
       state: PropTypes.string,

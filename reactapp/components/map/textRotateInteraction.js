@@ -48,12 +48,15 @@ export default class TextRotateInteraction extends PointerInteraction {
    *   the selected text feature, or null when no text is selected
    * @param {(feature) => number} options.getRotation its current rotation
    * @param {(feature, degrees: number) => void} options.onRotate
+   * @param {(feature) => void} [options.onRotateEnd] called once when a
+   *   rotation drag ends, so a caller can treat the whole drag as one edit
    */
-  constructor({ getSelectedText, getRotation, onRotate }) {
+  constructor({ getSelectedText, getRotation, onRotate, onRotateEnd }) {
     super();
     this.getSelectedText_ = getSelectedText;
     this.getRotation_ = getRotation;
     this.onRotate_ = onRotate;
+    this.onRotateEnd_ = onRotateEnd;
     this.feature_ = null;
   }
 
@@ -87,7 +90,9 @@ export default class TextRotateInteraction extends PointerInteraction {
   }
 
   handleUpEvent() {
+    const feature = this.feature_;
     this.feature_ = null;
+    if (feature) this.onRotateEnd_?.(feature);
     return false;
   }
 }

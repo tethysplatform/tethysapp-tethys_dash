@@ -18,7 +18,6 @@ import LineString from "ol/geom/LineString.js";
 import Point from "ol/geom/Point.js";
 import { Circle, Fill, Stroke, Style } from "ol/style.js";
 import { unByKey } from "ol/Observable.js";
-import { useMapContext } from "components/contexts/MapContext";
 import {
   ARROWHEAD_OPTIONS,
   ANNOTATION_ID_KEY,
@@ -33,6 +32,7 @@ import {
   resolveAnnotationStyle,
 } from "components/map/annotations";
 import { createAnnotationStyleFunction } from "components/map/annotationStyle";
+import usePendingCommit from "components/map/usePendingCommit";
 import TextRotateInteraction, {
   rotateHandleCoordinate,
 } from "components/map/textRotateInteraction";
@@ -41,14 +41,18 @@ import AnnotationStyleControl, {
   FIELD_LABELS,
 } from "components/inputs/AnnotationStyleControl";
 
-// The on-map half of annotation editing. It mounts only while the DataViewer's
-// MapContext holds a session -- started from the layer editor's Annotations
-// tab -- so a map on the dashboard itself never gets these interactions.
+// The on-map half of annotation editing, opened by the dashboard's annotation
+// button (AnnotationControl). It mounts only while its owner holds a session
+// -- `{layerName, title?, defaults, items}` -- and reports back through
+// callbacks: `onChange(items)` after every completed edit (a feature added or
+// removed, a move, reshape or rotation finished, text or a style committed),
+// `onDone(items)` and `onCancel()` when the author leaves. The owner writes
+// each change straight into the dashboard's unsaved edits.
 //
 // The working copy lives on an unmanaged layer (`setMap`), outside the map's
 // layer collection: reconciliation never removes it and the layer switcher
 // never lists it. The real layer is hidden for the session so annotations do
-// not draw twice.
+// not draw twice -- including each rebuild of it a change causes.
 
 // Covers the map without taking its pointer events, and stacks the toolbar
 // over the side panel -- so the panel always starts below the toolbar however
@@ -250,12 +254,17 @@ const isTyping = () => {
   );
 };
 
-const AnnotationEditor = ({ visualizationRef }) => {
-  const {
-    annotationEditSession: session,
-    setAnnotationEditSession,
-    setEditedAnnotations,
-  } = useMapContext();
+const AnnotationEditor = ({
+  visualizationRef,
+  session,
+  onChange,
+  onDone,
+  onCancel,
+}) => {
+  // Read through a ref: the handlers that report changes are bound once per
+  // session or per tool, and must reach the owner's latest callback.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   const [tool, setTool] = useState(() =>
     session?.items?.length ? "select" : "arrow",
   );
@@ -275,6 +284,11 @@ const AnnotationEditor = ({ visualizationRef }) => {
   const [textElement] = useState(() => document.createElement("div"));
   const overlayRef = useRef(null);
   const lastBlurAtRef = useRef(0);
+  // Whether keys are this editor's: true from the start of the session (it was
+  // opened from this map) until a pointer goes down outside this map, and true
+  // again when one goes down inside it. Two maps on one dashboard can each have
+  // a session open, and both listen on the document.
+  const keysOwnedRef = useRef(true);
   const toolRef = useRef(tool);
   toolRef.current = tool;
   textEditRef.current = textEdit;
@@ -290,10 +304,25 @@ const AnnotationEditor = ({ visualizationRef }) => {
       ?.getFeatures()
       .find((f) => f.get(ANNOTATION_ID_KEY) === id);
 
+  // Report the working copy as saved items. Called at each completed edit,
+  // never per pointer move, so a drag is one change and not hundreds.
+  const reportChange = useCallback(() => {
+    const source = sourceRef.current;
+    if (!source || !onChangeRef.current) return;
+    onChangeRef.current(
+      featuresToItems(source.getFeatures(), projectionRef.current),
+    );
+  }, []);
+
+  // A style edit previews on the feature at every step -- each move through
+  // the color picker, each keystroke -- and is reported once, when it is
+  // finished or the next pointer press anywhere on the page comes first.
+  const { markPending: markStylePending, flush: flushStyle } =
+    usePendingCommit(reportChange);
+
   // The side panel reads the selected feature itself, which OpenLayers owns:
   // any change to it -- a drag, a rotation, a text edit -- re-renders it.
   const [, setRevision] = useState(0);
-  const layoutRef = useRef(null);
   // What the panel's text field held when it took focus, restored if it is
   // left blank: emptying the field is not how text is deleted.
   const panelTextOriginalRef = useRef("");
@@ -318,6 +347,11 @@ const AnnotationEditor = ({ visualizationRef }) => {
       features: new Collection(itemsToFeatures(session.items, code)),
     });
     sourceRef.current = source;
+    // Drawing, placing text and deleting all add or remove a feature.
+    const featureKeys = source.on(
+      ["addfeature", "removefeature"],
+      reportChange,
+    );
     const annotationStyle = createAnnotationStyleFunction(session.defaults);
     const layer = new VectorLayer({
       className: "ol-layer annotation-editor",
@@ -389,7 +423,17 @@ const AnnotationEditor = ({ visualizationRef }) => {
     overlayRef.current = overlay;
     map.addOverlay(overlay);
 
+    // The map div holds the viewport and this editor's toolbar and panel.
+    keysOwnedRef.current = true;
+    const onPointerDown = (event) => {
+      const element = map.getTargetElement();
+      keysOwnedRef.current = Boolean(element?.contains(event.target));
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+
     return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      unByKey(featureKeys);
       unByKey(addKey);
       unByKey(viewKey);
       map.removeOverlay(overlay);
@@ -434,6 +478,8 @@ const AnnotationEditor = ({ visualizationRef }) => {
       } else {
         feature.set(ANNOTATION_TEXT_KEY, value);
         feature.changed();
+        // A removal above reports itself; a kept text is reported here.
+        reportChange();
       }
     }
     overlayRef.current?.setPosition(undefined);
@@ -469,8 +515,13 @@ const AnnotationEditor = ({ visualizationRef }) => {
       });
       // Translate first, Modify last: the last interaction added sees a
       // pointerdown first, so a drag near a point reshapes rather than moves.
-      add(new Translate({ features: select.getFeatures(), hitTolerance: 6 }));
-      add(new Modify({ features: select.getFeatures() }));
+      add(
+        new Translate({ features: select.getFeatures(), hitTolerance: 6 }),
+      ).on("translateend", reportChange);
+      add(new Modify({ features: select.getFeatures() })).on(
+        "modifyend",
+        reportChange,
+      );
       // Added last, so a grab on the handle rotates rather than moves.
       add(
         new TextRotateInteraction({
@@ -488,6 +539,7 @@ const AnnotationEditor = ({ visualizationRef }) => {
             });
             feature.changed();
           },
+          onRotateEnd: reportChange,
         }),
       );
 
@@ -594,7 +646,7 @@ const AnnotationEditor = ({ visualizationRef }) => {
   useEffect(() => {
     if (!session) return undefined;
     const onKeyDown = (event) => {
-      if (isTyping()) return;
+      if (isTyping() || !keysOwnedRef.current) return;
       const current = toolRef.current;
       if (current === "line" || current === "arrow") {
         if (event.key === "Enter") drawRef.current?.finishDrawing();
@@ -631,12 +683,11 @@ const AnnotationEditor = ({ visualizationRef }) => {
     const items = sourceRef.current
       ? featuresToItems(sourceRef.current.getFeatures(), projectionRef.current)
       : session.items;
-    setEditedAnnotations(items);
-    setAnnotationEditSession(null);
+    onDone(items);
   };
 
   const handleCancel = () => {
-    setAnnotationEditSession(null);
+    onCancel();
   };
 
   // Write one style property onto a feature, or clear it back to the layer
@@ -650,6 +701,7 @@ const AnnotationEditor = ({ visualizationRef }) => {
     }
     feature.set(ANNOTATION_STYLE_KEY, Object.keys(style).length ? style : null);
     feature.changed();
+    markStylePending();
   };
 
   const setText = (feature, value) => {
@@ -690,6 +742,8 @@ const AnnotationEditor = ({ visualizationRef }) => {
                 if (String(feature.get(ANNOTATION_TEXT_KEY)).trim() === "") {
                   setText(feature, panelTextOriginalRef.current);
                 }
+                // Reported once, as the field is left, not per keystroke.
+                reportChange();
               }}
             />
           </PanelField>
@@ -704,12 +758,15 @@ const AnnotationEditor = ({ visualizationRef }) => {
                   <ResetButton
                     variant="link"
                     aria-label={`Reset ${label}`}
-                    onClick={() => setOverride(feature, field, undefined)}
+                    onClick={() => {
+                      setOverride(feature, field, undefined);
+                      flushStyle();
+                    }}
                   >
                     Reset to default
                   </ResetButton>
                 ) : (
-                  <DefaultNote>Layer default</DefaultNote>
+                  <DefaultNote>Group default</DefaultNote>
                 )}
               </PanelLabelRow>
               <AnnotationStyleControl
@@ -717,9 +774,8 @@ const AnnotationEditor = ({ visualizationRef }) => {
                 value={resolved[field]}
                 storedValue={overrides[field]}
                 onChange={(value) => setOverride(feature, field, value)}
-                containerRef={layoutRef}
+                onCommit={flushStyle}
                 arrowheadOptions={ARROWHEAD_OPTIONS}
-                compactAnchor
               />
             </PanelField>
           );
@@ -735,12 +791,14 @@ const AnnotationEditor = ({ visualizationRef }) => {
 
   return (
     <>
-      <Layout ref={layoutRef}>
+      <Layout>
         <Wrapper role="toolbar" aria-label="Annotation editor">
           <Row>
             <Title>
               Editing annotations
-              {session.layerName ? `: ${session.layerName}` : ""}
+              {(session.title ?? session.layerName)
+                ? `: ${session.title ?? session.layerName}`
+                : ""}
             </Title>
             {TOOLS.map(({ id, label }) => (
               <ToolButton
@@ -765,7 +823,7 @@ const AnnotationEditor = ({ visualizationRef }) => {
               Delete
             </DeleteButton>
             <SaveButton type="button" onClick={handleSave}>
-              Save
+              Done
             </SaveButton>
             <ToolButton type="button" onClick={handleCancel}>
               Cancel
@@ -810,6 +868,19 @@ const AnnotationEditor = ({ visualizationRef }) => {
 
 AnnotationEditor.propTypes = {
   visualizationRef: PropTypes.shape({ current: PropTypes.instanceOf(Map) }),
+  // The annotations being edited. `layerName` names the saved layer to hide
+  // while the working copy draws; `title` is what the toolbar calls them.
+  session: PropTypes.shape({
+    layerName: PropTypes.string,
+    title: PropTypes.string,
+    defaults: PropTypes.object,
+    items: PropTypes.array,
+  }),
+  /** Called with the items after each completed edit. Optional. */
+  onChange: PropTypes.func,
+  /** Called with the final items when the author clicks Done. */
+  onDone: PropTypes.func.isRequired,
+  onCancel: PropTypes.func.isRequired,
 };
 
 export default memo(AnnotationEditor);

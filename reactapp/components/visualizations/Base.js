@@ -199,6 +199,10 @@ export const Visualization = memo(
             mapConfig={vizData.mapConfig}
             mapDrawing={vizData.mapDrawing}
             mapSelection={vizData.mapSelection}
+            // From the settings, not the fetched data: annotation groups are
+            // dashboard-authored, so a plugin map gets them too, and editing
+            // them changes no args and so fetches nothing.
+            annotationGroups={vizMetadata?.annotations}
             dataviewerViz={dataviewerViz}
             refreshCount={refreshCount}
           />

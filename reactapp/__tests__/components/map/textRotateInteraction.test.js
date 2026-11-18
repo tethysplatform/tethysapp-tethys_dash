@@ -169,4 +169,36 @@ describe("TextRotateInteraction", () => {
     interaction.handleEvent(pointer("pointerdrag", [200, 100]));
     expect(onRotate).not.toHaveBeenCalled();
   });
+
+  it("reports the end of a rotation once, and only after a grab", () => {
+    const onRotateEnd = jest.fn();
+    const interaction = new TextRotateInteraction({
+      getSelectedText: () => selected,
+      getRotation: () => 0,
+      onRotate,
+      onRotateEnd,
+    });
+
+    // A press away from the handle is not a rotation, so its release is not
+    // the end of one.
+    interaction.handleEvent(pointer("pointerdown", [300, 150]));
+    interaction.handleEvent(pointer("pointerup", [300, 150]));
+    expect(onRotateEnd).not.toHaveBeenCalled();
+
+    interaction.handleEvent(pointer("pointerdown", handlePixel(0)));
+    interaction.handleEvent(pointer("pointerdrag", [240, 150]));
+    interaction.handleEvent(pointer("pointerdrag", [240, 160]));
+    expect(onRotateEnd).not.toHaveBeenCalled();
+    interaction.handleEvent(pointer("pointerup", [240, 160]));
+    expect(onRotateEnd).toHaveBeenCalledTimes(1);
+    expect(onRotateEnd).toHaveBeenCalledWith(text);
+  });
+
+  it("works without an end callback", () => {
+    const interaction = make();
+    interaction.handleEvent(pointer("pointerdown", handlePixel(0)));
+    expect(() =>
+      interaction.handleEvent(pointer("pointerup", handlePixel(0))),
+    ).not.toThrow();
+  });
 });
