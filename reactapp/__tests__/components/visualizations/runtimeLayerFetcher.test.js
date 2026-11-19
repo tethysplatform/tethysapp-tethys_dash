@@ -4,6 +4,7 @@ import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetche
 import appAPI from "services/api/app";
 import * as mapUtilities from "components/map/utilities";
 import * as runtimeRaster from "components/map/runtimeRaster";
+import * as layerExtent from "components/map/layerExtent";
 import { GeoTIFFError } from "components/map/ModuleLoader";
 import Source from "ol/source/Source.js";
 
@@ -23,12 +24,15 @@ function fakeOlLayer(layerId) {
   };
 }
 
-function fakeOlMap(olLayers) {
+function fakeOlMap(olLayers, { size = [800, 600] } = {}) {
   // The layer collection must be a stable object with working on/un, because a
   // fetch that lands before its layer exists waits on the collection's "add"
   // event rather than discarding the payload.
   const addListeners = [];
   const lengthListeners = [];
+  // A zoom owed while the map has no size waits on the map's "change:size".
+  const sizeListeners = [];
+  let currentSize = size;
   const listenersFor = (type) =>
     type === "add"
       ? addListeners
@@ -52,6 +56,20 @@ function fakeOlMap(olLayers) {
     getView: () => ({
       getProjection: () => ({ getCode: () => "EPSG:3857" }),
     }),
+    getSize: () => currentSize,
+    on: (type, fn) => {
+      if (type === "change:size") sizeListeners.push(fn);
+    },
+    un: (type, fn) => {
+      const i = type === "change:size" ? sizeListeners.indexOf(fn) : -1;
+      if (i !== -1) sizeListeners.splice(i, 1);
+    },
+    // Mimics the map being sized, as when its tab is shown.
+    resize: (next) => {
+      currentSize = next;
+      sizeListeners.slice().forEach((fn) => fn());
+    },
+    pendingSizeListeners: () => sizeListeners.length,
     // Mimics Map.js finishing its async layer construction.
     addLayerLate: (layer) => {
       olLayers.push(layer);
@@ -76,6 +94,7 @@ function runtimeLayerConfig({
   args = {},
   type = "VectorLayer",
   imageRatio,
+  zoomToLayerOnChange,
 } = {}) {
   return {
     configuration: {
@@ -84,6 +103,7 @@ function runtimeLayerConfig({
         name,
         layerId,
         imageRatio,
+        ...(zoomToLayerOnChange === undefined ? {} : { zoomToLayerOnChange }),
         pluginSource: { source, args },
         source: {
           type: "GeoJSON",
@@ -119,6 +139,7 @@ const noDateFormats = {};
 describe("useRuntimeLayerFetcher", () => {
   let getFeaturesMock;
   let swapSpy;
+  let zoomSpy;
 
   beforeEach(() => {
     jest.useFakeTimers();
@@ -132,6 +153,7 @@ describe("useRuntimeLayerFetcher", () => {
     swapSpy = jest
       .spyOn(mapUtilities, "swapVectorLayerFeatures")
       .mockImplementation(() => {});
+    zoomSpy = jest.spyOn(layerExtent, "zoomToLayer").mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -688,10 +710,10 @@ describe("useRuntimeLayerFetcher", () => {
     // performFetch records the resolved args before requesting, so a discarded
     // payload was never refetched and the layer stayed blank until an argument
     // actually changed.
-    const setup = () => {
+    const setup = (config = {}) => {
       const otherLayer = fakeOlLayer("other-layer");
       const map = fakeOlMap([otherLayer]);
-      const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+      const layers = [runtimeLayerConfig({ layerId: "layer-1", ...config })];
       const view = renderHook(() =>
         useRuntimeLayerFetcher({
           layers,
@@ -762,6 +784,24 @@ describe("useRuntimeLayerFetcher", () => {
         map.addLayerLate(fakeOlLayer("layer-1"));
       });
       expect(swapSpy).not.toHaveBeenCalled();
+    });
+
+    test("a layer set to zoom on change zooms once it appears and is painted", async () => {
+      const { map } = setup({ zoomToLayerOnChange: true });
+      await settle();
+      // Nothing is painted yet, so there is nothing to fit to.
+      expect(zoomSpy).not.toHaveBeenCalled();
+
+      const late = fakeOlLayer("layer-1");
+      await act(async () => {
+        map.addLayerLate(late);
+      });
+
+      expect(zoomSpy).toHaveBeenCalledTimes(1);
+      expect(zoomSpy).toHaveBeenCalledWith(map, late);
+      expect(swapSpy.mock.invocationCallOrder[0]).toBeLessThan(
+        zoomSpy.mock.invocationCallOrder[0],
+      );
     });
   });
 
@@ -1653,6 +1693,486 @@ describe("useRuntimeLayerFetcher", () => {
   });
 });
 
+describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
+  // The fit itself is zoomToLayer's, with its own suite; mocked here so these
+  // tests are about when the fetcher asks for one.
+  let getFeaturesMock;
+  let swapSpy;
+  let zoomSpy;
+
+  // A payload that says which arguments it was fetched for.
+  const featuresFor = (args) => ({ ...validFc, fetchedFor: args });
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    getFeaturesMock = jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockImplementation(async ({ args }) => ({
+        success: true,
+        viz_type: "features",
+        data: featuresFor(args),
+      }));
+    swapSpy = jest
+      .spyOn(mapUtilities, "swapVectorLayerFeatures")
+      .mockImplementation(() => {});
+    zoomSpy = jest.spyOn(layerExtent, "zoomToLayer").mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  const flush = async (ms = 250) => {
+    await act(async () => {
+      jest.advanceTimersByTime(ms);
+      for (let i = 0; i < 10; i += 1) {
+        await Promise.resolve();
+      }
+    });
+  };
+
+  // eslint-disable-next-line no-template-curly-in-string
+  const networkArgs = { network: "${Network}" };
+
+  const layerFor = (config = {}) =>
+    runtimeLayerConfig({
+      args: networkArgs,
+      zoomToLayerOnChange: true,
+      ...config,
+    });
+
+  // A hook over the given props, where `update` changes only the ones named.
+  const setup = ({
+    layers = [layerFor()],
+    values = { Network: "a" },
+    dateFormats = noDateFormats,
+    map,
+    mapExtentVariable,
+  }) => {
+    let props = {
+      layers,
+      variableInputValues: values,
+      variableInputDateFormats: dateFormats,
+      mapRef: { current: map },
+      mapExtentVariable,
+      refreshTick: 0,
+    };
+    const view = renderHook(
+      (p) =>
+        useRuntimeLayerFetcher({
+          gridItemUUID: "g",
+          sessionNonce: "n",
+          ...p,
+        }),
+      { initialProps: props },
+    );
+    const update = (changes) => {
+      props = { ...props, ...changes };
+      view.rerender(props);
+    };
+    return { ...view, update };
+  };
+
+  test("the first paint zooms once, to the layer the features went into", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    setup({ map });
+    await flush();
+
+    expect(swapSpy).toHaveBeenCalledTimes(1);
+    expect(swapSpy.mock.calls[0][0]).toBe(olLayer);
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+    expect(zoomSpy).toHaveBeenCalledWith(map, olLayer);
+    // Fitted to the features just swapped in, not to the ones they replaced.
+    expect(swapSpy.mock.invocationCallOrder[0]).toBeLessThan(
+      zoomSpy.mock.invocationCallOrder[0],
+    );
+  });
+
+  test("a change to a bound variable zooms again", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({ map });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    update({ variableInputValues: { Network: "b" } });
+    await flush();
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+    expect(zoomSpy).toHaveBeenCalledTimes(2);
+    expect(zoomSpy).toHaveBeenLastCalledWith(map, olLayer);
+  });
+
+  test.each([
+    ["a refresh", () => ({ refreshTick: 1 })],
+    ["an imageRatio change", () => ({ layers: [layerFor({ imageRatio: 2 })] })],
+    [
+      "a switch to image rendering",
+      () => ({ layers: [layerFor({ type: "VectorImageLayer" })] }),
+    ],
+    [
+      "a plugin source edit",
+      () => ({ layers: [layerFor({ source: "other_plugin" })] }),
+    ],
+  ])(
+    "%s re-requests the same arguments and does not zoom",
+    async (_, changes) => {
+      const olLayer = fakeOlLayer("layer-1");
+      const map = fakeOlMap([olLayer]);
+      const { update } = setup({ map });
+      await flush();
+      expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+      update(changes());
+      await flush();
+
+      // Refetched and repainted, as today, but the map stays where it is.
+      expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+      expect(swapSpy).toHaveBeenCalledTimes(2);
+      expect(zoomSpy).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  test("repainting a layer Map.js rebuilt does not zoom", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    setup({ map });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    const rebuilt = fakeOlLayer("layer-1");
+    await act(async () => {
+      map.rebuildLayer(0, rebuilt);
+    });
+
+    expect(swapSpy).toHaveBeenCalledTimes(2);
+    expect(swapSpy).toHaveBeenLastCalledWith(
+      rebuilt,
+      featuresFor({ network: "a" }),
+      "EPSG:3857",
+    );
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("a change to the map's own extent variable refetches but never zooms", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({
+      // eslint-disable-next-line no-template-curly-in-string
+      layers: [layerFor({ args: { bbox: "${Map Extent}", ...networkArgs } })],
+      values: { "Map Extent": "0,0,1,1", Network: "a" },
+      mapExtentVariable: "Map Extent",
+      map,
+    });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    // What a fit does: the map publishes its new extent once it settles.
+    update({ variableInputValues: { "Map Extent": "2,2,3,3", Network: "a" } });
+    await flush();
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+    expect(getFeaturesMock.mock.calls[1][0].args).toEqual({
+      bbox: "2,2,3,3",
+      network: "a",
+    });
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    // Another variable in the same arguments still zooms.
+    update({ variableInputValues: { "Map Extent": "2,2,3,3", Network: "b" } });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test("an extent variable that is not the map's own is not masked", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({
+      // eslint-disable-next-line no-template-curly-in-string
+      layers: [layerFor({ args: { bbox: "${Map Extent}" } })],
+      values: { "Map Extent": "0,0,1,1" },
+      mapExtentVariable: "Other Map Extent",
+      map,
+    });
+    await flush();
+
+    update({ variableInputValues: { "Map Extent": "2,2,3,3" } });
+    await flush();
+
+    expect(zoomSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test("a refresh of a layer bound to a relative date does not zoom once the clock moves", async () => {
+    jest.setSystemTime(new Date("2026-03-01T12:00:00Z"));
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({
+      // eslint-disable-next-line no-template-curly-in-string
+      layers: [layerFor({ args: { start: "${Start}" } })],
+      values: { Start: "now-1D" },
+      dateFormats: { Start: "yyyy-MM-dd HH:mm" },
+      map,
+    });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+    const firstStart = getFeaturesMock.mock.calls[0][0].args.start;
+
+    jest.setSystemTime(new Date("2026-03-01T12:01:30Z"));
+    update({ refreshTick: 1 });
+    await flush();
+
+    // The request names the new minute, but the layer's arguments are what
+    // they were: "now-1D".
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+    expect(getFeaturesMock.mock.calls[1][0].args.start).not.toBe(firstStart);
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("with the option off nothing zooms, and turning it on waits for the next change", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({
+      layers: [layerFor({ zoomToLayerOnChange: undefined })],
+      map,
+    });
+    await flush();
+    update({ variableInputValues: { Network: "b" } });
+    await flush();
+    expect(swapSpy).toHaveBeenCalledTimes(2);
+    expect(zoomSpy).not.toHaveBeenCalled();
+
+    // Ticking the box neither refetches nor zooms to what is already drawn.
+    update({ layers: [layerFor()] });
+    await flush();
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+    expect(zoomSpy).not.toHaveBeenCalled();
+
+    update({ variableInputValues: { Network: "c" } });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("changes inside the debounce zoom once, for the newest arguments", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({ map });
+    await flush(100);
+    update({ variableInputValues: { Network: "b" } });
+    await flush(100);
+    update({ variableInputValues: { Network: "c" } });
+    await flush();
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+    expect(swapSpy).toHaveBeenCalledTimes(1);
+    expect(swapSpy.mock.calls[0][1].fetchedFor).toEqual({ network: "c" });
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("a superseded request never zooms, even landing last", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({ map });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    let resolveB;
+    getFeaturesMock.mockImplementationOnce(
+      ({ args }) =>
+        new Promise((resolve) => {
+          resolveB = () => resolve({ success: true, data: featuresFor(args) });
+        }),
+    );
+    update({ variableInputValues: { Network: "b" } });
+    await flush();
+    update({ variableInputValues: { Network: "c" } });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      resolveB();
+      await Promise.resolve();
+    });
+    await flush();
+
+    expect(swapSpy).toHaveBeenCalledTimes(2);
+    expect(swapSpy.mock.calls[1][1].fetchedFor).toEqual({ network: "c" });
+    expect(zoomSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test.each([
+    [
+      "a plugin failure",
+      (mock) =>
+        mock.mockResolvedValueOnce({
+          success: false,
+          data: { error: "No such network" },
+        }),
+    ],
+    [
+      "a failed request",
+      (mock) => mock.mockRejectedValueOnce(new Error("boom")),
+    ],
+  ])(
+    "%s never zooms, and a later success for the same arguments does",
+    async (_, failOnce) => {
+      failOnce(getFeaturesMock);
+      const olLayer = fakeOlLayer("layer-1");
+      const map = fakeOlMap([olLayer]);
+      const { result, update } = setup({ map });
+      await flush();
+      expect(result.current.errorsByLayerId).toHaveProperty("layer-1");
+      expect(swapSpy).not.toHaveBeenCalled();
+      expect(zoomSpy).not.toHaveBeenCalled();
+
+      // Nothing was painted for these arguments, so painting them is new.
+      update({ refreshTick: 1 });
+      await flush();
+      expect(swapSpy).toHaveBeenCalledTimes(1);
+      expect(zoomSpy).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  test("an empty response asks once, and is not retried", async () => {
+    zoomSpy.mockResolvedValue(false);
+    getFeaturesMock.mockResolvedValue({
+      success: true,
+      data: { type: "FeatureCollection", features: [] },
+    });
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { result, update } = setup({ map });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+    expect(result.current.errorsByLayerId).toEqual({});
+
+    await flush(10000);
+    update({ refreshTick: 1 });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+  });
+
+  describe("on a map with no size", () => {
+    const hidden = () => {
+      const olLayer = fakeOlLayer("layer-1");
+      const map = fakeOlMap([olLayer], { size: [0, 0] });
+      return { olLayer, map };
+    };
+
+    test("waits for the map's first size, then zooms exactly once", async () => {
+      const { olLayer, map } = hidden();
+      setup({ map });
+      await flush();
+      expect(swapSpy).toHaveBeenCalledTimes(1);
+      expect(zoomSpy).not.toHaveBeenCalled();
+      expect(map.pendingSizeListeners()).toBe(1);
+
+      // Still nothing to fit into.
+      await act(async () => map.resize([800, 0]));
+      expect(zoomSpy).not.toHaveBeenCalled();
+
+      await act(async () => map.resize([800, 600]));
+      expect(zoomSpy).toHaveBeenCalledTimes(1);
+      expect(zoomSpy).toHaveBeenCalledWith(map, olLayer);
+      expect(map.pendingSizeListeners()).toBe(0);
+
+      await act(async () => map.resize([400, 300]));
+      expect(zoomSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test("a refresh while it waits still leaves exactly one zoom", async () => {
+      const { map } = hidden();
+      const { update } = setup({ map });
+      await flush();
+      update({ refreshTick: 1 });
+      await flush();
+      expect(swapSpy).toHaveBeenCalledTimes(2);
+      expect(zoomSpy).not.toHaveBeenCalled();
+      expect(map.pendingSizeListeners()).toBe(1);
+
+      await act(async () => map.resize([800, 600]));
+      expect(zoomSpy).toHaveBeenCalledTimes(1);
+      expect(map.pendingSizeListeners()).toBe(0);
+    });
+
+    test("a refresh that is still in flight when the map is sized zooms when it lands", async () => {
+      const { map } = hidden();
+      const { update } = setup({ map });
+      await flush();
+
+      update({ refreshTick: 1 });
+      // The wait was dropped with the request that replaced it...
+      expect(map.pendingSizeListeners()).toBe(0);
+      map.resize([800, 600]);
+      expect(zoomSpy).not.toHaveBeenCalled();
+
+      // ...and the zoom is still owed, so that request's paint carries it.
+      await flush();
+      expect(zoomSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test("removing the layer drops the wait", async () => {
+      const { map } = hidden();
+      const { update } = setup({ map });
+      await flush();
+      expect(map.pendingSizeListeners()).toBe(1);
+
+      update({ layers: [] });
+      expect(map.pendingSizeListeners()).toBe(0);
+      map.resize([800, 600]);
+      expect(zoomSpy).not.toHaveBeenCalled();
+    });
+
+    test("unmounting drops the wait", async () => {
+      const { map } = hidden();
+      const { unmount } = setup({ map });
+      await flush();
+      expect(map.pendingSizeListeners()).toBe(1);
+
+      unmount();
+      expect(map.pendingSizeListeners()).toBe(0);
+      map.resize([800, 600]);
+      expect(zoomSpy).not.toHaveBeenCalled();
+    });
+
+    test("turning the option off while it waits cancels the zoom", async () => {
+      const { map } = hidden();
+      const { update } = setup({ map });
+      await flush();
+
+      update({ layers: [layerFor({ zoomToLayerOnChange: undefined })] });
+      await flush();
+      await act(async () => map.resize([800, 600]));
+
+      expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+      expect(zoomSpy).not.toHaveBeenCalled();
+      expect(map.pendingSizeListeners()).toBe(0);
+    });
+
+    test("a layer Map.js rebuilt while it waits is the one zoomed", async () => {
+      const { map } = hidden();
+      setup({ map });
+      await flush();
+
+      const rebuilt = fakeOlLayer("layer-1");
+      await act(async () => {
+        map.rebuildLayer(0, rebuilt);
+      });
+      expect(swapSpy).toHaveBeenLastCalledWith(
+        rebuilt,
+        featuresFor({ network: "a" }),
+        "EPSG:3857",
+      );
+
+      await act(async () => map.resize([800, 600]));
+      expect(zoomSpy).toHaveBeenCalledTimes(1);
+      expect(zoomSpy).toHaveBeenCalledWith(map, rebuilt);
+    });
+  });
+});
+
 describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
   // The resolve-and-build steps are runtimeRaster.js's own and have their own
   // suite; mocked here so these tests are about when the fetcher calls them,
@@ -1662,6 +2182,7 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
   let resolveSpy;
   let buildSpy;
   let swapSpy;
+  let zoomSpy;
 
   // A WebGLTile stand-in: enough of the surface applyRuntimeRaster touches.
   function fakeRasterLayer(layerId) {
@@ -1685,6 +2206,7 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     rampMax,
     maskBelow,
     fallbackColor,
+    zoomToLayerOnChange,
   } = {}) {
     return {
       configuration: {
@@ -1692,6 +2214,7 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
         props: {
           name,
           layerId,
+          ...(zoomToLayerOnChange === undefined ? {} : { zoomToLayerOnChange }),
           pluginSource: { source: "echo_raster", args },
           source: {
             type: "GeoTIFF",
@@ -1780,6 +2303,7 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     swapSpy = jest
       .spyOn(mapUtilities, "swapVectorLayerFeatures")
       .mockImplementation(() => {});
+    zoomSpy = jest.spyOn(layerExtent, "zoomToLayer").mockResolvedValue(true);
     jest.spyOn(console, "warn").mockImplementation(() => {});
   });
 
@@ -2559,6 +3083,144 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     // Only the queued request paints, and it paints the rebuilt layer.
     expect(buildSpy).toHaveBeenCalledTimes(2);
     expect(rebuilt.getSource().url).toBe("https://h/two.tif");
+  });
+
+  test("a layer set to zoom on change zooms after a repoint, and not after a failed build", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const mapRef = { current: map };
+    const layers = [
+      rasterLayerConfig({
+        // eslint-disable-next-line no-template-curly-in-string
+        args: { storm: "${Storm}" },
+        zoomToLayerOnChange: true,
+      }),
+    ];
+
+    const { rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "a" },
+    });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+    expect(zoomSpy).toHaveBeenCalledWith(map, olLayer);
+    // Fitted once the new file is on the layer, so to that file's extent.
+    expect(olLayer.setSource.mock.invocationCallOrder[0]).toBeLessThan(
+      zoomSpy.mock.invocationCallOrder[0],
+    );
+
+    buildSpy.mockRejectedValueOnce(
+      new GeoTIFFError('GeoTIFF layer "Depth" failed to fetch the file.'),
+    );
+    rerender({ layers, mapRef, variableInputValues: { Storm: "broken" } });
+    await flush();
+    expect(olLayer.getSource()).toBeNull();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    rerender({ layers, mapRef, variableInputValues: { Storm: "c" } });
+    await flush();
+    expect(olLayer.getSource().url).toBe("https://h/c.tif");
+    expect(zoomSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test("a failed build is not a paint, so its arguments still zoom when they succeed", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [rasterLayerConfig({ zoomToLayerOnChange: true })];
+    buildSpy.mockRejectedValueOnce(new Error("could not open"));
+
+    const { rerender } = renderHook(
+      ({ refreshTick }) =>
+        useRuntimeLayerFetcher({
+          layers,
+          gridItemUUID: "g",
+          sessionNonce: "n",
+          mapRef,
+          variableInputValues: noVariableInputs,
+          variableInputDateFormats: noDateFormats,
+          refreshTick,
+        }),
+      { initialProps: { refreshTick: 0 } },
+    );
+    await flush();
+    expect(zoomSpy).not.toHaveBeenCalled();
+
+    rerender({ refreshTick: 1 });
+    await flush();
+    expect(olLayer.getSource().url).toBe("https://h/a.tif");
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("repainting a rebuilt raster does not zoom", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    hookFor({
+      layers: [rasterLayerConfig({ zoomToLayerOnChange: true })],
+      mapRef: { current: map },
+    });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    const rebuilt = fakeRasterLayer("layer-1");
+    await act(async () => {
+      map.rebuildLayer(0, rebuilt);
+      for (let i = 0; i < 5; i += 1) {
+        await Promise.resolve();
+      }
+    });
+    expect(buildSpy).toHaveBeenCalledTimes(2);
+    expect(rebuilt.getSource().url).toBe("https://h/a.tif");
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("a zoom waiting for a size is dropped if a raster repaint leaves nothing drawn", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const map = fakeOlMap([olLayer], { size: [0, 0] });
+    hookFor({
+      layers: [rasterLayerConfig({ zoomToLayerOnChange: true })],
+      mapRef: { current: map },
+    });
+    await flush();
+    expect(map.pendingSizeListeners()).toBe(1);
+
+    // Map.js rebuilds the layer while the map is hidden, and the repaint's
+    // build fails: nothing is drawn any more, so there is nothing to fit.
+    buildSpy.mockRejectedValueOnce(new Error("could not open"));
+    const rebuilt = fakeRasterLayer("layer-1");
+    await act(async () => {
+      map.rebuildLayer(0, rebuilt);
+      for (let i = 0; i < 5; i += 1) {
+        await Promise.resolve();
+      }
+    });
+    expect(buildSpy).toHaveBeenCalledTimes(2);
+    expect(rebuilt.getSource()).toBeNull();
+
+    await act(async () => map.resize([800, 600]));
+    expect(zoomSpy).not.toHaveBeenCalled();
+    expect(map.pendingSizeListeners()).toBe(0);
+  });
+
+  test("a raster fetched before its layer exists zooms once it appears", async () => {
+    const map = fakeOlMap([]);
+    hookFor({
+      layers: [rasterLayerConfig({ zoomToLayerOnChange: true })],
+      mapRef: { current: map },
+    });
+    await flush();
+    expect(zoomSpy).not.toHaveBeenCalled();
+
+    const late = fakeRasterLayer("layer-1");
+    await act(async () => {
+      map.addLayerLate(late);
+      for (let i = 0; i < 5; i += 1) {
+        await Promise.resolve();
+      }
+    });
+    expect(late.getSource().url).toBe("https://h/a.tif");
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+    expect(zoomSpy).toHaveBeenCalledWith(map, late);
   });
 
   const vectorLayers = [runtimeLayerConfig()];

@@ -537,6 +537,7 @@ const MapVisualization = ({
       mapRef: visualizationRef,
       variableInputValues,
       variableInputDateFormats,
+      mapExtentVariable: readViewGroupSettings(mapExtent).variable,
       onBeforeSwap: dismissPopupBeforeSwap,
       refreshTick: refreshCount,
     });
