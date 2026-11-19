@@ -1232,6 +1232,13 @@ The runtime validator (:py:func:`validate_feature_collection`) rejects:
   is automatically routed to the correct layer's per-layer indicator — no
   extra argument needed; the framework attaches the layer id from the request
   context.
+- A dashboard author can tick **zoomToLayerOnChange** on the layer's Layer tab
+  to have the map zoom to the layer's features on its first load and whenever
+  the layer's arguments change. A refresh that re-requests the same arguments
+  never moves the map. The map's own extent variable is ignored, so a zoom
+  cannot trigger another fetch. When several layers have it ticked, the last
+  one to land wins. It is the author's setting: ``LayerConfigurationBuilder``
+  has no setter for it, and a plugin should not preset it.
 
 **Plugin subclasses that override send_update**
 
