@@ -75,6 +75,15 @@ function cancelPendingZoom(state) {
   return true;
 }
 
+/**
+ * Cancel a zoom waiting for the map's size, but leave it owed to the next
+ * paint: forgetting the key painted makes that paint a change. Without this, a
+ * timed refresh on a hidden tab would cancel the zoom for good.
+ */
+function keepZoomOwed(state) {
+  if (cancelPendingZoom(state)) state.lastPaintedZoomKey = undefined;
+}
+
 const hasSize = (size) => !!size && size[0] > 0 && size[1] > 0;
 
 /**
@@ -85,13 +94,13 @@ const hasSize = (size) => !!size && size[0] > 0 && size[1] > 0;
  * waits for the next real change rather than zooming at once. A map with no
  * size yet -- a tab not shown, a collapsed tile -- has nothing to fit into, so
  * the zoom waits for its first size; a newer fetch drops that wait and leaves
- * the zoom owed (see performFetch).
+ * the zoom owed (see keepZoomOwed).
+ *
+ * Only the newest request may zoom, and every caller has already checked that
+ * before painting: the paints here are synchronous after the check, and a
+ * deferred one is cancelled when a newer fetch starts.
  */
-function zoomAfterPaint(state, map, olLayer, zoomKey, isCurrent) {
-  // Only the newest request zooms. Every paint site has just checked this, so
-  // it never fails here; it sits beside the zoom so that stays true.
-  // istanbul ignore next -- unreachable; see above
-  if (!isCurrent()) return;
+function zoomAfterPaint(state, map, olLayer, zoomKey) {
   const changed = !valuesEqual(state.lastPaintedZoomKey, zoomKey);
   state.lastPaintedZoomKey = zoomKey;
   const enabled = () =>
@@ -132,28 +141,14 @@ function swapVectorPayload(state, map, olLayer, featureCollection, zoomKey) {
 }
 
 /** A fetch's vector paint: the swap, then the zoom it may owe. */
-function paintVector(
-  state,
-  map,
-  olLayer,
-  featureCollection,
-  zoomKey,
-  isCurrent,
-) {
+function paintVector(state, map, olLayer, featureCollection, zoomKey) {
   swapVectorPayload(state, map, olLayer, featureCollection, zoomKey);
-  zoomAfterPaint(state, map, olLayer, zoomKey, isCurrent);
+  zoomAfterPaint(state, map, olLayer, zoomKey);
 }
 
-function swapWhenLayerAppears(
-  state,
-  map,
-  layerId,
-  featureCollection,
-  zoomKey,
-  isCurrent,
-) {
+function swapWhenLayerAppears(state, map, layerId, featureCollection, zoomKey) {
   whenLayerAppears(state, map, layerId, (olLayer) =>
-    paintVector(state, map, olLayer, featureCollection, zoomKey, isCurrent),
+    paintVector(state, map, olLayer, featureCollection, zoomKey),
   );
 }
 
@@ -361,7 +356,8 @@ export default function useRuntimeLayerFetcher({
   // source built but never applied is disposed.
   //
   // `zoomKey` is the key of the request being painted; a repaint passes the key
-  // it painted with, so it never reads as a change.
+  // it painted with, so it reads as a change only while a zoom is still owed
+  // (see keepZoomOwed), which it then delivers.
   const paintRaster = useCallback(
     async (layerId, state, description, isCurrent, zoomKey) => {
       // Belt and braces. No caller can reach this already stale: a fetch has
@@ -436,7 +432,7 @@ export default function useRuntimeLayerFetcher({
       clearError(layerId);
       closeLoading(layerId);
       // After the repoint, so the fit reads the file now open on the layer.
-      zoomAfterPaint(state, map, olLayer, zoomKey, isCurrent);
+      zoomAfterPaint(state, map, olLayer, zoomKey);
     },
     [
       mapRef,
@@ -487,10 +483,9 @@ export default function useRuntimeLayerFetcher({
       }
       // A newer fetch replaces whatever an older one was still waiting to paint.
       cancelPendingSwap(state);
-      // A zoom still waiting for the map to be sized is owed to this fetch's
-      // paint instead: forgetting the key painted makes that paint a change.
-      // Without this, a timed refresh on a hidden tab would cancel it for good.
-      if (cancelPendingZoom(state)) state.lastPaintedZoomKey = undefined;
+      // Usually already done by scheduleFetch, but a raster repaint during the
+      // debounce can leave a new wait behind.
+      keepZoomOwed(state);
       const cancelTokenSource = axios.CancelToken.source();
       state.cancelTokenSource = cancelTokenSource;
       state.lastResolvedArgs = resolvedArgs;
@@ -573,14 +568,7 @@ export default function useRuntimeLayerFetcher({
           const featureCollection = response?.data ?? null;
           const olLayer = findOlLayer(map, layerId);
           if (olLayer) {
-            paintVector(
-              state,
-              map,
-              olLayer,
-              featureCollection,
-              zoomKey,
-              isCurrent,
-            );
+            paintVector(state, map, olLayer, featureCollection, zoomKey);
           } else {
             swapWhenLayerAppears(
               state,
@@ -588,7 +576,6 @@ export default function useRuntimeLayerFetcher({
               layerId,
               featureCollection,
               zoomKey,
-              isCurrent,
             );
           }
           clearError(layerId);
@@ -641,8 +628,7 @@ export default function useRuntimeLayerFetcher({
       // cancelled when this one is dispatched.
       claimGeneration(layerId);
       cancelPendingSwap(state);
-      // As in performFetch: a zoom waiting for a size is owed to this request.
-      if (cancelPendingZoom(state)) state.lastPaintedZoomKey = undefined;
+      keepZoomOwed(state);
       // The wait counts as loading. Opening at dispatch instead would leave a
       // quarter-second of silence on every load, and would report a settled map
       // for the whole of a slider drag, where the timer keeps restarting.
@@ -686,8 +672,9 @@ export default function useRuntimeLayerFetcher({
       const olLayer = findOlLayer(map, layerId);
       if (!olLayer || olLayer === state.lastPaint.olLayer) return;
 
-      // The painted zoom key goes with the payload, so a repaint is never a
-      // change, and never zooms.
+      // The painted zoom key goes with the payload, so a repaint is not a
+      // change. A vector repaint never zooms; a raster one goes through
+      // paintRaster, which delivers a zoom still owed (see keepZoomOwed).
       const { kind, payload, zoomKey } = state.lastPaint;
       const isRaster = isRuntimeRasterConfig(state.configuration);
       // A layer that changed kind is refetched by its identity change.
