@@ -235,6 +235,42 @@ describe("useRuntimeLayerFetcher", () => {
     expect(call.args.bbox).toBe("1,2,3,7");
   });
 
+  test("an arg bound as exactly a variable reaches the plugin with that variable's type", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [
+      runtimeLayerConfig({
+        // eslint-disable-next-line no-template-curly-in-string
+        args: { count: "${Count}", flag: "${Flag}", label: "n=${Count}" },
+      }),
+    ];
+
+    renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUUID: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: { Count: 5, Flag: false },
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    // The contract a regular visualization's run() args have: an exact token
+    // keeps the variable's type, and text around it makes a string.
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+    expect(getFeaturesMock.mock.calls[0][0].args).toEqual({
+      count: 5,
+      flag: false,
+      label: "n=5",
+    });
+  });
+
   test("empty or missing args fire a single fetch on mount (no re-fire)", async () => {
     const olLayer = fakeOlLayer("layer-1");
     const mapRef = { current: fakeOlMap([olLayer]) };
