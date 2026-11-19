@@ -18,20 +18,29 @@ const PaddedDiv = styled.div`
   gap: 5rem;
 `;
 
-// The registry rows this source type can use. Rows, placeholders and types are
-// all built from this one list: `handlePropertyChange` indexes rows by position,
-// so the three arrays have to be filtered together.
-const layerPropertyKeys = (sourceType) =>
-  Object.keys(layerPropertiesOptions).filter(
-    (key) =>
-      !(
-        isDecorationSourceType(sourceType) &&
-        DECORATION_HIDDEN_LAYER_PROPS.includes(key)
-      ),
-  );
+// Registry rows only the runtime fetcher reads, so only a dynamic plugin layer
+// is offered them.
+const RUNTIME_ONLY_LAYER_PROPS = ["zoomToLayerOnChange"];
 
-const LayerPane = ({ layerProps, setLayerProps, sourceType }) => {
-  const propertyKeys = layerPropertyKeys(sourceType);
+// The registry rows this layer can use. Rows, placeholders and types are all
+// built from this one list: `handlePropertyChange` indexes rows by position,
+// so the three arrays have to be filtered together.
+const layerPropertyKeys = (sourceType, isDynamicLayer) => {
+  const isDecoration = isDecorationSourceType(sourceType);
+  return Object.keys(layerPropertiesOptions).filter(
+    (key) =>
+      !(isDecoration && DECORATION_HIDDEN_LAYER_PROPS.includes(key)) &&
+      (isDynamicLayer || !RUNTIME_ONLY_LAYER_PROPS.includes(key)),
+  );
+};
+
+const LayerPane = ({
+  layerProps,
+  setLayerProps,
+  sourceType,
+  isDynamicLayer,
+}) => {
+  const propertyKeys = layerPropertyKeys(sourceType, isDynamicLayer);
   // Derived during render, not mirrored into state: the rows must always come
   // from the same key list as the placeholders and types below. A copy synced
   // by an effect lags one render behind a source-type change, and the table
@@ -134,6 +143,9 @@ LayerPane.propTypes = {
   setLayerProps: PropTypes.func,
   // The layer's source type; decoration layers omit rows that cannot apply.
   sourceType: PropTypes.string,
+  // Whether the source is a dynamic plugin; only such a layer is offered the
+  // RUNTIME_ONLY_LAYER_PROPS rows.
+  isDynamicLayer: PropTypes.bool,
 };
 
 export default memo(LayerPane);

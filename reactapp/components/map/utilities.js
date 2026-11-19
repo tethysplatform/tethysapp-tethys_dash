@@ -452,6 +452,13 @@ export const layerPropertiesOptions = {
     placeholder:
       "Vector Image Layer only: canvas size relative to the viewport (default 1; ~1.5 keeps edges clean while panning). Editing this rebuilds the layer -- OpenLayers only accepts it at construction.",
   },
+  // Offered only on a dynamic plugin layer (see LayerPane's
+  // RUNTIME_ONLY_LAYER_PROPS): only the runtime fetcher reads it.
+  zoomToLayerOnChange: {
+    type: "checkbox",
+    placeholder:
+      "Dynamic plugin layers only. Zoom the map to fit this layer when it first loads and whenever its variable inputs change. A refresh never moves the map.",
+  },
 };
 
 /**
@@ -2081,6 +2088,8 @@ export const configurationPropType = PropTypes.shape({
     showClickTolerance: PropTypes.bool,
     snapToFeatures: PropTypes.bool,
     snapSublayer: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    // Optional; dynamic plugin layers only (see layerPropertiesOptions).
+    zoomToLayerOnChange: PropTypes.bool,
   }),
   type: PropTypes.string, // layer type
 });

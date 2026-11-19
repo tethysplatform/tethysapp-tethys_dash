@@ -3517,6 +3517,87 @@ describe("MapLayerModal plugin layer", () => {
       args: {},
     });
   });
+
+  test("offers Zoom To Layer On Change once a dynamic plugin is picked", async () => {
+    // A new layer has no pluginSource until it is saved, so the row has to
+    // follow the source type picked on the Source tab.
+    const spy = jest.spyOn(appAPI, "getVisualizationData").mockResolvedValue({
+      success: true,
+      data: { configuration: { props: { name: "Scaffold Name" } } },
+    });
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={jest.fn()}
+        layerInfo={{}}
+        dynamicMapLayers={[
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "custom_layer_test",
+                value: "Stream Gauges (Dynamic)",
+                label: "Stream Gauges (Dynamic)",
+                args: {},
+                type: "map_layer",
+                dynamic_map_layer: true,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+    const zoomRow = () => screen.queryByText("Zoom To Layer On Change");
+    // The row is last in the Layer Properties table, after Image Ratio.
+    const zoomCheckbox = () =>
+      within(screen.getByLabelText("layer-tab")).getByLabelText(
+        "value Input 12",
+      );
+    // Other editor reads hit the same endpoint, so the scaffold landing is
+    // what marks the defaults as applied, not a call count.
+    const nameInput = () => screen.getByLabelText("Name Input");
+
+    // No source type yet: not a dynamic layer.
+    expect(await screen.findByText("Image Ratio")).toBeInTheDocument();
+    expect(zoomRow()).not.toBeInTheDocument();
+
+    // Picking the plugin fetches its defaults, as the Source tab always does.
+    fireEvent.click(screen.getByText("Source"));
+    selectEvent.openMenu(screen.getByLabelText("Source Type Input"));
+    fireEvent.click(await screen.findByText("Stream Gauges (Dynamic)"));
+    await waitFor(() => expect(nameInput()).toHaveValue("Scaffold Name"));
+
+    fireEvent.click(screen.getByText("Layer"));
+    expect(zoomRow()).toBeInTheDocument();
+    fireEvent.click(zoomCheckbox());
+    expect(zoomCheckbox()).toBeChecked();
+
+    // Fetch defaults replaces the layer props with the plugin's, and no plugin
+    // sets this one: the row stays, unticked.
+    fireEvent.click(screen.getByText("Source"));
+    fireEvent.click(screen.getByLabelText("Fetch plugin defaults"));
+    await waitFor(() => expect(zoomCheckbox()).not.toBeChecked());
+    await waitFor(() =>
+      expect(screen.queryByText(/Fetching/)).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByText("Layer"));
+    expect(zoomRow()).toBeInTheDocument();
+
+    // A static source is not fetched at runtime, so the row goes.
+    fireEvent.click(screen.getByText("Source"));
+    selectEvent.openMenu(screen.getByLabelText("Source Type Input"));
+    fireEvent.click(await screen.findByText("GeoJSON"));
+    expect(await screen.findByText("Upload GeoJSON file")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Layer"));
+    expect(zoomRow()).not.toBeInTheDocument();
+    expect(screen.getByText("Image Ratio")).toBeInTheDocument();
+
+    spy.mockRestore();
+  });
 });
 
 describe("MapLayerModal Popup pane (in-memory popup config)", () => {

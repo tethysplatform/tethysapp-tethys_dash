@@ -3,7 +3,11 @@ import PropTypes from "prop-types";
 import { render, screen, fireEvent } from "@testing-library/react";
 import LayerPane from "components/modals/MapLayer/LayerPane";
 
-const TestingComponent = ({ initialLayerProps = {}, sourceType }) => {
+const TestingComponent = ({
+  initialLayerProps = {},
+  sourceType,
+  isDynamicLayer,
+}) => {
   const [layerProps, setLayerProps] = useState(initialLayerProps);
 
   return (
@@ -12,6 +16,7 @@ const TestingComponent = ({ initialLayerProps = {}, sourceType }) => {
         layerProps={layerProps}
         setLayerProps={setLayerProps}
         sourceType={sourceType}
+        isDynamicLayer={isDynamicLayer}
       />
       <p data-testid="layerProps">{JSON.stringify(layerProps)}</p>
     </>
@@ -21,6 +26,7 @@ const TestingComponent = ({ initialLayerProps = {}, sourceType }) => {
 TestingComponent.propTypes = {
   initialLayerProps: PropTypes.object,
   sourceType: PropTypes.string,
+  isDynamicLayer: PropTypes.bool,
 };
 
 test("LayerPane", async () => {
@@ -224,4 +230,77 @@ test("LayerPane switches to a decoration source type without crashing", async ()
 
   rerender(<TestingComponent sourceType="GeoJSON" />);
   expect(screen.getByText("Click Tolerance")).toBeInTheDocument();
+});
+
+describe("LayerPane Zoom To Layer On Change row", () => {
+  // Registry order puts the row last, after Image Ratio (row 11).
+  const ZOOM_ROW = "value Input 12";
+
+  test("is offered only on a dynamic plugin layer", async () => {
+    const { rerender } = render(<TestingComponent sourceType="GeoJSON" />);
+    expect(await screen.findByText("Image Ratio")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Zoom To Layer On Change"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(ZOOM_ROW)).not.toBeInTheDocument();
+
+    rerender(<TestingComponent sourceType="Stream Gauges" isDynamicLayer />);
+    expect(
+      await screen.findByText("Zoom To Layer On Change"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(ZOOM_ROW)).toHaveAttribute("type", "checkbox");
+
+    rerender(<TestingComponent sourceType="GeoJSON" isDynamicLayer={false} />);
+    expect(
+      screen.queryByText("Zoom To Layer On Change"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("ticking it writes zoomToLayerOnChange: true", async () => {
+    render(<TestingComponent isDynamicLayer />);
+
+    const checkbox = await screen.findByLabelText(ZOOM_ROW);
+    expect(checkbox.checked).toBe(false);
+    fireEvent.click(checkbox);
+
+    expect(screen.getByTestId("layerProps")).toHaveTextContent(
+      JSON.stringify({ zoomToLayerOnChange: true }),
+    );
+    expect(screen.getByLabelText(ZOOM_ROW).checked).toBe(true);
+  });
+
+  test("shows a saved tick", async () => {
+    render(
+      <TestingComponent
+        isDynamicLayer
+        initialLayerProps={{ zoomToLayerOnChange: true }}
+      />,
+    );
+
+    expect((await screen.findByLabelText(ZOOM_ROW)).checked).toBe(true);
+  });
+
+  test.each([
+    ["hidden", false],
+    ["shown", true],
+  ])(
+    "the other rows edit their own keys while it is %s",
+    async (_, isDynamicLayer) => {
+      render(<TestingComponent isDynamicLayer={isDynamicLayer} />);
+
+      // Image Ratio stays row 11 either way, and keeps its number input.
+      const imageRatioInput = await screen.findByLabelText("value Input 11");
+      expect(imageRatioInput).toHaveAttribute("type", "number");
+      fireEvent.change(imageRatioInput, { target: { value: "1.5" } });
+      // Snap To Features keeps its checkbox at row 8.
+      fireEvent.click(screen.getByLabelText("value Input 8"));
+
+      expect(screen.getByTestId("layerProps")).toHaveTextContent(
+        JSON.stringify({ imageRatio: "1.5", snapToFeatures: true }),
+      );
+      expect(screen.queryAllByLabelText(ZOOM_ROW)).toHaveLength(
+        isDynamicLayer ? 1 : 0,
+      );
+    },
+  );
 });
