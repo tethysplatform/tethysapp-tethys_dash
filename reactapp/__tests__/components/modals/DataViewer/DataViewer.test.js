@@ -2006,3 +2006,36 @@ test("updateVariableInputs leaves a reference to a variable the input dropped", 
   // eslint-disable-next-line no-template-curly-in-string
   expect(JSON.parse(result[0].args_string).text).toBe("${Start:0:2}");
 });
+
+test("updateVariableInputs renames a name two keys share by its first key", () => {
+  const oldArgs = {
+    variable_name: "Range",
+    variable_options_source: "date-range",
+    "variable_options_source.metadata": { startDateVariable: "Range" },
+  };
+  const newArgs = {
+    variable_name: "Window",
+    variable_options_source: "date-range",
+    "variable_options_source.metadata": { startDateVariable: "Begin" },
+  };
+  const gridItems = [
+    {
+      // eslint-disable-next-line no-template-curly-in-string
+      args_string: JSON.stringify({ text: "${Range:0:2}" }),
+      source: "Text",
+      metadata_string: "{}",
+    },
+  ];
+
+  const result = updateVariableInputs(
+    oldArgs,
+    newArgs,
+    gridItems,
+    {},
+    jest.fn(),
+  );
+
+  // `default` (the input's own name) comes first, so it decides the rename.
+  // eslint-disable-next-line no-template-curly-in-string
+  expect(JSON.parse(result[0].args_string).text).toBe("${Window:0:2}");
+});
