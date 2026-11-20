@@ -2,6 +2,10 @@
 // — anything except a closing brace. Mirrors the substitution regex used by
 // the existing variable-input pipeline so the syntax is consistent.
 import { formatAttributeValue } from "components/map/utilities";
+import {
+  applySlice,
+  parseVariableToken,
+} from "components/visualizations/variableSlice";
 
 const FEATURE_TEMPLATE_RE = /\$\{feature\.([^}]+)\}/g;
 
@@ -24,15 +28,22 @@ export function substituteTemplateString(template, attributes) {
     return "";
   }
   return String(template).replace(FEATURE_TEMPLATE_RE, (_match, rawKey) => {
-    const key = rawKey.trim();
-    const value = attributes ? attributes[key] : undefined;
+    // `${feature.name:0:4}` slices the field's text, bash-style; a field whose
+    // own name looks like a slice is read whole (see variableSlice.js).
+    const { name, slice } = parseVariableToken(
+      rawKey.trim(),
+      (candidate) =>
+        !!attributes &&
+        Object.prototype.hasOwnProperty.call(attributes, candidate),
+    );
+    const value = attributes ? attributes[name] : undefined;
     if (value === null || value === undefined) {
       return "";
     }
     // Shared with the popup table, so a Date reads the same in a title as it
     // does in the row below it -- and as ISO rather than whatever locale the
     // viewer happens to have.
-    return String(formatAttributeValue(value));
+    return applySlice(String(formatAttributeValue(value)), slice);
   });
 }
 

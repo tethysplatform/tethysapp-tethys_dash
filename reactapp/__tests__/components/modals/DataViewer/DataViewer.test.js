@@ -1937,3 +1937,72 @@ test("saving a grouped map falls back to the single-tab write when updateTabs is
     flaggedExtent("Basin"),
   );
 });
+
+describe("updateVariableInputs renames sliced references", () => {
+  test("keeps each slice and renames every occurrence", () => {
+    const oldArgs = {
+      variable_name: "Site",
+      variable_options_source: "text",
+      initial_value: "123abc",
+    };
+    const newArgs = { ...oldArgs, variable_name: "Station" };
+    const gridItems = [
+      {
+        args_string: JSON.stringify(newArgs),
+        source: "Variable Input",
+        metadata_string: "{}",
+      },
+      {
+        args_string: JSON.stringify({
+          // eslint-disable-next-line no-template-curly-in-string
+          text: "${Site} ${Site:0:3} ${Site: -2} ${Sites} ${Site:-1}",
+        }),
+        source: "Text",
+        metadata_string: "{}",
+      },
+    ];
+
+    const result = updateVariableInputs(
+      oldArgs,
+      newArgs,
+      gridItems,
+      { Site: "123abc" },
+      jest.fn(),
+    );
+
+    // `${Sites}` names another input and `${Site:-1}` is not a slice, so
+    // neither is touched.
+    expect(JSON.parse(result[1].args_string).text).toBe(
+      // eslint-disable-next-line no-template-curly-in-string
+      "${Station} ${Station:0:3} ${Station: -2} ${Sites} ${Site:-1}",
+    );
+  });
+});
+
+test("updateVariableInputs leaves a reference to a variable the input dropped", () => {
+  const oldArgs = {
+    variable_name: "Range",
+    variable_options_source: "date-range",
+    "variable_options_source.metadata": { startDateVariable: "Start" },
+  };
+  const newArgs = { variable_name: "Range", variable_options_source: "text" };
+  const gridItems = [
+    {
+      // eslint-disable-next-line no-template-curly-in-string
+      args_string: JSON.stringify({ text: "${Start:0:2}" }),
+      source: "Text",
+      metadata_string: "{}",
+    },
+  ];
+
+  const result = updateVariableInputs(
+    oldArgs,
+    newArgs,
+    gridItems,
+    {},
+    jest.fn(),
+  );
+
+  // eslint-disable-next-line no-template-curly-in-string
+  expect(JSON.parse(result[0].args_string).text).toBe("${Start:0:2}");
+});

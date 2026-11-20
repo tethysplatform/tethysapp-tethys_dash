@@ -1,7 +1,7 @@
 import appAPI from "services/api/app";
 import {
   findSelectOptionByValue,
-  findUnresolvedVariableInputTokens,
+  findReferencedVariableInputNames,
   hasVariableInputValue,
   updateObjectWithVariableInputs,
   normalizeVariableInputValue,
@@ -54,8 +54,8 @@ export function collectPluginVariableInputs(tabs, visualizations) {
 // substituter's own tokenizer and emptiness test, so "runnable" means exactly
 // "getVisualization would not warn that a variable is empty".
 function isRunnable({ args }, values) {
-  return findUnresolvedVariableInputTokens(args).every((token) =>
-    hasVariableInputValue(values[token]),
+  return findReferencedVariableInputNames(args, values).every((name) =>
+    hasVariableInputValue(values[name]),
   );
 }
 

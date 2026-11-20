@@ -24,6 +24,7 @@ import {
   getPublishedVariableInputValues,
   getVariableInputDateFormat,
   buildPreloadedRequestKey,
+  findReferencedVariableInputNames,
 } from "components/visualizations/utilities";
 import appAPI from "services/api/app";
 import {
@@ -2978,5 +2979,120 @@ describe("preloaded visualization cache", () => {
     });
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy.mock.calls[0][0].args).toEqual({ region: "east" });
+  });
+});
+
+describe("variable slices, ${name:offset:length}", () => {
+  it("slices inline references, bash-style", () => {
+    const result = updateObjectWithVariableInputs({
+      args: {
+        text: "Station ${Site:0:3}, suffix ${Site:3}, tail ${Site: -2}",
+        middle: "${Word:2:-2}",
+      },
+      variableInputs: { Site: "123abc", Word: "forecasting" },
+    });
+    expect(result).toEqual({
+      text: "Station 123, suffix abc, tail bc",
+      middle: "recasti",
+    });
+  });
+
+  it("an exactly-sliced reference is text, while a bare one keeps its type", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { sliced: "${Year:0:2}", bare: "${Year}" },
+      variableInputs: { Year: 2026 },
+    });
+    expect(result).toEqual({ sliced: "20", bare: 2026 });
+  });
+
+  it("slices a date input's formatted text, e.g. to its month", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { month: "${Start:0:2}", year: "Year ${Start: -4}" },
+      variableInputs: { Start: "06/15/2023" },
+      variableInputDateFormats: { Start: "MM/dd/yyyy" },
+    });
+    expect(result).toEqual({ month: "06", year: "Year 2023" });
+  });
+
+  it("`${name:-N}` is not a slice and resolves like an unknown name", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { text: "[${Site:-3}]" },
+      variableInputs: { Site: "123abc" },
+    });
+    expect(result.text).toBe("[]");
+  });
+
+  it("a variable whose own name looks like a slice is read whole", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { text: "${Ratio:4}" },
+      variableInputs: { Ratio: "abcdefg", "Ratio:4": "exact" },
+    });
+    expect(result.text).toBe("exact");
+  });
+
+  it("keeps a sliced feature token for the popup at host scope", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { title: "${feature.name:0:4} at ${Site:0:3}" },
+      variableInputs: { Site: "123abc" },
+    });
+    expect(result.title).toBe("${feature.name:0:4} at 123");
+  });
+
+  it("slices a feature token inside the popup scope", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { title: "${feature.name:0:4}" },
+      variableInputs: {
+        "feature.name": "forecasting",
+        __tethysdash_feature_scope__: true,
+      },
+    });
+    expect(result.title).toBe("fore");
+  });
+
+  it("an empty-input check on a sliced reference checks the base input", () => {
+    const argsString = JSON.stringify({ text: "${Site:0:3}" });
+    expect(
+      checkForEmptyVariableInputs({
+        metadataString: "{}",
+        argsString,
+        variableInputValues: { Site: "123abc" },
+      }),
+    ).toBeNull();
+    expect(
+      checkForEmptyVariableInputs({
+        metadataString: "{}",
+        argsString,
+        variableInputValues: { Site: "" },
+      }),
+    ).toEqual(["Site variable is empty"]);
+  });
+});
+
+describe("findReferencedVariableInputNames", () => {
+  it("strips slices and dedupes, keeping a name that is itself a token", () => {
+    expect(
+      findReferencedVariableInputNames(
+        { a: "${Site:0:3} ${Site} ${Ratio:4} ${Date: -4}" },
+        { "Ratio:4": "x" },
+      ),
+    ).toEqual(["Site", "Ratio:4", "Date"]);
+  });
+
+  it("keys a preload on the sliced input's value", () => {
+    const key = (values) =>
+      buildPreloadedRequestKey({
+        source: "s",
+        args: { a: "${Site:0:3}" },
+        variableInputValues: values,
+      });
+    expect(key({ Site: "123abc" })).not.toBe(key({ Site: "456def" }));
+  });
+
+  it("substitutes an inline null as empty text", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { text: "[${Gone}]" },
+      variableInputs: { Gone: null },
+    });
+    expect(result.text).toBe("[]");
   });
 });

@@ -27,6 +27,7 @@ import {
   findVisualizationBySource,
   updateObjectWithVariableInputs,
 } from "components/visualizations/utilities";
+import { parseVariableToken } from "components/visualizations/variableSlice";
 import {
   BUILT_IN_MAP_SOURCE,
   clearViewGroupSettings,
@@ -100,6 +101,26 @@ export function updateVariableInputs(
 ) {
   const oldVariableInputNames = getAllVariableInputNames(oldArgs);
   const newVariableInputNames = getAllVariableInputNames(newArgs);
+  // Old name -> its key, the first key winning where two share a name.
+  const keyByOldName = new Map();
+  for (const [varKey, varName] of Object.entries(oldVariableInputNames)) {
+    if (!keyByOldName.has(varName)) keyByOldName.set(varName, varKey);
+  }
+
+  // Rewrite every reference to an old name in one pass, keeping any slice
+  // suffix: `${Old}` -> `${New}`, `${Old:0:4}` -> `${New:0:4}`.
+  const renameReferences = (value) =>
+    value.replace(/\$\{([^}]+)\}/g, (match, token) => {
+      const { name } = parseVariableToken(token, (candidate) =>
+        keyByOldName.has(candidate),
+      );
+      if (!keyByOldName.has(name)) return match;
+      const newName = newVariableInputNames[keyByOldName.get(name)];
+      // The input no longer has this variable (its type changed): leave the
+      // reference as it was rather than write `${undefined}`.
+      if (newName === undefined) return match;
+      return "${" + newName + token.slice(name.length) + "}";
+    });
 
   // Update all grid items that reference any changed variable name
   for (const gridItem of updatedGridItems) {
@@ -109,14 +130,10 @@ export function updateVariableInputs(
       for (const arg in args) {
         const value = args[arg];
         if (typeof value !== "string") continue;
-        for (const [varKey, varName] of Object.entries(oldVariableInputNames)) {
-          if (value.includes("${" + varName + "}")) {
-            args[arg] = args[arg].replace(
-              "${" + varName + "}",
-              "${" + newVariableInputNames[varKey] + "}",
-            );
-            updated = true;
-          }
+        const renamed = renameReferences(value);
+        if (renamed !== value) {
+          args[arg] = renamed;
+          updated = true;
         }
       }
       if (updated) {

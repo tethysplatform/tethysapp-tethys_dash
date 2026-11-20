@@ -452,3 +452,39 @@ it("writes nothing once abandoned", async () => {
   expect(result.values).toEqual({});
   expect(result.owners).toEqual({});
 });
+
+it("runs a plugin variable input whose args slice another input", async () => {
+  const spy = mockPlugins({
+    picker_a: viResponse({ variable_name: "Region", initial_value: "west" }),
+    picker_b: viResponse({ variable_name: "Station", initial_value: "s1" }),
+  });
+
+  const result = await preloadPluginVariableInputs({
+    tabs: [
+      {
+        id: 1,
+        gridItems: [
+          gridItem("picker_b", { station: "${Region:0:2}" }),
+          gridItem("picker_a", { region: "${Basin: -3}" }),
+        ],
+      },
+    ],
+    visualizations,
+    variableInputValues: { Basin: "willamette" },
+  });
+
+  expect(spy.mock.calls.map(([itemData]) => itemData.args)).toEqual([
+    { region: "tte" },
+    { station: "we" },
+  ]);
+  expect(result.values).toEqual({ Region: "west", Station: "s1" });
+  // The tile finds the request under its raw, sliced args.
+  expect(
+    takeFor(
+      "picker_b",
+      "picker_b",
+      { station: "${Region:0:2}" },
+      { Region: "west" },
+    ).settled,
+  ).toBe(true);
+});

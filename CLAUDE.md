@@ -95,6 +95,8 @@ Variable inputs are a core interactivity mechanism. Dashboard creators add a `va
 - For dropdown-type args: select the variable input name from the "Variable Inputs" section at the bottom of the arg dropdown
 - For text-type args: use template syntax `${Variable Input Name}` as the value
 
+**Slices**: a reference may take part of the value with bash's substring syntax — `${Name:offset}` or `${Name:offset:length}`, a negative offset counting from the end (and needing a space, `${Name: -3}`, since `:-` is bash's default-value form and is left unsliced), a negative length being an end counted from the end. Parsing and slicing live in `reactapp/components/visualizations/variableSlice.js`, used by `updateObjectWithVariableInputs`, `substituteTemplateString` (so `${feature.x:0:4}` in popup titles and labels too), `checkForEmptyVariableInputs` (which checks the base name) and the DataViewer rename. A token that is a name in its own right is never sliced. A slice is always text; a date slices its formatted string, so the variable input's date format decides what `${Start:0:2}` is. `checkForVariable` (`dateUtils.js`) deliberately still returns the whole token, so a sliced date is not looked up as a date.
+
 **React data flow**:
 1. User changes input → `VariableInputsContext` updated via `setVariableInputValues()`
 2. `updateObjectWithVariableInputs()` interpolates new values into visualization args

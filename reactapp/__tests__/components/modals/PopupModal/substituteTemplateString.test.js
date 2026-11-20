@@ -87,3 +87,28 @@ describe("substituteTemplateString", () => {
     );
   });
 });
+
+describe("substituteTemplateString slices", () => {
+  test("slices a feature field, bash-style", () => {
+    const attributes = { name: "forecasting", id: 12345 };
+    expect(
+      substituteTemplateString(
+        "${feature.name:0:4}|${feature.name: -3}|${feature.id:1:-1}",
+        attributes,
+      ),
+    ).toBe("fore|ing|234");
+  });
+
+  test("a field whose own name looks like a slice is read whole", () => {
+    expect(
+      substituteTemplateString("${feature.ratio:2}", {
+        ratio: "abc",
+        "ratio:2": "exact",
+      }),
+    ).toBe("exact");
+  });
+
+  test("a sliced missing field is empty", () => {
+    expect(substituteTemplateString("[${feature.gone:0:2}]", {})).toBe("[]");
+  });
+});

@@ -59,3 +59,34 @@ To connect variable inputs, perform the following:
 
             .. image:: ../images/variable_input_usage_text.png
                 :align: center
+Using Part of a Value
+---------------------
+
+A reference can take just part of a variable input's value by adding an offset and an optional length after its name,
+the same way a shell variable is sliced:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Reference
+     - Result when the value is "forecasting"
+   * - ``${Name:0:4}``
+     - ``fore`` (4 characters starting at the first)
+   * - ``${Name:4}``
+     - ``casting`` (everything from the fifth character on)
+   * - ``${Name: -3}``
+     - ``ing`` (the last 3 characters)
+   * - ``${Name:2:-2}``
+     - ``recasti`` (from the third character up to 2 before the end)
+
+- Characters are counted from 0. A negative offset counts from the end of the value and must have a space before it:
+  ``${Name:-3}`` without the space is not a slice.
+- A negative length is where to stop, counted back from the end of the value.
+- A slice that falls outside the value gives an empty result.
+- A date variable input is sliced as the text it is formatted to. With a format of ``MM/dd/yyyy``,
+  ``${Start Date:0:2}`` is the month and ``${Start Date: -4}`` is the year.
+- A sliced value is always text, even when the variable input holds a number.
+- Map feature fields slice the same way, for example ``${feature.station_name:0:4}`` in a popup title or a layer label.
+- If a variable input's own name ends in what looks like a slice (``Ratio:4``), ``${Ratio:4}`` refers to it, not to a
+  slice of ``Ratio``. Until such an input has loaded, though, the reference is read as a slice, so avoid names ending in
+  a colon and a number.

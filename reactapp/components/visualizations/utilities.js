@@ -8,6 +8,11 @@ import {
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
 import {
+  applySlice,
+  parseVariableToken,
+  valueAsText,
+} from "components/visualizations/variableSlice";
+import {
   buildPreloadedVisualizationKey,
   takePreloadedVisualization,
 } from "components/visualizations/preloadedVisualizationCache";
@@ -178,7 +183,9 @@ export function buildPreloadedRequestKey({
     args,
     variableInputValues,
     variableInputDateFormats,
-    tokens: findUnresolvedVariableInputTokens(args),
+    // Names, not raw tokens: `${Site:0:4}` keys on Site's value. The slice
+    // itself is in `args`, which the key already carries.
+    tokens: findReferencedVariableInputNames(args, variableInputValues),
   });
 }
 
@@ -201,8 +208,10 @@ export function checkForEmptyVariableInputs({
   // FeatureScopedVariableInputs provider, not in the host context — and could
   // not tell a map layer's label template from an ordinary arg at all.
   const parsedArgs = JSON.parse(argsString);
-  const allDependentVariableInputs =
-    findUnresolvedVariableInputTokens(parsedArgs);
+  const allDependentVariableInputs = findReferencedVariableInputNames(
+    parsedArgs,
+    variableInputValues,
+  );
   // Skip feature-scoped keys: they're populated by the
   // FeatureScopedVariableInputs provider on a per-feature basis and are
   // unbinding-by-design when no feature is active. Warning on every render
@@ -628,41 +637,53 @@ export function updateObjectWithVariableInputs({
     const inFeatureScope =
       variableInputsCopy.__tethysdash_feature_scope__ === true;
 
+    // A token may carry a bash-style slice, `${name:offset:length}` (see
+    // variableSlice.js). A host-scope `${feature.*}` token is preserved whole,
+    // slice included, so the popup scope can resolve it later.
+    const resolveToken = (token) => {
+      const { name, slice } = parseVariableToken(token, (candidate) =>
+        Object.prototype.hasOwnProperty.call(variableInputsCopy, candidate),
+      );
+      const variableValue = variableInputsCopy[name];
+      if (
+        variableValue === undefined &&
+        name.startsWith("feature.") &&
+        !inFeatureScope
+      ) {
+        return { preserved: true };
+      }
+      return { preserved: false, value: variableValue, slice };
+    };
+
     // If value is exactly a variable input, preserve its type.
     // Matches the full string "${variableName}" with no surrounding text.
+    // A sliced reference is text by definition, so it does not keep the type.
     const exactVarMatch = value.match(/^\$\{([^}]+)\}$/);
     let updatedValuesWithVariableInputs;
     if (exactVarMatch) {
-      const key = exactVarMatch[1];
-      if (
-        variableInputsCopy[key] === undefined &&
-        key.startsWith("feature.") &&
-        !inFeatureScope
-      ) {
+      const resolved = resolveToken(exactVarMatch[1]);
+      if (resolved.preserved) {
         updatedValuesWithVariableInputs = value;
+      } else if (resolved.slice) {
+        updatedValuesWithVariableInputs = applySlice(
+          valueAsText(resolved.value),
+          resolved.slice,
+        );
       } else {
         // Nullish, not falsy: this branch exists to PRESERVE the value's type,
         // so a numeric 0 or a false checkbox must survive rather than collapse
         // to "". Matches the `?? ""` in the inline-replacement branch below.
-        updatedValuesWithVariableInputs = variableInputsCopy[key] ?? "";
+        updatedValuesWithVariableInputs = resolved.value ?? "";
       }
     } else {
       // Value contains one or more inline ${variableName} placeholders mixed
       // with other text. Replaces each placeholder with its string equivalent.
       updatedValuesWithVariableInputs = value.replace(
         /\$\{([^}]+)\}/g,
-        (_, key) => {
-          if (
-            variableInputsCopy[key] === undefined &&
-            key.startsWith("feature.") &&
-            !inFeatureScope
-          ) {
-            return "${" + key + "}";
-          }
-          if (typeof variableInputsCopy[key] === "object") {
-            return JSON.stringify(variableInputsCopy[key]);
-          }
-          return variableInputsCopy[key] ?? "";
+        (match, token) => {
+          const resolved = resolveToken(token);
+          if (resolved.preserved) return match;
+          return applySlice(valueAsText(resolved.value), resolved.slice);
         },
       );
     }
@@ -879,6 +900,28 @@ export function findUnresolvedFeatureTokens(value) {
  */
 export function findUnresolvedVariableInputTokens(value) {
   return collectTokens(value, VARIABLE_INPUT_TOKEN_RE, FEATURE_SCAN_SKIP_KEYS);
+}
+
+/**
+ * The variable input names an args object depends on: the tokens of
+ * `findUnresolvedVariableInputTokens`, with any slice stripped, so
+ * `${Site:0:4}` depends on `Site` (see variableSlice.js). A token that is a
+ * name in `variableInputValues` is kept whole. Deduplicated, in encounter
+ * order.
+ *
+ * Every question of the form "does this item have the values it needs" must
+ * ask through this, so the empty-input warning, the preload's runnable test
+ * and the preload cache key agree on what a reference depends on.
+ */
+export function findReferencedVariableInputNames(value, variableInputValues) {
+  const values = variableInputValues ?? {};
+  const names = findUnresolvedVariableInputTokens(value).map(
+    (token) =>
+      parseVariableToken(token, (candidate) =>
+        Object.prototype.hasOwnProperty.call(values, candidate),
+      ).name,
+  );
+  return [...new Set(names)];
 }
 
 export const nonDropDownVariableInputTypes = [
