@@ -7,7 +7,8 @@ import {
   useMemo,
   useState,
 } from "react";
-import RGL, { Responsive, WidthProvider } from "react-grid-layout";
+import RGL, { Responsive } from "react-grid-layout";
+import keepWidthWhenHidden from "components/dashboard/keepWidthWhenHidden";
 import {
   LayoutContext,
   EditingContext,
@@ -21,8 +22,8 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { valuesEqual } from "components/modals/utilities";
 
-const StaticGridLayout = WidthProvider(RGL);
-const ResponsiveGridLayout = WidthProvider(Responsive);
+const StaticGridLayout = keepWidthWhenHidden(RGL);
+const ResponsiveGridLayout = keepWidthWhenHidden(Responsive);
 
 export const MENU_OPEN_Z_INDEX = 2;
 const colCount = 100;

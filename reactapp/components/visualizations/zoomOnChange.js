@@ -62,11 +62,12 @@ export const SIZE_SETTLE_MS = 150;
  * Call `fit` once the map has a size that has held still for SIZE_SETTLE_MS.
  * Returns what drops the wait.
  *
- * Not at its first size: a tab shown again grows its tiles back from no width
- * over a couple of hundred milliseconds, as the dashboard grid lays them out,
- * and a fit taken against the first frame of that is for a sliver of the map
- * -- the layer ends up a speck once the map is full width. A tab not shown or
- * a collapsed tile has no size at all, and waits until it has one.
+ * Not at its first size: a map's tile can still be growing into place, over
+ * the dashboard grid's 200 ms transition -- a tab first shown is laid out from
+ * a default width, and a window resize moves every tile -- and a fit taken
+ * against a frame of that is for a sliver of the map, which leaves the layer a
+ * speck once the map is full width. A tab not shown or a collapsed tile has no
+ * size at all, and waits until it has one.
  */
 export function whenMapSizeSettles(map, fit) {
   let timer = null;
