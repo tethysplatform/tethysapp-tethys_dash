@@ -316,14 +316,22 @@ export async function getVisualization({
     // A dynamic layer's plugin args are restored the same way, so its tokens
     // reach the runtime layer fetcher unresolved. The fetcher resolves them
     // itself, and has to see them to mask the map's own extent variable out
-    // of the key that decides whether a paint zooms the map.
+    // of the stamp that decides whether a paint zooms the map.
+    //
+    // Every other layer is built from its resolved source, so the raw source
+    // goes alongside it as `rawSource` instead, for the same stamp (see
+    // zoomOnChange.js).
     const rawLayers = JSON.parse(argsString).layers ?? [];
     const layers = (itemData.args.layers ?? []).map((layer, i) => {
       const rawPopupConfig = rawLayers[i]?.popupConfig;
       const rawPluginSource = rawLayers[i]?.configuration?.props?.pluginSource;
+      const rawSource = rawLayers[i]?.configuration?.props?.source;
       let restored = rawPopupConfig
         ? { ...layer, popupConfig: rawPopupConfig }
         : layer;
+      if (rawSource && !rawPluginSource) {
+        restored = { ...restored, rawSource };
+      }
       if (rawPluginSource) {
         const props = restored.configuration.props;
         restored = {

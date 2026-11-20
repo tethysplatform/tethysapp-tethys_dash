@@ -1,6 +1,9 @@
 import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
-import { layerPropertiesOptions } from "components/map/utilities";
+import {
+  layerPropertiesOptions,
+  ZOOM_ON_CHANGE_SOURCE_TYPES,
+} from "components/map/utilities";
 import {
   DECORATION_HIDDEN_LAYER_PROPS,
   isDecorationSourceType,
@@ -18,19 +21,20 @@ const PaddedDiv = styled.div`
   gap: 5rem;
 `;
 
-// Registry rows only the runtime fetcher reads, so only a dynamic plugin layer
-// is offered them.
-const RUNTIME_ONLY_LAYER_PROPS = ["zoomToLayerOnChange"];
-
 // The registry rows this layer can use. Rows, placeholders and types are all
 // built from this one list: `handlePropertyChange` indexes rows by position,
 // so the three arrays have to be filtered together.
+//
+// Zoom To Layer On Change needs a layer the map can be fitted to: a dynamic
+// plugin layer, or a static source whose data the browser holds.
 const layerPropertyKeys = (sourceType, isDynamicLayer) => {
   const isDecoration = isDecorationSourceType(sourceType);
+  const canZoomOnChange =
+    isDynamicLayer || ZOOM_ON_CHANGE_SOURCE_TYPES.includes(sourceType);
   return Object.keys(layerPropertiesOptions).filter(
     (key) =>
       !(isDecoration && DECORATION_HIDDEN_LAYER_PROPS.includes(key)) &&
-      (isDynamicLayer || !RUNTIME_ONLY_LAYER_PROPS.includes(key)),
+      (canZoomOnChange || key !== "zoomToLayerOnChange"),
   );
 };
 
@@ -143,8 +147,8 @@ LayerPane.propTypes = {
   setLayerProps: PropTypes.func,
   // The layer's source type; decoration layers omit rows that cannot apply.
   sourceType: PropTypes.string,
-  // Whether the source is a dynamic plugin; only such a layer is offered the
-  // RUNTIME_ONLY_LAYER_PROPS rows.
+  // Whether the source is a dynamic plugin, which is offered Zoom To Layer On
+  // Change whatever its type (see layerPropertyKeys).
   isDynamicLayer: PropTypes.bool,
 };
 

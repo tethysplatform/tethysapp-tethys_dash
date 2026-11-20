@@ -236,24 +236,57 @@ describe("LayerPane Zoom To Layer On Change row", () => {
   // Registry order puts the row last, after Image Ratio (row 11).
   const ZOOM_ROW = "value Input 12";
 
-  test("is offered only on a dynamic plugin layer", async () => {
-    const { rerender } = render(<TestingComponent sourceType="GeoJSON" />);
+  test.each([
+    "GeoJSON",
+    "KML",
+    "Shapefile",
+    "GeoPackage",
+    "GeoParquet",
+    "GeoTIFF",
+    "Zarr",
+    "Static Image",
+  ])("is offered on a %s layer, whose data the browser holds", async (type) => {
+    render(<TestingComponent sourceType={type} />);
+    expect(
+      await screen.findByText("Zoom To Layer On Change"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(ZOOM_ROW)).toHaveAttribute("type", "checkbox");
+  });
+
+  test.each([
+    "WMS",
+    "ESRI Image and Map Service",
+    "Image Tile",
+    "Vector Tile",
+    "PMTiles Vector",
+    "PMTiles Raster",
+    "ESRI Feature Service",
+  ])(
+    "is not offered on a %s layer, which cannot say where it is",
+    async (type) => {
+      render(<TestingComponent sourceType={type} />);
+      expect(await screen.findByText("Image Ratio")).toBeInTheDocument();
+      expect(
+        screen.queryByText("Zoom To Layer On Change"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(ZOOM_ROW)).not.toBeInTheDocument();
+    },
+  );
+
+  test("is offered on a dynamic plugin layer whatever its plugin is called", async () => {
+    const { rerender } = render(
+      <TestingComponent sourceType="Stream Gauges" />,
+    );
     expect(await screen.findByText("Image Ratio")).toBeInTheDocument();
     expect(
       screen.queryByText("Zoom To Layer On Change"),
     ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(ZOOM_ROW)).not.toBeInTheDocument();
 
     rerender(<TestingComponent sourceType="Stream Gauges" isDynamicLayer />);
     expect(
       await screen.findByText("Zoom To Layer On Change"),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(ZOOM_ROW)).toHaveAttribute("type", "checkbox");
-
-    rerender(<TestingComponent sourceType="GeoJSON" isDynamicLayer={false} />);
-    expect(
-      screen.queryByText("Zoom To Layer On Change"),
-    ).not.toBeInTheDocument();
   });
 
   test("ticking it writes zoomToLayerOnChange: true", async () => {

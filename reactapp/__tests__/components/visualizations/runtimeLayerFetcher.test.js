@@ -5,6 +5,7 @@ import appAPI from "services/api/app";
 import * as mapUtilities from "components/map/utilities";
 import * as runtimeRaster from "components/map/runtimeRaster";
 import * as layerExtent from "components/map/layerExtent";
+import { SIZE_SETTLE_MS } from "components/visualizations/zoomOnChange";
 import { GeoTIFFError } from "components/map/ModuleLoader";
 import Source from "ol/source/Source.js";
 
@@ -831,6 +832,9 @@ describe("useRuntimeLayerFetcher", () => {
       const late = fakeOlLayer("layer-1");
       await act(async () => {
         map.addLayerLate(late);
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(SIZE_SETTLE_MS);
       });
 
       expect(zoomSpy).toHaveBeenCalledTimes(1);
@@ -1759,13 +1763,20 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
     jest.restoreAllMocks();
   });
 
+  // A flush long enough to dispatch a request also waits out the settling of
+  // the map's size that a zoom it owes waits for, as it would on screen. A
+  // shorter one is a step inside the debounce, and stops there.
   const flush = async (ms = 250) => {
-    await act(async () => {
-      jest.advanceTimersByTime(ms);
-      for (let i = 0; i < 10; i += 1) {
-        await Promise.resolve();
-      }
-    });
+    const step = async (advance) => {
+      await act(async () => {
+        jest.advanceTimersByTime(advance);
+        for (let i = 0; i < 10; i += 1) {
+          await Promise.resolve();
+        }
+      });
+    };
+    await step(ms);
+    if (ms >= 250) await step(SIZE_SETTLE_MS);
   };
 
   // eslint-disable-next-line no-template-curly-in-string
@@ -1967,6 +1978,31 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
     expect(zoomSpy).toHaveBeenCalledTimes(1);
   });
 
+  test("a change that resolves to the same arguments fetches nothing, and a refresh after it does not zoom", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({
+      // eslint-disable-next-line no-template-curly-in-string
+      layers: [layerFor({ args: { year: "${When}" } })],
+      values: { When: "2026-03-01" },
+      dateFormats: { When: "yyyy" },
+      map,
+    });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+    expect(getFeaturesMock.mock.calls[0][0].args).toEqual({ year: "2026" });
+
+    // Another day of the same year: the request would be the same.
+    update({ variableInputValues: { When: "2026-06-01" } });
+    await flush();
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+    update({ refreshTick: 1 });
+    await flush();
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+  });
+
   test("with the option off nothing zooms, and turning it on waits for the next change", async () => {
     const olLayer = fakeOlLayer("layer-1");
     const map = fakeOlMap([olLayer]);
@@ -1988,6 +2024,87 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
 
     update({ variableInputValues: { Network: "c" } });
     await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("an edit to the layer's arguments refetches without zooming, and the next variable change zooms", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({ map });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    // The author binds the layer to a second variable: new arguments and new
+    // features, but the map stays where the author left it.
+    update({
+      // eslint-disable-next-line no-template-curly-in-string
+      layers: [layerFor({ args: { ...networkArgs, region: "${Region}" } })],
+      variableInputValues: { Network: "a", Region: "north" },
+    });
+    await flush();
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+    expect(swapSpy).toHaveBeenCalledTimes(2);
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    update({ variableInputValues: { Network: "a", Region: "south" } });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test("a layer added after the map loaded zooms only once a variable it uses changes", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({ map, layers: [] });
+    await flush();
+
+    // Adding a layer is an edit.
+    update({ layers: [layerFor()] });
+    await flush();
+    expect(swapSpy).toHaveBeenCalledTimes(1);
+    expect(zoomSpy).not.toHaveBeenCalled();
+
+    update({ variableInputValues: { Network: "b" } });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+    expect(zoomSpy).toHaveBeenCalledWith(map, olLayer);
+  });
+
+  test("an edit whose fetch never paints does not make the next variable change an edit", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({ map });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    // The edit's fetch fails, so nothing of it is ever painted.
+    getFeaturesMock.mockRejectedValueOnce(new Error("boom"));
+    update({
+      // eslint-disable-next-line no-template-curly-in-string
+      layers: [layerFor({ args: { ...networkArgs, region: "${Region}" } })],
+      variableInputValues: { Network: "a", Region: "north" },
+    });
+    await flush();
+    expect(swapSpy).toHaveBeenCalledTimes(1);
+
+    update({ variableInputValues: { Network: "a", Region: "south" } });
+    await flush();
+    expect(swapSpy).toHaveBeenCalledTimes(2);
+    expect(zoomSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test("switching the plugin while a variable changes is an edit, and does not zoom", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({ map });
+    await flush();
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    update({
+      layers: [layerFor({ source: "other_plugin" })],
+      variableInputValues: { Network: "b" },
+    });
+    await flush();
+    expect(swapSpy).toHaveBeenCalledTimes(2);
     expect(zoomSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -2091,6 +2208,13 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
   });
 
   describe("on a map with no size", () => {
+    // Give the map a size, and let it hold for as long as a zoom waits.
+    const resizeTo = async (map, size) => {
+      await act(async () => map.resize(size));
+      await act(async () => {
+        jest.advanceTimersByTime(SIZE_SETTLE_MS);
+      });
+    };
     const hidden = () => {
       const olLayer = fakeOlLayer("layer-1");
       const map = fakeOlMap([olLayer], { size: [0, 0] });
@@ -2106,15 +2230,15 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
       expect(map.pendingSizeListeners()).toBe(1);
 
       // Still nothing to fit into.
-      await act(async () => map.resize([800, 0]));
+      await resizeTo(map, [800, 0]);
       expect(zoomSpy).not.toHaveBeenCalled();
 
-      await act(async () => map.resize([800, 600]));
+      await resizeTo(map, [800, 600]);
       expect(zoomSpy).toHaveBeenCalledTimes(1);
       expect(zoomSpy).toHaveBeenCalledWith(map, olLayer);
       expect(map.pendingSizeListeners()).toBe(0);
 
-      await act(async () => map.resize([400, 300]));
+      await resizeTo(map, [400, 300]);
       expect(zoomSpy).toHaveBeenCalledTimes(1);
     });
 
@@ -2128,7 +2252,7 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
       expect(zoomSpy).not.toHaveBeenCalled();
       expect(map.pendingSizeListeners()).toBe(1);
 
-      await act(async () => map.resize([800, 600]));
+      await resizeTo(map, [800, 600]);
       expect(zoomSpy).toHaveBeenCalledTimes(1);
       expect(map.pendingSizeListeners()).toBe(0);
     });
@@ -2147,6 +2271,23 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
       // ...and the zoom is still owed, so that request's paint carries it.
       await flush();
       expect(zoomSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test("an edit to the layer's arguments drops the wait", async () => {
+      const { map } = hidden();
+      const { update } = setup({ map });
+      await flush();
+      expect(map.pendingSizeListeners()).toBe(1);
+
+      update({
+        // eslint-disable-next-line no-template-curly-in-string
+        layers: [layerFor({ args: { ...networkArgs, region: "${Region}" } })],
+        variableInputValues: { Network: "a", Region: "north" },
+      });
+      await flush();
+      expect(map.pendingSizeListeners()).toBe(0);
+      await resizeTo(map, [800, 600]);
+      expect(zoomSpy).not.toHaveBeenCalled();
     });
 
     test("removing the layer drops the wait", async () => {
@@ -2180,7 +2321,7 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
 
       update({ layers: [layerFor({ zoomToLayerOnChange: undefined })] });
       await flush();
-      await act(async () => map.resize([800, 600]));
+      await resizeTo(map, [800, 600]);
 
       expect(getFeaturesMock).toHaveBeenCalledTimes(1);
       expect(zoomSpy).not.toHaveBeenCalled();
@@ -2202,7 +2343,7 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
         "EPSG:3857",
       );
 
-      await act(async () => map.resize([800, 600]));
+      await resizeTo(map, [800, 600]);
       expect(zoomSpy).toHaveBeenCalledTimes(1);
       expect(zoomSpy).toHaveBeenCalledWith(map, rebuilt);
     });
@@ -2290,13 +2431,20 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     return { promise, resolve, reject };
   };
 
+  // A flush long enough to dispatch a request also waits out the settling of
+  // the map's size that a zoom it owes waits for, as it would on screen. A
+  // shorter one is a step inside the debounce, and stops there.
   const flush = async (ms = 250) => {
-    await act(async () => {
-      jest.advanceTimersByTime(ms);
-      for (let i = 0; i < 10; i += 1) {
-        await Promise.resolve();
-      }
-    });
+    const step = async (advance) => {
+      await act(async () => {
+        jest.advanceTimersByTime(advance);
+        for (let i = 0; i < 10; i += 1) {
+          await Promise.resolve();
+        }
+      });
+    };
+    await step(ms);
+    if (ms >= 250) await step(SIZE_SETTLE_MS);
   };
 
   const hookFor = (initialProps) =>
@@ -3211,6 +3359,12 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
   });
 
   test("a zoom waiting for a size is dropped if a raster repaint leaves nothing drawn", async () => {
+    const resizeTo = async (target, size) => {
+      await act(async () => target.resize(size));
+      await act(async () => {
+        jest.advanceTimersByTime(SIZE_SETTLE_MS);
+      });
+    };
     const olLayer = fakeRasterLayer("layer-1");
     const map = fakeOlMap([olLayer], { size: [0, 0] });
     hookFor({
@@ -3233,7 +3387,7 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     expect(buildSpy).toHaveBeenCalledTimes(2);
     expect(rebuilt.getSource()).toBeNull();
 
-    await act(async () => map.resize([800, 600]));
+    await resizeTo(map, [800, 600]);
     expect(zoomSpy).not.toHaveBeenCalled();
     expect(map.pendingSizeListeners()).toBe(0);
   });
@@ -3255,6 +3409,10 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
       }
     });
     expect(late.getSource().url).toBe("https://h/a.tif");
+    expect(zoomSpy).not.toHaveBeenCalled();
+    await act(async () => {
+      jest.advanceTimersByTime(SIZE_SETTLE_MS);
+    });
     expect(zoomSpy).toHaveBeenCalledTimes(1);
     expect(zoomSpy).toHaveBeenCalledWith(map, late);
   });

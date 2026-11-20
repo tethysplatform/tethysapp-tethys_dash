@@ -2955,6 +2955,53 @@ describe("onMapMoveEnd registration and mount-time prime", () => {
   });
 });
 
+describe("onLayerAdded", () => {
+  test("reports each layer it adds with the config it was built from, and not a layer it keeps", async () => {
+    const onLayerAdded = jest.fn();
+    let capturedRef;
+    const RefCapture = ({ layers }) => {
+      const ref = useRef();
+      capturedRef = ref;
+      return (
+        <MapComponent
+          visualizationRef={ref}
+          layers={layers}
+          onLayerAdded={onLayerAdded}
+          // Rebound at the end of every layer pass, which is how the test
+          // knows the second pass has finished.
+          onMapClick={jest.fn()}
+        />
+      );
+    };
+    RefCapture.propTypes = { layers: PropTypes.array };
+    const config = layerConfigGeoJSON.configuration;
+    const tree = (layers) => (
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <RefCapture layers={layers} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>
+    );
+    const { rerender } = render(tree([config]));
+
+    await waitFor(() => expect(onLayerAdded).toHaveBeenCalledTimes(1));
+    const [olLayer, builtFrom] = onLayerAdded.mock.calls[0];
+    expect(builtFrom).toBe(config);
+    expect(olLayer.get("name")).toBe(config.props.name);
+    expect(capturedRef.current.getLayers().getArray()).toContain(olLayer);
+
+    // Handed back the very config it built from, the map keeps the layer.
+    const unSpy = jest.spyOn(capturedRef.current, "un");
+    rerender(tree([config]));
+    await waitFor(() =>
+      expect(unSpy.mock.calls.some((c) => c[0] === "singleclick")).toBe(true),
+    );
+    expect(onLayerAdded).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("swapping layers", () => {
   const renderWith = (layers) => (
     <VariableInputsContext.Provider

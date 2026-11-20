@@ -2496,3 +2496,95 @@ describe("a dynamic map layer whose arguments name the map's own extent variable
     await waitFor(() => expect(zoomSpy).toHaveBeenCalledTimes(2));
   });
 });
+
+describe("a static map layer whose source names a variable input", () => {
+  // End to end through Base: getVisualization hands the map the layer's raw
+  // source beside the resolved one, the map visualization stamps it, and
+  // MapComponent reports the layer it builds, which is what zooms.
+  const argsString = JSON.stringify({
+    baseMap: null,
+    layers: [
+      {
+        configuration: {
+          type: "VectorLayer",
+          props: {
+            name: "Basins",
+            zoomToLayerOnChange: true,
+            source: {
+              type: "GeoJSON",
+              props: {},
+              geojson: "https://example.test/${Network}.geojson",
+            },
+          },
+        },
+      },
+    ],
+    layerControl: false,
+    map_extent: { extent: "-10686671.12,4721671.57,5" },
+    mapConfig: {},
+  });
+
+  let setValues;
+  const ScopedVariableInputs = ({ children }) => {
+    const [values, setScopedValues] = useState({ Network: "a" });
+    setValues = setScopedValues;
+    const context = useMemo(
+      () => ({
+        variableInputValues: values,
+        variableInputDateFormats: {},
+        variableInputSliderMeta: {},
+        setVariableInputValues: () => {},
+      }),
+      [values],
+    );
+    return (
+      <VariableInputsContext.Provider value={context}>
+        {children}
+      </VariableInputsContext.Provider>
+    );
+  };
+  ScopedVariableInputs.propTypes = { children: PropTypes.node };
+
+  it("zooms on load, and to the rebuilt layer when the variable changes", async () => {
+    // A sized map that draws no frames, as in the dynamic layer test above.
+    jest.spyOn(Map.prototype, "getSize").mockReturnValue([800, 600]);
+    jest.spyOn(Map.prototype, "render").mockImplementation(() => {});
+    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
+    const zoomSpy = jest
+      .spyOn(layerExtent, "zoomToLayer")
+      .mockResolvedValue(true);
+    const fittedUrl = (call) => call[1].getSource().getUrl();
+
+    render(
+      createLoadedComponent({
+        children: (
+          <ScopedVariableInputs>
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: "Map",
+                gridItemArgsString: argsString,
+                gridItemMetadataString: JSON.stringify({ refreshRate: 0 }),
+                gridItemUUID: "static-zoom-on-change-uuid",
+                shouldLoad: true,
+              }}
+            >
+              <BaseVisualization />
+            </GridItemContext.Provider>
+          </ScopedVariableInputs>
+        ),
+      }),
+    );
+
+    await waitFor(() => expect(zoomSpy).toHaveBeenCalledTimes(1));
+    expect(zoomSpy.mock.calls[0][1].get("name")).toBe("Basins");
+    expect(fittedUrl(zoomSpy.mock.calls[0])).toBe(
+      "https://example.test/a.geojson",
+    );
+
+    act(() => setValues({ Network: "b" }));
+    await waitFor(() => expect(zoomSpy).toHaveBeenCalledTimes(2));
+    expect(fittedUrl(zoomSpy.mock.calls[1])).toBe(
+      "https://example.test/b.geojson",
+    );
+  });
+});

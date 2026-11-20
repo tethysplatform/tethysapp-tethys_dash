@@ -354,8 +354,8 @@ const MapLayerModal = ({
   const activeTabId = useContext(TabContext)?.activeTabId;
   const inPopupLayout = activeTabId === POPUP_TAB_ID;
   // Whether the layer saves as a dynamic plugin layer -- the one test saveLayer
-  // uses, so the Layer tab offers the plugin-only rows exactly when they would
-  // be saved onto a layer the runtime fetcher reads. Read from the picked
+  // uses, so the Layer tab offers Zoom To Layer On Change on every layer the
+  // runtime fetcher will read, whatever its type. Read from the picked
   // source type rather than `layerProps.pluginSource`, which a new layer has
   // only once saved. The type is checked first because findSelectOptionByValue
   // asked for undefined matches an option group, which has no value.

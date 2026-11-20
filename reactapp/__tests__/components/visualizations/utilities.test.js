@@ -867,11 +867,17 @@ describe("getVisualization source=Map (popupConfig restoration, lines 126-130)",
     expect(dynamicProps.name).toBe("Gauges in McKenzie");
     expect(dynamicProps.layerId).toBe("dyn-1");
     expect(layers[0].popupConfig).toEqual(rawPopupConfig);
-    // A static layer has no fetcher to resolve it, so it stays substituted.
-    expect(layers[1]).toEqual(substituted.layers[1]);
+    expect(layers[0]).not.toHaveProperty("rawSource");
+    // A static layer has no fetcher to resolve it, so it stays substituted,
+    // with its raw source alongside for the zoom stamp.
+    expect(layers[1]).toEqual({
+      ...substituted.layers[1],
+      rawSource: rawArgs.layers[1].configuration.props.source,
+    });
     expect(layers[1].configuration.props.source.props.url).toBe(
       "https://h/McKenzie.geojson",
     );
+    expect(layers[1].rawSource.props.url).toBe("https://h/${Network}.geojson");
     // The substituted args handed in are not modified.
     expect(substituted.layers[0].configuration.props.pluginSource.args).toEqual(
       { network: "McKenzie", bbox: "1,2,3,4" },

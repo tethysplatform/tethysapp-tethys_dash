@@ -3586,11 +3586,23 @@ describe("MapLayerModal plugin layer", () => {
     fireEvent.click(screen.getByText("Layer"));
     expect(zoomRow()).toBeInTheDocument();
 
-    // A static source is not fetched at runtime, so the row goes.
+    // A static GeoJSON layer can be fitted too, so the row stays.
     fireEvent.click(screen.getByText("Source"));
     selectEvent.openMenu(screen.getByLabelText("Source Type Input"));
     fireEvent.click(await screen.findByText("GeoJSON"));
     expect(await screen.findByText("Upload GeoJSON file")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Layer"));
+    expect(zoomRow()).toBeInTheDocument();
+
+    // A WMS layer is drawn by its server, so the browser cannot fit the map to
+    // it, and the row goes.
+    fireEvent.click(screen.getByText("Source"));
+    selectEvent.openMenu(screen.getByLabelText("Source Type Input"));
+    fireEvent.click(await screen.findByText("WMS"));
+    await waitFor(() =>
+      expect(screen.queryByText("Upload GeoJSON file")).not.toBeInTheDocument(),
+    );
 
     fireEvent.click(screen.getByText("Layer"));
     expect(zoomRow()).not.toBeInTheDocument();
