@@ -3096,3 +3096,13 @@ describe("findReferencedVariableInputNames", () => {
     expect(result.text).toBe("[]");
   });
 });
+
+describe("findUnresolvedFeatureTokens with transforms", () => {
+  it("decides by the parsed name, keeping the token whole", () => {
+    expect(
+      findUnresolvedFeatureTokens({
+        title: "${feature.name:0:3} ${Site:0:3} ${feature.id}",
+      }),
+    ).toEqual(["feature.name:0:3", "feature.id"]);
+  });
+});

@@ -8,10 +8,10 @@ import {
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
 import {
-  applySlice,
+  applyTransform,
   parseVariableToken,
   valueAsText,
-} from "components/visualizations/variableSlice";
+} from "components/visualizations/variableTokens";
 import {
   buildPreloadedVisualizationKey,
   takePreloadedVisualization,
@@ -637,11 +637,12 @@ export function updateObjectWithVariableInputs({
     const inFeatureScope =
       variableInputsCopy.__tethysdash_feature_scope__ === true;
 
-    // A token may carry a bash-style slice, `${name:offset:length}` (see
-    // variableSlice.js). A host-scope `${feature.*}` token is preserved whole,
-    // slice included, so the popup scope can resolve it later.
+    // A token may carry a transform, such as a bash-style slice
+    // `${name:offset:length}` (see variableTokens.js). A host-scope
+    // `${feature.*}` token is preserved whole, transform included, so the
+    // popup scope can resolve it later.
     const resolveToken = (token) => {
-      const { name, slice } = parseVariableToken(token, (candidate) =>
+      const { name, transform } = parseVariableToken(token, (candidate) =>
         Object.prototype.hasOwnProperty.call(variableInputsCopy, candidate),
       );
       const variableValue = variableInputsCopy[name];
@@ -652,29 +653,25 @@ export function updateObjectWithVariableInputs({
       ) {
         return { preserved: true };
       }
-      return { preserved: false, value: variableValue, slice };
+      return {
+        preserved: false,
+        value: applyTransform(variableValue, transform),
+      };
     };
 
-    // If value is exactly a variable input, preserve its type.
+    // If value is exactly a variable input, preserve its type -- or the type
+    // its transform produces (a slice is text).
     // Matches the full string "${variableName}" with no surrounding text.
-    // A sliced reference is text by definition, so it does not keep the type.
     const exactVarMatch = value.match(/^\$\{([^}]+)\}$/);
     let updatedValuesWithVariableInputs;
     if (exactVarMatch) {
       const resolved = resolveToken(exactVarMatch[1]);
-      if (resolved.preserved) {
-        updatedValuesWithVariableInputs = value;
-      } else if (resolved.slice) {
-        updatedValuesWithVariableInputs = applySlice(
-          valueAsText(resolved.value),
-          resolved.slice,
-        );
-      } else {
-        // Nullish, not falsy: this branch exists to PRESERVE the value's type,
-        // so a numeric 0 or a false checkbox must survive rather than collapse
-        // to "". Matches the `?? ""` in the inline-replacement branch below.
-        updatedValuesWithVariableInputs = resolved.value ?? "";
-      }
+      // Nullish, not falsy: this branch exists to PRESERVE the value's type,
+      // so a numeric 0 or a false checkbox must survive rather than collapse
+      // to "".
+      updatedValuesWithVariableInputs = resolved.preserved
+        ? value
+        : (resolved.value ?? "");
     } else {
       // Value contains one or more inline ${variableName} placeholders mixed
       // with other text. Replaces each placeholder with its string equivalent.
@@ -682,8 +679,7 @@ export function updateObjectWithVariableInputs({
         /\$\{([^}]+)\}/g,
         (match, token) => {
           const resolved = resolveToken(token);
-          if (resolved.preserved) return match;
-          return applySlice(valueAsText(resolved.value), resolved.slice);
+          return resolved.preserved ? match : valueAsText(resolved.value);
         },
       );
     }
@@ -743,7 +739,6 @@ export function updateObjectWithVariableInputs({
   return argsCopy;
 }
 
-const FEATURE_TOKEN_RE = /\$\{(feature\.[^}]+)\}/g;
 const VARIABLE_INPUT_TOKEN_RE = /\$\{([^}]+)\}/g;
 
 // Object keys whose subtree is intentionally NOT scanned for unresolved
@@ -868,22 +863,28 @@ function collectTokens(value, regex, skipKeys) {
  * letting plugins error out on the unresolved literal.
  *
  * Subtrees under keys in `FEATURE_SCAN_SKIP_KEYS` are skipped, each within the
- * path its entry scopes it to (`labelConfig` only inside a map's `layers`) —
+ * path its entry scopes it to (`labels` only inside a map's `layers`) —
  * see the constant for why.
  *
- * Returns an array of feature.<key> strings (without the `${}` wrapper),
- * deduplicated and in encounter order. Empty/non-string/non-object inputs
- * yield an empty array.
+ * A token is a feature token when its parsed name is `feature.<key>`, so one
+ * carrying a transform counts too, wherever the transform sits (see
+ * variableTokens.js).
+ *
+ * Returns an array of the tokens (without the `${}` wrapper, transform
+ * included), deduplicated and in encounter order. Empty/non-string/non-object
+ * inputs yield an empty array.
  */
 export function findUnresolvedFeatureTokens(value) {
-  return collectTokens(value, FEATURE_TOKEN_RE, FEATURE_SCAN_SKIP_KEYS);
+  return findUnresolvedVariableInputTokens(value).filter((token) =>
+    parseVariableToken(token).name.startsWith("feature."),
+  );
 }
 
 /**
  * Recursively walk an args object/array and return the unique set of
  * `${<name>}` variable-input references embedded in any string value,
  * EXCLUDING the subtrees named in `FEATURE_SCAN_SKIP_KEYS` (popupConfig at any
- * depth, and labelConfig inside a map's `layers` — see the constant for why
+ * depth, and labels inside a map's `layers` — see the constant for why
  * each is exempt and how far each exemption reaches).
  *
  * Used by `checkForEmptyVariableInputs` so that a Map widget hosting a
@@ -904,8 +905,8 @@ export function findUnresolvedVariableInputTokens(value) {
 
 /**
  * The variable input names an args object depends on: the tokens of
- * `findUnresolvedVariableInputTokens`, with any slice stripped, so
- * `${Site:0:4}` depends on `Site` (see variableSlice.js). A token that is a
+ * `findUnresolvedVariableInputTokens`, with any transform stripped, so
+ * `${Site:0:4}` depends on `Site` (see variableTokens.js). A token that is a
  * name in `variableInputValues` is kept whole. Deduplicated, in encounter
  * order.
  *

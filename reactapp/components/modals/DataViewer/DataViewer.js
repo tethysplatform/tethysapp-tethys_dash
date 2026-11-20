@@ -27,7 +27,7 @@ import {
   findVisualizationBySource,
   updateObjectWithVariableInputs,
 } from "components/visualizations/utilities";
-import { parseVariableToken } from "components/visualizations/variableSlice";
+import { parseVariableToken } from "components/visualizations/variableTokens";
 import {
   BUILT_IN_MAP_SOURCE,
   clearViewGroupSettings,
@@ -107,11 +107,11 @@ export function updateVariableInputs(
     if (!keyByOldName.has(varName)) keyByOldName.set(varName, varKey);
   }
 
-  // Rewrite every reference to an old name in one pass, keeping any slice
-  // suffix: `${Old}` -> `${New}`, `${Old:0:4}` -> `${New:0:4}`.
+  // Rewrite every reference to an old name in one pass, keeping any transform
+  // exactly as written: `${Old}` -> `${New}`, `${Old:0:4}` -> `${New:0:4}`.
   const renameReferences = (value) =>
     value.replace(/\$\{([^}]+)\}/g, (match, token) => {
-      const { name } = parseVariableToken(token, (candidate) =>
+      const { name, prefix, suffix } = parseVariableToken(token, (candidate) =>
         keyByOldName.has(candidate),
       );
       if (!keyByOldName.has(name)) return match;
@@ -119,7 +119,7 @@ export function updateVariableInputs(
       // The input no longer has this variable (its type changed): leave the
       // reference as it was rather than write `${undefined}`.
       if (newName === undefined) return match;
-      return "${" + newName + token.slice(name.length) + "}";
+      return "${" + prefix + newName + suffix + "}";
     });
 
   // Update all grid items that reference any changed variable name

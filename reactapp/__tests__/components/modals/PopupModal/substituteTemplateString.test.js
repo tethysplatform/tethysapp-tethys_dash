@@ -112,3 +112,16 @@ describe("substituteTemplateString slices", () => {
     expect(substituteTemplateString("[${feature.gone:0:2}]", {})).toBe("[]");
   });
 });
+
+describe("substituteTemplateString spacing", () => {
+  const attributes = { name: "forecasting", "name ": "spaced" };
+
+  test.each([
+    ["${feature. name}", "forecasting"],
+    ["${feature.name }", "forecasting"],
+    ["${feature.name :0:2}", "sp"],
+    ["${ feature.name}", "${ feature.name}"],
+  ])("%s reads %s", (template, expected) => {
+    expect(substituteTemplateString(template, attributes)).toBe(expected);
+  });
+});
