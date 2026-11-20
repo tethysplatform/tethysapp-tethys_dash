@@ -312,10 +312,43 @@ export async function getVisualization({
     // the popup visualization's own getVisualization call. Without this, the
     // Map-level updateObjectWithVariableInputs formats dates as locale strings
     // (e.g. "01/15/2024") which new Date() cannot parse, producing null args.
+    //
+    // A dynamic layer's plugin args are restored the same way, so its tokens
+    // reach the runtime layer fetcher unresolved. The fetcher resolves them
+    // itself, and has to see them to mask the map's own extent variable out
+    // of the stamp that decides whether a paint zooms the map.
+    //
+    // Every other layer is built from its resolved source, so the raw source
+    // goes alongside it as `rawSource` instead, for the same stamp (see
+    // zoomOnChange.js).
     const rawLayers = JSON.parse(argsString).layers ?? [];
     const layers = (itemData.args.layers ?? []).map((layer, i) => {
       const rawPopupConfig = rawLayers[i]?.popupConfig;
-      return rawPopupConfig ? { ...layer, popupConfig: rawPopupConfig } : layer;
+      const rawPluginSource = rawLayers[i]?.configuration?.props?.pluginSource;
+      const rawSource = rawLayers[i]?.configuration?.props?.source;
+      let restored = rawPopupConfig
+        ? { ...layer, popupConfig: rawPopupConfig }
+        : layer;
+      if (rawSource && !rawPluginSource) {
+        restored = { ...restored, rawSource };
+      }
+      if (rawPluginSource) {
+        const props = restored.configuration.props;
+        restored = {
+          ...restored,
+          configuration: {
+            ...restored.configuration,
+            props: {
+              ...props,
+              pluginSource: {
+                ...props.pluginSource,
+                args: rawPluginSource.args,
+              },
+            },
+          },
+        };
+      }
+      return restored;
     });
     setVizData({
       baseMap: itemData.args.baseMap,

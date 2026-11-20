@@ -1,6 +1,9 @@
 import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
-import { layerPropertiesOptions } from "components/map/utilities";
+import {
+  layerPropertiesOptions,
+  ZOOM_ON_CHANGE_SOURCE_TYPES,
+} from "components/map/utilities";
 import {
   DECORATION_HIDDEN_LAYER_PROPS,
   isDecorationSourceType,
@@ -18,20 +21,30 @@ const PaddedDiv = styled.div`
   gap: 5rem;
 `;
 
-// The registry rows this source type can use. Rows, placeholders and types are
-// all built from this one list: `handlePropertyChange` indexes rows by position,
+// The registry rows this layer can use. Rows, placeholders and types are all
+// built from this one list: `handlePropertyChange` indexes rows by position,
 // so the three arrays have to be filtered together.
-const layerPropertyKeys = (sourceType) =>
-  Object.keys(layerPropertiesOptions).filter(
+//
+// Zoom To Layer On Change needs a layer the map can be fitted to: a dynamic
+// plugin layer, or a static source whose data the browser holds.
+const layerPropertyKeys = (sourceType, isDynamicLayer) => {
+  const isDecoration = isDecorationSourceType(sourceType);
+  const canZoomOnChange =
+    isDynamicLayer || ZOOM_ON_CHANGE_SOURCE_TYPES.includes(sourceType);
+  return Object.keys(layerPropertiesOptions).filter(
     (key) =>
-      !(
-        isDecorationSourceType(sourceType) &&
-        DECORATION_HIDDEN_LAYER_PROPS.includes(key)
-      ),
+      !(isDecoration && DECORATION_HIDDEN_LAYER_PROPS.includes(key)) &&
+      (canZoomOnChange || key !== "zoomToLayerOnChange"),
   );
+};
 
-const LayerPane = ({ layerProps, setLayerProps, sourceType }) => {
-  const propertyKeys = layerPropertyKeys(sourceType);
+const LayerPane = ({
+  layerProps,
+  setLayerProps,
+  sourceType,
+  isDynamicLayer,
+}) => {
+  const propertyKeys = layerPropertyKeys(sourceType, isDynamicLayer);
   // Derived during render, not mirrored into state: the rows must always come
   // from the same key list as the placeholders and types below. A copy synced
   // by an effect lags one render behind a source-type change, and the table
@@ -134,6 +147,9 @@ LayerPane.propTypes = {
   setLayerProps: PropTypes.func,
   // The layer's source type; decoration layers omit rows that cannot apply.
   sourceType: PropTypes.string,
+  // Whether the source is a dynamic plugin, which is offered Zoom To Layer On
+  // Change whatever its type (see layerPropertyKeys).
+  isDynamicLayer: PropTypes.bool,
 };
 
 export default memo(LayerPane);

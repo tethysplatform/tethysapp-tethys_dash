@@ -353,6 +353,15 @@ const MapLayerModal = ({
   // meaning and the tab is hidden rather than silently mis-resolving.
   const activeTabId = useContext(TabContext)?.activeTabId;
   const inPopupLayout = activeTabId === POPUP_TAB_ID;
+  // Whether the layer saves as a dynamic plugin layer -- the one test saveLayer
+  // uses, so the Layer tab offers Zoom To Layer On Change on every layer the
+  // runtime fetcher will read, whatever its type. Read from the picked
+  // source type rather than `layerProps.pluginSource`, which a new layer has
+  // only once saved. The type is checked first because findSelectOptionByValue
+  // asked for undefined matches an option group, which has no value.
+  const isDynamicLayer =
+    !!sourceProps?.type &&
+    !!findSelectOptionByValue(dynamicMapLayers, sourceProps.type);
   // Same predicate the Style tab uses to decide a source carries per-feature
   // vector geometry. Rasters, tiles and WMS images have no features to label.
   // Annotations and Linked Extents draw what the author places, not data, so
@@ -488,10 +497,7 @@ const MapLayerModal = ({
       return;
     }
 
-    const isRuntime = !!findSelectOptionByValue(
-      dynamicMapLayers,
-      sourceProps.type,
-    );
+    const isRuntime = isDynamicLayer;
     const isRuntimeGeoTIFF =
       isRuntime &&
       getDynamicLayerSourceType(dynamicMapLayers, sourceProps) === "GeoTIFF";
@@ -987,6 +993,7 @@ const MapLayerModal = ({
                 layerProps={layerProps}
                 setLayerProps={handleLayerPropsChange}
                 sourceType={sourceProps?.type}
+                isDynamicLayer={isDynamicLayer}
               />
             </Tab>
             <Tab

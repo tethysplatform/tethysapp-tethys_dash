@@ -167,9 +167,19 @@ export async function getLayerExtent(layer, viewProjection, frame) {
 
 /**
  * Fit a map's view to a layer. Resolves to whether it moved: false when the
- * layer has no extent to fit to, or the map has not been sized yet.
+ * layer has no extent to fit to, the map has not been sized yet, or
+ * `isCurrent` says the fit is no longer wanted.
+ *
+ * `isCurrent` is asked once the layer's extent has arrived, which can take as
+ * long as reading its features or a raster's header. A caller fitting a layer
+ * that something newer may replace in that time passes it, so the older fit
+ * never lands over the newer one.
  */
-export async function zoomToLayer(map, layer, retried = false) {
+export async function zoomToLayer(
+  map,
+  layer,
+  { isCurrent = () => true, retried = false } = {},
+) {
   const view = map?.getView?.();
   if (!view) return false;
   const size = map.getSize?.();
@@ -179,12 +189,14 @@ export async function zoomToLayer(map, layer, retried = false) {
     extent: view.calculateExtent(size),
     resolution: view.getResolution(),
   });
-  if (!extent) return false;
+  if (!extent || !isCurrent()) return false;
   // A new saved extent replaces the view outright, and can do so while a
   // GeoTIFF header is still arriving above; the extent was read against the
   // old view, so read it again against the new one.
   if (map.getView() !== view) {
-    return retried ? false : zoomToLayer(map, layer, true);
+    return retried
+      ? false
+      : zoomToLayer(map, layer, { isCurrent, retried: true });
   }
 
   // The padding is per side, so on a map narrower than twice of it the fit

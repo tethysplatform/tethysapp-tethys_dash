@@ -1232,6 +1232,18 @@ The runtime validator (:py:func:`validate_feature_collection`) rejects:
   is automatically routed to the correct layer's per-layer indicator — no
   extra argument needed; the framework attaches the layer id from the request
   context.
+- A dashboard author can tick **zoomToLayerOnChange** on the layer's Layer tab
+  to have the map zoom to the layer's features when the dashboard opens and
+  whenever a variable input in the layer's arguments changes. A refresh that
+  re-requests the same arguments never moves the map, and neither does the
+  author editing the layer. The map's own extent variable is ignored, so a
+  zoom cannot trigger another zoom. When several layers have it ticked, the
+  last one to land wins. It is the author's setting: ``LayerConfigurationBuilder``
+  has no setter for it, and a plugin should not preset it.
+- An argument bound to a variable input as exactly ``${Variable Name}``
+  arrives in ``fetch_features`` with the variable's own type (a number,
+  boolean or list), the same way a regular visualization's ``run()``
+  arguments do. Text around the token makes the argument a string.
 
 **Plugin subclasses that override send_update**
 

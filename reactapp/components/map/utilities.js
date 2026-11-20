@@ -452,7 +452,33 @@ export const layerPropertiesOptions = {
     placeholder:
       "Vector Image Layer only: canvas size relative to the viewport (default 1; ~1.5 keeps edges clean while panning). Editing this rebuilds the layer -- OpenLayers only accepts it at construction.",
   },
+  // Offered only where it can work: on a dynamic plugin layer, or a source in
+  // ZOOM_ON_CHANGE_SOURCE_TYPES (see LayerPane).
+  zoomToLayerOnChange: {
+    type: "checkbox",
+    placeholder:
+      "Zoom the map to fit this layer when the dashboard opens and whenever a variable input its source uses changes. Refreshing or editing the layer never moves the map.",
+  },
 };
+
+/**
+ * The static source types zoomToLayerOnChange is offered on: the ones whose
+ * data the browser holds, so it can say where the layer is. A WMS or ESRI
+ * image service is drawn by the server one view at a time, a tile source's
+ * extent is its tile grid (usually the whole world), and an ESRI Feature
+ * Service loads a tile at a time, so a fit would only find the first tile in
+ * view. A dynamic plugin layer is offered it whatever its type.
+ */
+export const ZOOM_ON_CHANGE_SOURCE_TYPES = [
+  "GeoJSON",
+  "KML",
+  "Shapefile",
+  "GeoPackage",
+  "GeoParquet",
+  "GeoTIFF",
+  "Zarr",
+  "Static Image",
+];
 
 /**
  * Swap the features on a preserved OpenLayers VectorLayer in place.
@@ -2081,6 +2107,8 @@ export const configurationPropType = PropTypes.shape({
     showClickTolerance: PropTypes.bool,
     snapToFeatures: PropTypes.bool,
     snapSublayer: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    // Optional; dynamic plugin layers only (see layerPropertiesOptions).
+    zoomToLayerOnChange: PropTypes.bool,
   }),
   type: PropTypes.string, // layer type
 });

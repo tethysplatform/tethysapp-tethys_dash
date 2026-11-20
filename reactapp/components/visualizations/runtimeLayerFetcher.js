@@ -14,6 +14,12 @@ import {
 import appAPI from "services/api/app";
 import { valuesEqual } from "components/modals/utilities";
 import { CANCEL_REASON } from "components/map/layerStatus";
+import { zoomToLayer } from "components/map/layerExtent";
+import {
+  isVariableChange,
+  whenMapSizeSettles,
+  zoomStampFor,
+} from "components/visualizations/zoomOnChange";
 
 /** Find the OL layer carrying a runtime layer's identity tag. */
 function findOlLayer(map, layerId) {
@@ -59,6 +65,81 @@ function whenLayerAppears(state, map, layerId, onAppear) {
 }
 
 /**
+ * Drop a zoom left waiting for the map's size to settle. Returns whether
+ * there was one.
+ */
+function cancelPendingZoom(state) {
+  if (!state.pendingZoom) return false;
+  state.pendingZoom();
+  state.pendingZoom = null;
+  return true;
+}
+
+/**
+ * Cancel a zoom waiting for the map's size, but leave it owed to the next
+ * paint. Without this, a timed refresh on a hidden tab would cancel the zoom
+ * for good.
+ */
+function keepZoomOwed(state) {
+  if (cancelPendingZoom(state)) state.zoomOwed = true;
+}
+
+/**
+ * Record the zoom stamp a layer's arguments arrived with, and decide from it
+ * whether the layer owes a zoom (see zoomOnChange.js). A variable input change
+ * owes one, when it changes the arguments a request is sent with: one that
+ * resolves to the same arguments -- `now-1D` swapped for the date it stands
+ * for -- fetches nothing, and its zoom would wait for the next refresh. An
+ * edit to the layer's plugin or arguments drops any zoom owed,
+ * and any wait for a size, because an edit never zooms. Deciding here, as the
+ * arguments arrive, rather than at the paint means an edit whose fetch never
+ * paints -- superseded, or failed -- cannot make the next variable change read
+ * as an edit.
+ */
+function noteZoomStamp(state, zoomStamp, argsChanged) {
+  const seen = state.seenZoomStamp;
+  state.seenZoomStamp = zoomStamp;
+  if (!valuesEqual(seen.raw, zoomStamp.raw)) {
+    cancelPendingZoom(state);
+    state.zoomOwed = false;
+  } else if (argsChanged && isVariableChange(seen, zoomStamp)) {
+    state.zoomOwed = true;
+  }
+}
+
+/**
+ * Fit the map to the layer just painted, when the author asked for it and the
+ * layer owes a zoom. What is owed is decided as the layers arrive (see the
+ * reconciliation effect): the first load, or a variable input change.
+ *
+ * The paint takes what is owed whether or not the option is on, so turning it
+ * on later waits for the next real change rather than zooming at once. The
+ * fit waits for the map's size to settle (see whenMapSizeSettles); a newer
+ * fetch drops that wait and leaves the zoom owed (see keepZoomOwed).
+ *
+ * Only the newest request may zoom, and every caller has already checked that
+ * before painting: the paints here are synchronous after the check, and a
+ * deferred one is cancelled when a newer fetch starts.
+ */
+function zoomAfterPaint(state, map) {
+  const owed = state.zoomOwed;
+  state.zoomOwed = false;
+  const enabled = () =>
+    state.configuration?.props?.zoomToLayerOnChange === true;
+  if (!owed || !enabled()) return;
+  cancelPendingZoom(state);
+  state.pendingZoom = whenMapSizeSettles(map, () => {
+    state.pendingZoom = null;
+    // Read again for a zoom that waited: the author may have turned it off
+    // while the map was hidden. And fit what is painted now: a repaint moves
+    // the paint onto a layer Map.js rebuilt, and a raster repaint that failed
+    // leaves nothing to fit.
+    if (!enabled() || !state.lastPaint) return;
+    zoomToLayer(map, state.lastPaint.olLayer);
+  });
+}
+
+/**
  * Swap a vector payload into a runtime layer, and remember which OL layer holds
  * it, so a layer Map.js rebuilds behind the fetcher's back can be repainted.
  */
@@ -66,12 +147,22 @@ function swapVectorPayload(state, map, olLayer, featureCollection) {
   // Parsed into the view's own projection, read off the map at the swap.
   const projection = map.getView().getProjection().getCode();
   swapVectorLayerFeatures(olLayer, featureCollection, projection);
-  state.lastPaint = { kind: "vector", payload: featureCollection, olLayer };
+  state.lastPaint = {
+    kind: "vector",
+    payload: featureCollection,
+    olLayer,
+  };
+}
+
+/** A fetch's vector paint: the swap, then the zoom it may owe. */
+function paintVector(state, map, olLayer, featureCollection) {
+  swapVectorPayload(state, map, olLayer, featureCollection);
+  zoomAfterPaint(state, map);
 }
 
 function swapWhenLayerAppears(state, map, layerId, featureCollection) {
   whenLayerAppears(state, map, layerId, (olLayer) =>
-    swapVectorPayload(state, map, olLayer, featureCollection),
+    paintVector(state, map, olLayer, featureCollection),
   );
 }
 
@@ -143,6 +234,9 @@ export default function useRuntimeLayerFetcher({
   mapRef,
   variableInputValues,
   variableInputDateFormats,
+  // The name of the variable the map publishes its own extent to, if any.
+  // Masked out of each layer's zoom stamp (see zoomOnChange.js).
+  mapExtentVariable = null,
   onBeforeSwap,
   debounceMs = 250,
   refreshTick = 0,
@@ -185,6 +279,7 @@ export default function useRuntimeLayerFetcher({
           state.cancelTokenSource.cancel(CANCEL_REASON.UNMOUNT);
         }
         cancelPendingSwap(state);
+        cancelPendingZoom(state);
         detachSourceErrors(state);
       });
       stateMap.clear();
@@ -273,6 +368,9 @@ export default function useRuntimeLayerFetcher({
   // state, all of which belong to the request that replaced it. A build that
   // fails changes nothing on the layer, so the previous file stays drawn, and a
   // source built but never applied is disposed.
+  //
+  // A repaint goes through here too, so it delivers a zoom still owed (see
+  // keepZoomOwed) and otherwise does not zoom.
   const paintRaster = useCallback(
     async (layerId, state, description, isCurrent) => {
       // Belt and braces. No caller can reach this already stale: a fetch has
@@ -337,10 +435,16 @@ export default function useRuntimeLayerFetcher({
         state.configuration?.props?.name,
         (message) => setError(layerId, { message, kind: "error" }),
       );
-      state.lastPaint = { kind: "raster", payload: description, olLayer };
+      state.lastPaint = {
+        kind: "raster",
+        payload: description,
+        olLayer,
+      };
       publishLegend(layerId, built.legendRamp);
       clearError(layerId);
       closeLoading(layerId);
+      // After the repoint, so the fit reads the file now open on the layer.
+      zoomAfterPaint(state, map);
     },
     [
       mapRef,
@@ -354,17 +458,25 @@ export default function useRuntimeLayerFetcher({
     ],
   );
 
+  // The arguments a request is sent with, and the stamp a paint of them is
+  // compared by for zoomToLayerOnChange (see zoomOnChange.js). The plugin is
+  // part of the stamp's saved config, so switching it is an edit.
   const resolveLayerArgs = useCallback(
-    (pluginArgs) => {
-      const rawArgs = pluginArgs ?? {};
+    (pluginSource) => {
+      const rawArgs = pluginSource.args ?? {};
       const resolvedArgs = updateObjectWithVariableInputs({
         args: rawArgs,
         variableInputs: variableInputValues ?? {},
         variableInputDateFormats,
       });
-      return { resolvedArgs };
+      const zoomStamp = zoomStampFor(
+        { source: pluginSource.source, args: rawArgs },
+        variableInputValues,
+        mapExtentVariable,
+      );
+      return { resolvedArgs, zoomStamp };
     },
-    [variableInputValues, variableInputDateFormats],
+    [variableInputValues, variableInputDateFormats, mapExtentVariable],
   );
 
   const performFetch = useCallback(
@@ -378,6 +490,9 @@ export default function useRuntimeLayerFetcher({
       }
       // A newer fetch replaces whatever an older one was still waiting to paint.
       cancelPendingSwap(state);
+      // Usually already done by scheduleFetch, but a raster repaint during the
+      // debounce can leave a new wait behind.
+      keepZoomOwed(state);
       const cancelTokenSource = axios.CancelToken.source();
       state.cancelTokenSource = cancelTokenSource;
       state.lastResolvedArgs = resolvedArgs;
@@ -454,7 +569,7 @@ export default function useRuntimeLayerFetcher({
           const featureCollection = response?.data ?? null;
           const olLayer = findOlLayer(map, layerId);
           if (olLayer) {
-            swapVectorPayload(state, map, olLayer, featureCollection);
+            paintVector(state, map, olLayer, featureCollection);
           } else {
             swapWhenLayerAppears(state, map, layerId, featureCollection);
           }
@@ -508,6 +623,7 @@ export default function useRuntimeLayerFetcher({
       // cancelled when this one is dispatched.
       claimGeneration(layerId);
       cancelPendingSwap(state);
+      keepZoomOwed(state);
       // The wait counts as loading. Opening at dispatch instead would leave a
       // quarter-second of silence on every load, and would report a settled map
       // for the whole of a slider drag, where the timer keeps restarting.
@@ -545,6 +661,8 @@ export default function useRuntimeLayerFetcher({
       const olLayer = findOlLayer(map, layerId);
       if (!olLayer || olLayer === state.lastPaint.olLayer) return;
 
+      // A vector repaint never zooms; a raster one goes through paintRaster,
+      // which delivers a zoom still owed (see keepZoomOwed).
       const { kind, payload } = state.lastPaint;
       const isRaster = isRuntimeRasterConfig(state.configuration);
       // A layer that changed kind is refetched by its identity change.
@@ -567,10 +685,14 @@ export default function useRuntimeLayerFetcher({
   }, [repaintIfRebuilt]);
 
   const prevRefreshTickRef = useRef(refreshTick);
+  // Whether the layers the map was mounted with have been seen yet.
+  const reconciledRef = useRef(false);
 
   useEffect(() => {
     const refreshTickChanged = prevRefreshTickRef.current !== refreshTick;
     prevRefreshTickRef.current = refreshTick;
+    const firstLoad = !reconciledRef.current;
+    reconciledRef.current = true;
 
     const runtimeLayers = (layers ?? []).filter(
       (l) =>
@@ -588,6 +710,7 @@ export default function useRuntimeLayerFetcher({
         if (state.cancelTokenSource)
           state.cancelTokenSource.cancel(CANCEL_REASON.REMOVED);
         cancelPendingSwap(state);
+        cancelPendingZoom(state);
         detachSourceErrors(state);
         perLayerStateRef.current.delete(layerId);
         // A response that had already resolved is never rejected by the
@@ -602,8 +725,10 @@ export default function useRuntimeLayerFetcher({
 
     runtimeLayers.forEach((layer) => {
       const { layerId, pluginSource } = layer.configuration.props;
-      const { resolvedArgs } = resolveLayerArgs(pluginSource.args);
+      const { resolvedArgs, zoomStamp } = resolveLayerArgs(pluginSource);
       const renderIdentity = changeIdentity(layer.configuration);
+      const schedule = () =>
+        scheduleFetch(layerId, pluginSource, resolvedArgs, renderIdentity);
 
       if (!perLayerStateRef.current.has(layerId)) {
         perLayerStateRef.current.set(layerId, {
@@ -613,6 +738,14 @@ export default function useRuntimeLayerFetcher({
           lastSource: undefined,
           lastRenderIdentity: undefined,
           pendingSwap: null,
+          // The zoom stamp the layer's arguments last arrived with.
+          seenZoomStamp: zoomStamp,
+          // Whether the next paint zooms the map (see noteZoomStamp). True for
+          // the layers the map was mounted with, which is the first load; a
+          // layer appearing later was added by an edit, which never zooms.
+          zoomOwed: firstLoad,
+          // Unsubscribes a zoom waiting for the map's size to settle.
+          pendingZoom: null,
           // The saved config a raster build starts from. Read when the
           // response lands, not when the request left, so the build uses
           // whatever the author saved last.
@@ -620,15 +753,20 @@ export default function useRuntimeLayerFetcher({
           detachSourceErrors: null,
         });
         // First appearance — always fetch (subject to debounce).
-        scheduleFetch(layerId, pluginSource, resolvedArgs, renderIdentity);
+        schedule();
         return;
       }
 
       const state = perLayerStateRef.current.get(layerId);
       state.configuration = layer.configuration;
+      noteZoomStamp(
+        state,
+        zoomStamp,
+        !valuesEqual(state.lastResolvedArgs, resolvedArgs),
+      );
 
       if (refreshTickChanged) {
-        scheduleFetch(layerId, pluginSource, resolvedArgs, renderIdentity);
+        schedule();
         return;
       }
 
@@ -651,7 +789,7 @@ export default function useRuntimeLayerFetcher({
         return;
       }
 
-      scheduleFetch(layerId, pluginSource, resolvedArgs, renderIdentity);
+      schedule();
     });
 
     // Map.js rebuilds a layer asynchronously, after this effect has run, so the

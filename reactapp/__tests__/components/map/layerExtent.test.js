@@ -465,4 +465,28 @@ describe("zoomToLayer", () => {
     expect(fitOld).not.toHaveBeenCalled();
     expect(fitNew).toHaveBeenCalledWith([-10, -5, 10, 5], expect.anything());
   });
+
+  test("does not fit once the caller says the fit is no longer wanted", async () => {
+    const view = new View({ projection: "EPSG:3857", center: [0, 0], zoom: 2 });
+    const fit = jest.spyOn(view, "fit");
+    let headerArrives;
+    const layer = rasterLayer(
+      () =>
+        new Promise((resolve) => {
+          headerArrives = () =>
+            resolve({ extent: [-10, -5, 10, 5], projection: "EPSG:4326" });
+        }),
+    );
+    let current = true;
+    const zooming = zoomToLayer(makeMap(view), layer, {
+      isCurrent: () => current,
+    });
+
+    // Something newer replaced the layer while its header was on its way.
+    current = false;
+    headerArrives();
+
+    expect(await zooming).toBe(false);
+    expect(fit).not.toHaveBeenCalled();
+  });
 });

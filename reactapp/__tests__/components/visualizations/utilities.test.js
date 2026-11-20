@@ -804,6 +804,86 @@ describe("getVisualization source=Map (popupConfig restoration, lines 126-130)",
     expect(layers[0]).toEqual(layer);
   });
 
+  test("restores a dynamic layer's raw plugin args, leaving static layers substituted", async () => {
+    // As Base.js calls it: the args substituted, the argsString raw. The
+    // runtime layer fetcher resolves a dynamic layer's plugin args itself, so
+    // they must reach it with their tokens, or the map's own extent variable
+    // could not be masked out of its zoom key.
+    const rawPopupConfig = { titleTemplate: "${feature.name}", mode: "modal" };
+    const rawPluginArgs = { network: "${Network}", bbox: "${Map Extent}" };
+    const rawArgs = {
+      layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "Gauges in ${Network}",
+              layerId: "dyn-1",
+              pluginSource: { source: "teacup", args: rawPluginArgs },
+            },
+          },
+          popupConfig: rawPopupConfig,
+        },
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "Basins",
+              source: {
+                type: "GeoJSON",
+                props: { url: "https://h/${Network}.geojson" },
+              },
+            },
+          },
+        },
+      ],
+      baseMap: "base",
+      map_extent: { extent: "0,0,1", variable: "Map Extent" },
+    };
+    const variableInputValues = {
+      Network: "McKenzie",
+      "Map Extent": "1,2,3,4",
+    };
+    const substituted = updateObjectWithVariableInputs({
+      args: rawArgs,
+      variableInputs: variableInputValues,
+    });
+
+    const mockSetVizData = jest.fn();
+    await baseCall({
+      setVizData: mockSetVizData,
+      itemData: { source: "Map", args: substituted },
+      argsString: JSON.stringify(rawArgs),
+      variableInputValues,
+    });
+
+    const { layers } = mockSetVizData.mock.calls[0][0];
+    const dynamicProps = layers[0].configuration.props;
+    expect(dynamicProps.pluginSource).toEqual({
+      source: "teacup",
+      args: rawPluginArgs,
+    });
+    // Only the plugin args are put back: the rest of the layer is resolved.
+    expect(dynamicProps.name).toBe("Gauges in McKenzie");
+    expect(dynamicProps.layerId).toBe("dyn-1");
+    expect(layers[0].popupConfig).toEqual(rawPopupConfig);
+    expect(layers[0]).not.toHaveProperty("rawSource");
+    // A static layer has no fetcher to resolve it, so it stays substituted,
+    // with its raw source alongside for the zoom stamp.
+    expect(layers[1]).toEqual({
+      ...substituted.layers[1],
+      rawSource: rawArgs.layers[1].configuration.props.source,
+    });
+    expect(layers[1].configuration.props.source.props.url).toBe(
+      "https://h/McKenzie.geojson",
+    );
+    expect(layers[1].rawSource.props.url).toBe("https://h/${Network}.geojson");
+    // The substituted args handed in are not modified.
+    expect(substituted.layers[0].configuration.props.pluginSource.args).toEqual(
+      { network: "McKenzie", bbox: "1,2,3,4" },
+    );
+  });
+
   test("carries the map-level args the Map visualization reads", async () => {
     const mockSetVizData = jest.fn();
     const mapDrawing = { options: ["Point"], limit: 1 };

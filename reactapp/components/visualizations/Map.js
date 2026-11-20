@@ -71,6 +71,7 @@ import { getBaseMapLayer } from "components/visualizations/utilities";
 import { LAYER_STATE, parseProgress } from "components/map/layerStatus";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
+import { useStaticLayerZoom } from "components/visualizations/zoomOnChange";
 import { isRuntimeRasterConfig } from "components/map/runtimeRaster";
 import {
   AppContext,
@@ -529,6 +530,7 @@ const MapVisualization = ({
   }, [extentDrawMode, annotationEditSession, cancelHover]);
 
   const { getMessageForRequest } = useContext(WebsocketContext) ?? {};
+  const mapExtentVariable = readViewGroupSettings(mapExtent).variable;
   const { errorsByLayerId, loadingByLayerId, rasterLegendByLayerId } =
     useRuntimeLayerFetcher({
       layers,
@@ -537,9 +539,17 @@ const MapVisualization = ({
       mapRef: visualizationRef,
       variableInputValues,
       variableInputDateFormats,
+      mapExtentVariable,
       onBeforeSwap: dismissPopupBeforeSwap,
       refreshTick: refreshCount,
     });
+  // zoomToLayerOnChange for every layer the fetcher does not drive.
+  const onLayerAdded = useStaticLayerZoom({
+    layers,
+    mapRef: visualizationRef,
+    variableInputValues,
+    mapExtentVariable,
+  });
 
   const runtimeLayerState = { errorsByLayerId };
 
@@ -2013,6 +2023,7 @@ const MapVisualization = ({
         onMapMoveEnd={
           inDataViewerMode ? () => {} : (map) => refreshSnapCaches(map)
         }
+        onLayerAdded={onLayerAdded}
         visualizationRef={visualizationRef}
         data-testid="backlayer-map"
         dataviewerViz={dataviewerViz}

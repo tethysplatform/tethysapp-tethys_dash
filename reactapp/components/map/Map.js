@@ -563,6 +563,7 @@ const MapComponent = ({
   onMapClick,
   onMapHover,
   onMapMoveEnd,
+  onLayerAdded,
   visualizationRef,
   dataviewerViz,
   runtimeLayerState,
@@ -1358,6 +1359,11 @@ const MapComponent = ({
               await applyLayerStyle(newLayer, layerConfig, map);
             }
 
+            // Once the layer is on the map, watched and styled. A run already
+            // superseded never gets here, but one superseded from now on can
+            // still take this layer off again, which the caller allows for.
+            onLayerAdded?.(newLayer, layerConfig);
+
             // A shapefile is not finished when its layer is: its features are
             // pulled by OpenLayers once the layer renders, and the watcher
             // attached above owns the entry from here. Writing "ready" now
@@ -2051,6 +2057,7 @@ MapComponent.propTypes = {
   onMapClick: PropTypes.func, // function for when user click on the map
   onMapHover: PropTypes.func, // function for when user moves the cursor over the map
   onMapMoveEnd: PropTypes.func, // function for when the map view finishes moving (pan/zoom)
+  onLayerAdded: PropTypes.func, // called with (olLayer, layerConfig) once a layer built from that config is on the map
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
   mapDrawing: mapDrawingPropType,
