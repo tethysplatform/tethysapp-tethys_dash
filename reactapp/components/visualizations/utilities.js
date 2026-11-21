@@ -8,6 +8,11 @@ import {
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
 import {
+  applyTransform,
+  parseVariableToken,
+  valueAsText,
+} from "components/visualizations/variableTokens";
+import {
   buildPreloadedVisualizationKey,
   takePreloadedVisualization,
 } from "components/visualizations/preloadedVisualizationCache";
@@ -178,7 +183,9 @@ export function buildPreloadedRequestKey({
     args,
     variableInputValues,
     variableInputDateFormats,
-    tokens: findUnresolvedVariableInputTokens(args),
+    // Names, not raw tokens: `${Site:0:4}` keys on Site's value. The slice
+    // itself is in `args`, which the key already carries.
+    tokens: findReferencedVariableInputNames(args, variableInputValues),
   });
 }
 
@@ -201,8 +208,10 @@ export function checkForEmptyVariableInputs({
   // FeatureScopedVariableInputs provider, not in the host context — and could
   // not tell a map layer's label template from an ordinary arg at all.
   const parsedArgs = JSON.parse(argsString);
-  const allDependentVariableInputs =
-    findUnresolvedVariableInputTokens(parsedArgs);
+  const allDependentVariableInputs = findReferencedVariableInputNames(
+    parsedArgs,
+    variableInputValues,
+  );
   // Skip feature-scoped keys: they're populated by the
   // FeatureScopedVariableInputs provider on a per-feature basis and are
   // unbinding-by-design when no feature is active. Warning on every render
@@ -661,41 +670,49 @@ export function updateObjectWithVariableInputs({
     const inFeatureScope =
       variableInputsCopy.__tethysdash_feature_scope__ === true;
 
-    // If value is exactly a variable input, preserve its type.
+    // A token may carry a transform, such as a bash-style slice
+    // `${name:offset:length}` (see variableTokens.js). A host-scope
+    // `${feature.*}` token is preserved whole, transform included, so the
+    // popup scope can resolve it later.
+    const resolveToken = (token) => {
+      const { name, transform } = parseVariableToken(token, (candidate) =>
+        Object.prototype.hasOwnProperty.call(variableInputsCopy, candidate),
+      );
+      const variableValue = variableInputsCopy[name];
+      if (
+        variableValue === undefined &&
+        name.startsWith("feature.") &&
+        !inFeatureScope
+      ) {
+        return { preserved: true };
+      }
+      return {
+        preserved: false,
+        value: applyTransform(variableValue, transform),
+      };
+    };
+
+    // If value is exactly a variable input, preserve its type -- or the type
+    // its transform produces (a slice is text).
     // Matches the full string "${variableName}" with no surrounding text.
     const exactVarMatch = value.match(/^\$\{([^}]+)\}$/);
     let updatedValuesWithVariableInputs;
     if (exactVarMatch) {
-      const key = exactVarMatch[1];
-      if (
-        variableInputsCopy[key] === undefined &&
-        key.startsWith("feature.") &&
-        !inFeatureScope
-      ) {
-        updatedValuesWithVariableInputs = value;
-      } else {
-        // Nullish, not falsy: this branch exists to PRESERVE the value's type,
-        // so a numeric 0 or a false checkbox must survive rather than collapse
-        // to "". Matches the `?? ""` in the inline-replacement branch below.
-        updatedValuesWithVariableInputs = variableInputsCopy[key] ?? "";
-      }
+      const resolved = resolveToken(exactVarMatch[1]);
+      // Nullish, not falsy: this branch exists to PRESERVE the value's type,
+      // so a numeric 0 or a false checkbox must survive rather than collapse
+      // to "".
+      updatedValuesWithVariableInputs = resolved.preserved
+        ? value
+        : (resolved.value ?? "");
     } else {
       // Value contains one or more inline ${variableName} placeholders mixed
       // with other text. Replaces each placeholder with its string equivalent.
       updatedValuesWithVariableInputs = value.replace(
         /\$\{([^}]+)\}/g,
-        (_, key) => {
-          if (
-            variableInputsCopy[key] === undefined &&
-            key.startsWith("feature.") &&
-            !inFeatureScope
-          ) {
-            return "${" + key + "}";
-          }
-          if (typeof variableInputsCopy[key] === "object") {
-            return JSON.stringify(variableInputsCopy[key]);
-          }
-          return variableInputsCopy[key] ?? "";
+        (match, token) => {
+          const resolved = resolveToken(token);
+          return resolved.preserved ? match : valueAsText(resolved.value);
         },
       );
     }
@@ -755,7 +772,6 @@ export function updateObjectWithVariableInputs({
   return argsCopy;
 }
 
-const FEATURE_TOKEN_RE = /\$\{(feature\.[^}]+)\}/g;
 const VARIABLE_INPUT_TOKEN_RE = /\$\{([^}]+)\}/g;
 
 // Object keys whose subtree is intentionally NOT scanned for unresolved
@@ -880,22 +896,28 @@ function collectTokens(value, regex, skipKeys) {
  * letting plugins error out on the unresolved literal.
  *
  * Subtrees under keys in `FEATURE_SCAN_SKIP_KEYS` are skipped, each within the
- * path its entry scopes it to (`labelConfig` only inside a map's `layers`) —
+ * path its entry scopes it to (`labels` only inside a map's `layers`) —
  * see the constant for why.
  *
- * Returns an array of feature.<key> strings (without the `${}` wrapper),
- * deduplicated and in encounter order. Empty/non-string/non-object inputs
- * yield an empty array.
+ * A token is a feature token when its parsed name is `feature.<key>`, so one
+ * carrying a transform counts too, wherever the transform sits (see
+ * variableTokens.js).
+ *
+ * Returns an array of the tokens (without the `${}` wrapper, transform
+ * included), deduplicated and in encounter order. Empty/non-string/non-object
+ * inputs yield an empty array.
  */
 export function findUnresolvedFeatureTokens(value) {
-  return collectTokens(value, FEATURE_TOKEN_RE, FEATURE_SCAN_SKIP_KEYS);
+  return findUnresolvedVariableInputTokens(value).filter((token) =>
+    parseVariableToken(token).name.startsWith("feature."),
+  );
 }
 
 /**
  * Recursively walk an args object/array and return the unique set of
  * `${<name>}` variable-input references embedded in any string value,
  * EXCLUDING the subtrees named in `FEATURE_SCAN_SKIP_KEYS` (popupConfig at any
- * depth, and labelConfig inside a map's `layers` — see the constant for why
+ * depth, and labels inside a map's `layers` — see the constant for why
  * each is exempt and how far each exemption reaches).
  *
  * Used by `checkForEmptyVariableInputs` so that a Map widget hosting a
@@ -912,6 +934,28 @@ export function findUnresolvedFeatureTokens(value) {
  */
 export function findUnresolvedVariableInputTokens(value) {
   return collectTokens(value, VARIABLE_INPUT_TOKEN_RE, FEATURE_SCAN_SKIP_KEYS);
+}
+
+/**
+ * The variable input names an args object depends on: the tokens of
+ * `findUnresolvedVariableInputTokens`, with any transform stripped, so
+ * `${Site:0:4}` depends on `Site` (see variableTokens.js). A token that is a
+ * name in `variableInputValues` is kept whole. Deduplicated, in encounter
+ * order.
+ *
+ * Every question of the form "does this item have the values it needs" must
+ * ask through this, so the empty-input warning, the preload's runnable test
+ * and the preload cache key agree on what a reference depends on.
+ */
+export function findReferencedVariableInputNames(value, variableInputValues) {
+  const values = variableInputValues ?? {};
+  const names = findUnresolvedVariableInputTokens(value).map(
+    (token) =>
+      parseVariableToken(token, (candidate) =>
+        Object.prototype.hasOwnProperty.call(values, candidate),
+      ).name,
+  );
+  return [...new Set(names)];
 }
 
 export const nonDropDownVariableInputTypes = [
