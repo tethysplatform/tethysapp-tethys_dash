@@ -725,7 +725,7 @@ describe("rehydratePluginSourceProps", () => {
   });
 });
 
-it("AddMapLayer reopens an Annotations layer with its annotations and saves them back", async () => {
+it("AddMapLayer reopens an older Annotations layer and saves its annotations back", async () => {
   const annotations = {
     defaults: { lineColor: "#ff0000" },
     items: [
@@ -760,17 +760,10 @@ it("AddMapLayer reopens an Annotations layer with its annotations and saves them
     }),
   );
 
+  // An older layer, as a popup layout's map can still hold: no longer edited
+  // here, but its annotations must survive a save made for another reason.
   fireEvent.click(await screen.findByTestId("editMapLayer"));
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("tab", { name: "Annotations" }));
-  expect(
-    await screen.findByRole("group", { name: "Line/Arrow Default Styles" }),
-  ).toBeInTheDocument();
-  // The items loaded too: the tab does not call the layer empty.
-  expect(
-    screen.queryByText(/This layer has no annotations yet/),
-  ).not.toBeInTheDocument();
-
   fireEvent.click(await screen.findByLabelText("Create Layer Button"));
 
   await waitFor(() => expect(onChange).toHaveBeenCalled());

@@ -21,6 +21,7 @@ import PropTypes from "prop-types";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { valuesEqual } from "components/modals/utilities";
+import { GRID_DRAG_CANCEL_CLASS } from "components/dashboard/gridDragCancel";
 
 const StaticGridLayout = keepWidthWhenHidden(RGL);
 const ResponsiveGridLayout = keepWidthWhenHidden(Responsive);
@@ -268,8 +269,7 @@ const DashboardLayout = ({
     onResizeStop: (newLayout) => updateLayout(newLayout),
     isDraggable: false,
     isResizable: false,
-    draggableCancel:
-      ".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover",
+    draggableCancel: `.dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover,.${GRID_DRAG_CANCEL_CLASS}`,
     onResize: handleResize,
     allowOverlap,
     useCSSTransforms: false,

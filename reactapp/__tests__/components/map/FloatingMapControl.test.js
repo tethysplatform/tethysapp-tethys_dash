@@ -7,6 +7,7 @@ import FloatingMapControl, {
   MapSizedControlContainer,
 } from "components/map/FloatingMapControl";
 import { makeMapDiv } from "__tests__/utilities/mapDiv";
+import { GRID_DRAG_CANCEL_CLASS } from "components/dashboard/gridDragCancel";
 import PropTypes from "prop-types";
 
 // jsdom does no layout, so every rect is stubbed. These tests pin where the
@@ -64,6 +65,19 @@ describe("FloatingMapControl", () => {
       expect(screen.getByTestId("map-tile")).toContainElement(control);
     },
   );
+
+  // In dashboard edit mode the tile is a drag handle; a press on any map
+  // control must stay a press. See gridDragCancel.test.js for the layout's side.
+  test("is left out of tile dragging, keeping the caller's class", () => {
+    render(
+      <FloatingMapControl className="legend-anchor">
+        <button type="button">Show Legend</button>
+      </FloatingMapControl>,
+    );
+    const host = screen.getByTestId("floating-map-control-inplace");
+    expect(host).toHaveClass(GRID_DRAG_CANCEL_CLASS);
+    expect(host).toHaveClass("legend-anchor");
+  });
 
   test("watches nothing but the map, and stops on unmount", () => {
     // It used to track the window too, because a scroll or a resize moved the

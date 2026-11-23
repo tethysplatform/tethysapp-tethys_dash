@@ -1,10 +1,21 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import VectorLayer from "ol/layer/Vector.js";
+import VectorSource from "ol/source/Vector.js";
+import Feature from "ol/Feature.js";
+import Point from "ol/geom/Point.js";
 import LayersControl, {
   SHOW_IN_LAYER_CONTROL,
 } from "components/map/LayersControl";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import { makeMapDiv } from "__tests__/utilities/mapDiv";
 import { createSnapLayer } from "components/map/snapping";
+import { ANNOTATION_GROUP_KEY } from "components/map/annotationGroups";
 
 test("LayersControl update layers", async () => {
   let visualizationRef;
@@ -380,5 +391,104 @@ describe("LayersControl height cap", () => {
       maxHeight: "none",
       height: "40px",
     });
+  });
+});
+
+describe("LayersControl annotation groups", () => {
+  // A stub layer whose visibility really changes, so a click on one row can be
+  // checked against the others.
+  const stubLayer = (props) => {
+    let visible = true;
+    return {
+      get: (key) => props[key],
+      getVisible: () => visible,
+      setVisible: jest.fn((value) => {
+        visible = value;
+      }),
+    };
+  };
+  const groupLayer = (title) =>
+    stubLayer({
+      name: `annotation-group:${title}`,
+      title,
+      [ANNOTATION_GROUP_KEY]: title,
+    });
+  const openWith = async (layers) => {
+    const visualizationRef = {
+      current: { getLayers: () => ({ getArray: () => layers }) },
+    };
+    render(
+      <LayersControl updater={false} visualizationRef={visualizationRef} />,
+    );
+    fireEvent.click(await screen.findByLabelText("Show Layers Control"));
+  };
+
+  it("lists groups in their own Annotations section below the map layers", async () => {
+    await openWith([
+      stubLayer({ name: "Stations" }),
+      groupLayer("Flood notes"),
+      groupLayer("Site visits"),
+    ]);
+
+    const mapSection = screen.getByLabelText("Map Layers");
+    const annotationSection = screen.getByLabelText("Annotations");
+    expect(within(mapSection).getByText("Stations")).toBeInTheDocument();
+    expect(within(mapSection).queryByText("Flood notes")).toBeNull();
+    expect(
+      within(annotationSection)
+        .getAllByRole("checkbox")
+        .map((box) => box.getAttribute("aria-label")),
+    ).toEqual(["Flood notes Set Visible", "Site visits Set Visible"]);
+    expect(screen.getByText("Annotations", { selector: "b" })).toBeVisible();
+    // The section follows the map layers in the panel.
+    expect(
+      mapSection.compareDocumentPosition(annotationSection) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows no Annotations section for a map without groups", async () => {
+    await openWith([stubLayer({ name: "Stations" })]);
+    expect(await screen.findByText("Stations")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Annotations")).toBeNull();
+    expect(screen.queryByText("Annotations")).toBeNull();
+  });
+
+  it("toggles a group without touching a map layer of the same name", async () => {
+    const stations = stubLayer({ name: "Stations" });
+    const stationNotes = groupLayer("Stations");
+    await openWith([stations, stationNotes]);
+
+    const groupBox = within(
+      screen.getByLabelText("Annotations"),
+    ).getByLabelText("Stations Set Visible");
+    const layerBox = within(screen.getByLabelText("Map Layers")).getByLabelText(
+      "Stations Set Visible",
+    );
+    fireEvent.click(groupBox);
+
+    expect(groupBox.checked).toBe(false);
+    expect(stationNotes.setVisible).toHaveBeenLastCalledWith(false);
+    expect(layerBox.checked).toBe(true);
+    expect(stations.setVisible).not.toHaveBeenCalled();
+  });
+
+  it("offers zoom to a group's annotations", async () => {
+    const notes = new VectorLayer({
+      source: new VectorSource({
+        features: [new Feature(new Point([0, 0]))],
+      }),
+      properties: {
+        name: "annotation-group:Flood notes",
+        title: "Flood notes",
+        [ANNOTATION_GROUP_KEY]: "Flood notes",
+      },
+    });
+    await openWith([notes]);
+    expect(
+      within(screen.getByLabelText("Annotations")).getByLabelText(
+        "Flood notes Zoom to Layer",
+      ),
+    ).toBeEnabled();
   });
 });

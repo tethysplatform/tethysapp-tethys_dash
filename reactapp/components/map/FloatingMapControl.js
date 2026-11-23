@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
+import { GRID_DRAG_CANCEL_CLASS } from "components/dashboard/gridDragCancel";
 
 /**
  * A map control that knows how tall its map is.
@@ -186,10 +187,14 @@ const FloatingMapControl = ({ className, mapDivRef, children, ...rest }) => {
     return () => observer?.disconnect();
   }, [mapDivRef]);
 
+  // Every map control is left out of tile dragging: in dashboard edit mode the
+  // whole tile is a handle for moving it, and a press on a control's button
+  // would otherwise start a move -- the grid's placeholder flashing over the
+  // map for as long as the button is held -- instead of only pressing it.
   return (
     <div
       ref={hostRef}
-      className={className}
+      className={[className, GRID_DRAG_CANCEL_CLASS].filter(Boolean).join(" ")}
       data-testid="floating-map-control-inplace"
       {...rest}
     >

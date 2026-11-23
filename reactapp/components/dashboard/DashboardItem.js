@@ -24,6 +24,7 @@ import {
   applyItemIdentityRules,
   applyLegacyRasterStyleRules,
 } from "components/dashboard/importIdentity";
+import { migrateGridItemAnnotationLayers } from "components/map/annotationGroups";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
 import { confirm } from "components/inputs/DeleteConfirmation";
@@ -318,6 +319,11 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
   // reads. Converted first, so the walk below sees the shape it keeps: a
   // raster's style is its settings, and stays inline rather than uploaded.
   importedGridItem = applyLegacyRasterStyleRules(importedGridItem);
+
+  // A file exported while annotations were still a layer type carries them in
+  // `layers`; they now live in the map's settings. Moved before the walk below,
+  // so an annotation layer is never validated or uploaded as a data layer.
+  importedGridItem = migrateGridItemAnnotationLayers(importedGridItem);
 
   if (importedGridItem.source === "Map") {
     if (

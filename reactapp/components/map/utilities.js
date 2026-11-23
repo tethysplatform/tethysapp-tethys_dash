@@ -212,8 +212,9 @@ export const sourcePropertiesOptions = {
     required: {},
     optional: {},
   },
-  // Content is drawn on the map in the layer editor rather than read from a
-  // source, so there is nothing to fill in on the Source tab.
+  // No longer offered for a new layer (annotations are groups drawn from the
+  // map's annotation button); kept so an older Annotations layer, which only a
+  // popup layout's map can still hold, opens in the layer editor.
   [ANNOTATION_SOURCE_TYPE]: {
     required: {},
     optional: {},

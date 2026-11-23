@@ -30,10 +30,8 @@ import {
   buildDecorationLayerEntry,
   isDecorationSourceType,
 } from "components/map/decorationLayers";
-import { ANNOTATION_SOURCE_TYPE } from "components/map/annotations";
 import { LINKED_EXTENT_SOURCE_TYPE } from "components/map/linkedExtent";
 import LinkedExtentsPane from "components/modals/MapLayer/LinkedExtentsPane";
-import AnnotationsPane from "components/modals/MapLayer/AnnotationsPane";
 import { POPUP_TAB_ID } from "components/map/viewGroup";
 import {
   sourcePropertiesOptions,
@@ -320,9 +318,13 @@ const MapLayerModal = ({
   // own slice so the save path can write it past the empty-value pruning that
   // would otherwise strip a size or zoom floor of 0.
   const [labels, setLabels] = useState(layerInfo.labels ?? null);
-  // An Annotations layer's defaults and items, stored at
-  // `configuration.annotations` beside `style` for the same reason.
-  const [annotations, setAnnotations] = useState(
+  // An Annotations layer's defaults and items, at `configuration.annotations`.
+  // Annotations are now groups edited from the map's annotation button, and a
+  // dashboard map's layers are converted when it loads; only a map inside a
+  // popup layout can still hold one of these layers. They are not editable
+  // here any more, but are carried through untouched so saving the layer for
+  // another reason keeps them.
+  const [annotations] = useState(
     layerInfo.annotations ?? { defaults: {}, items: [] },
   );
   // A Linked Extents layer's outline style, at `configuration.linkedExtentStyle`.
@@ -330,14 +332,13 @@ const MapLayerModal = ({
     layerInfo.linkedExtentStyle ?? {},
   );
   const [selectedOption, setSelectedOption] = useState(null);
-  // Hidden, not closed, while the author works on the preview map -- drawing a
-  // static image's extent or editing annotations -- so its state survives.
+  // Hidden, not closed, while the author draws a static image's extent on the
+  // preview map, so its state survives.
   const [hiddenForMapEdit, setHiddenForMapEdit] = useState(false);
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
   const labelsContainerRef = useRef(null);
-  const annotationsContainerRef = useRef(null);
   const outlineContainerRef = useRef(null);
   const { csrf, mapLayerTemplates, dynamicMapLayers } = useContext(AppContext);
   const { uuid, editable: hostDashboardEditable } = useContext(LayoutContext);
@@ -367,7 +368,6 @@ const MapLayerModal = ({
   // Annotations and Linked Extents draw what the author places, not data, so
   // the data-styling, legend and popup tabs have nothing to configure.
   const isDecoration = isDecorationSourceType(sourceProps?.type);
-  const isAnnotations = sourceProps?.type === ANNOTATION_SOURCE_TYPE;
   const isLinkedExtents = sourceProps?.type === LINKED_EXTENT_SOURCE_TYPE;
   // A static image is a picture placed on the map: it has no features to
   // style, label, query or open a popup on, and no service legend to read.
@@ -444,49 +444,13 @@ const MapLayerModal = ({
     mapContext.setDrawnExtent(null);
   }, [mapContext?.drawnExtent, hiddenForMapEdit, mapContext, visualizationRef]);
 
-  // When the map edit ends with nothing to hand back (the user cancelled), re-show
-  // the modal. An annotation session's Done hands back items, picked up below.
+  // When the extent drawing ends with nothing to hand back (the user
+  // cancelled), re-show the modal.
   useEffect(() => {
-    if (
-      hiddenForMapEdit &&
-      !mapContext?.extentDrawMode &&
-      !mapContext?.annotationEditSession &&
-      !mapContext?.editedAnnotations
-    ) {
+    if (hiddenForMapEdit && !mapContext?.extentDrawMode) {
       setHiddenForMapEdit(false);
     }
-  }, [
-    mapContext?.extentDrawMode,
-    mapContext?.annotationEditSession,
-    mapContext?.editedAnnotations,
-    hiddenForMapEdit,
-  ]);
-
-  // An annotation session's Done: its items replace the draft's. The draft is
-  // still only the modal's -- nothing reaches the dashboard until Save.
-  useEffect(() => {
-    if (!mapContext?.editedAnnotations || !hiddenForMapEdit) return;
-    const items = mapContext.editedAnnotations;
-    setAnnotations((previous) => ({ ...previous, items }));
-    setHiddenForMapEdit(false);
-    mapContext.setEditedAnnotations(null);
-  }, [mapContext?.editedAnnotations, hiddenForMapEdit, mapContext]);
-
-  // Start drawing on the preview map. Only offered where a MapContext exists:
-  // the DataViewer mounts one, so this is the only place a session can start.
-  const startAnnotationSession = mapContext?.setAnnotationEditSession
-    ? () => {
-        mapContext.setEditedAnnotations(null);
-        mapContext.setAnnotationEditSession({
-          // The saved layer drawn on the preview, hidden for the session. A
-          // layer not saved yet has none.
-          layerName: layerInfo.layerProps?.name ?? null,
-          defaults: annotations.defaults ?? {},
-          items: annotations.items ?? [],
-        });
-        setHiddenForMapEdit(true);
-      }
-    : undefined;
+  }, [mapContext?.extentDrawMode, hiddenForMapEdit]);
 
   async function saveLayer() {
     setErrorMessage(null);
@@ -1014,23 +978,6 @@ const MapLayerModal = ({
                 argumentDiscovery={argumentDiscovery}
               />
             </Tab>
-            {isAnnotations && (
-              <Tab
-                eventKey="annotations"
-                title="Annotations"
-                aria-label="layer-annotations-tab"
-                className="layer-annotations-tab"
-              >
-                <div ref={annotationsContainerRef}>
-                  <AnnotationsPane
-                    annotations={annotations}
-                    onChange={setAnnotations}
-                    onEditOnMap={startAnnotationSession}
-                    containerRef={annotationsContainerRef}
-                  />
-                </div>
-              </Tab>
-            )}
             {isLinkedExtents && (
               <Tab
                 eventKey="outline"

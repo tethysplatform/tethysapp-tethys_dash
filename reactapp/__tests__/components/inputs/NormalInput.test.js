@@ -21,6 +21,21 @@ describe("NormalInput Component", () => {
     expect(screen.getByLabelText("Name Input")).toHaveValue("hello");
   });
 
+  test("calls onBlur when the field is left", () => {
+    const onBlur = jest.fn();
+    render(
+      <NormalInput
+        label="Width"
+        value="2"
+        type="number"
+        onChange={mockOnChange}
+        onBlur={onBlur}
+      />,
+    );
+    fireEvent.blur(screen.getByLabelText("Width Input"));
+    expect(onBlur).toHaveBeenCalledTimes(1);
+  });
+
   test("passes maxLength through to the input", () => {
     render(
       <NormalInput

@@ -1,78 +1,104 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import PropTypes from "prop-types";
 import { act, render, screen } from "@testing-library/react";
 import MapComponent from "components/map/Map";
+import { GRID_DRAG_CANCEL_CLASS } from "components/dashboard/gridDragCancel";
 import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
 import { VariableInputsContext } from "components/contexts/Contexts";
+import {
+  annotationGroupLayerName,
+  buildAnnotationGroupLayers,
+} from "components/map/annotationGroups";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
-const annotationsLayer = {
-  type: "VectorLayer",
-  props: { name: "Callouts", source: { type: "Annotations", props: {} } },
-  annotations: {
-    defaults: {},
-    items: [{ id: "a1", kind: "text", coordinates: [-105, 40], text: "Gauge" }],
-  },
+// A dashboard map with one annotation group, as visualizations/Map.js hands it
+// to MapComponent while the dashboard is being edited.
+const group = {
+  name: "Callouts",
+  defaults: {},
+  items: [{ id: "a1", kind: "text", coordinates: [-105, 40], text: "Gauge" }],
+};
+const groupLayer = () => {
+  const [entry] = buildAnnotationGroupLayers([group]);
+  return {
+    ...entry.configuration,
+    props: { ...entry.configuration.props, zIndex: 1 },
+  };
 };
 
-let mapContext;
-const Harness = ({ withDrawing }) => {
+let setSession;
+const Harness = ({ withDrawing, withButton }) => {
   const visualizationRef = useRef();
   const drawing = useRef(false);
-  mapContext = useMapContext();
+  const [session, setSessionState] = useState(null);
+  setSession = setSessionState;
+  const { mapReady } = useMapContext();
   return (
     <div>
       <MapComponent
         visualizationRef={visualizationRef}
-        layers={[annotationsLayer]}
+        layers={[groupLayer()]}
         baseMap={null}
         mapDrawing={withDrawing ? { options: ["Point"] } : undefined}
         drawing={drawing}
+        annotationControl={
+          withButton
+            ? {
+                groups: [group],
+                onGroupsChange: jest.fn(),
+                session,
+                onSessionChange: setSessionState,
+              }
+            : null
+        }
       />
-      <p>{mapContext?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
     </div>
   );
 };
-Harness.propTypes = { withDrawing: PropTypes.bool };
+Harness.propTypes = {
+  withDrawing: PropTypes.bool,
+  withButton: PropTypes.bool,
+};
 
-const renderMap = ({ inDataViewer = true, withDrawing = false } = {}) => {
-  const harness = <Harness withDrawing={withDrawing} />;
+const renderMap = ({ withDrawing = false, withButton = true } = {}) =>
   render(
     <VariableInputsContext.Provider
       value={{ setVariableInputValues: jest.fn() }}
     >
-      {inDataViewer ? (
-        <MapContextProvider>{harness}</MapContextProvider>
-      ) : (
-        harness
-      )}
+      <MapContextProvider>
+        <Harness withDrawing={withDrawing} withButton={withButton} />
+      </MapContextProvider>
     </VariableInputsContext.Provider>,
   );
-};
 
 const startSession = () =>
   act(() =>
-    mapContext.setAnnotationEditSession({
-      layerName: "Callouts",
-      defaults: {},
-      items: annotationsLayer.annotations.items,
+    setSession({
+      groupName: group.name,
+      layerName: annotationGroupLayerName(group.name),
+      title: group.name,
+      defaults: group.defaults,
+      items: group.items,
+      startItems: group.items,
     }),
   );
 
-test("a dashboard map, outside the DataViewer, never shows the editor", async () => {
-  renderMap({ inDataViewer: false });
-
-  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
-  expect(mapContext).toBeNull();
+test("a map whose dashboard is not being edited has no button and no editor", async () => {
+  renderMap({ withButton: false });
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Show Annotation Control" }),
+  ).not.toBeInTheDocument();
   expect(
     screen.queryByRole("toolbar", { name: "Annotation editor" }),
   ).not.toBeInTheDocument();
 });
 
-test("the DataViewer preview shows the editor only during a session", async () => {
+test("the editor shows only during a session", async () => {
   renderMap();
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
   expect(
@@ -80,10 +106,25 @@ test("the DataViewer preview shows the editor only during a session", async () =
   ).not.toBeInTheDocument();
 
   startSession();
-
   expect(
     screen.getByRole("toolbar", { name: "Annotation editor" }),
   ).toBeInTheDocument();
+});
+
+// In dashboard edit mode the tile is a drag handle; during a session presses
+// on the map have to draw instead, and outside one the tile moves as before.
+test("the map is left out of tile dragging only during a session", async () => {
+  renderMap();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  const mapDiv = screen.getByLabelText("Map Div");
+  expect(mapDiv).not.toHaveClass(GRID_DRAG_CANCEL_CLASS);
+
+  startSession();
+  expect(mapDiv).toHaveClass(GRID_DRAG_CANCEL_CLASS);
+  expect(mapDiv).toHaveClass("ol-map");
+
+  act(() => setSession(null));
+  expect(mapDiv).not.toHaveClass(GRID_DRAG_CANCEL_CLASS);
 });
 
 test("the viewer drawing tool steps aside during a session and returns after", async () => {
@@ -93,6 +134,6 @@ test("the viewer drawing tool steps aside during a session and returns after", a
   startSession();
   expect(screen.queryByTitle("Draw Point")).not.toBeInTheDocument();
 
-  act(() => mapContext.setAnnotationEditSession(null));
+  act(() => setSession(null));
   expect(await screen.findByTitle("Draw Point")).toBeInTheDocument();
 });

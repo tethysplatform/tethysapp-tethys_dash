@@ -2112,3 +2112,135 @@ TestingComponent.propTypes = {
   updatedTabProperties: PropTypes.object,
   updatedDashboardProperties: PropTypes.object,
 };
+
+test("DashboardLoader moves Annotations layers into their map's settings on load", async () => {
+  const mapDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const callouts = {
+    configuration: {
+      type: "VectorLayer",
+      props: { name: "Callouts", source: { type: "Annotations", props: {} } },
+      annotations: { defaults: {}, items: [] },
+    },
+    tablePopupType: "none",
+  };
+  mapDashboard.tabs[0].gridItems = [
+    {
+      ...mapDashboard.tabs[0].gridItems[0],
+      source: "Map",
+      args_string: JSON.stringify({ layers: [callouts] }),
+      metadata_string: JSON.stringify({ refreshRate: 0 }),
+    },
+  ];
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/get/",
+      (req, res, ctx) =>
+        res(
+          ctx.status(200),
+          ctx.json({ success: true, dashboard: mapDashboard }),
+          ctx.set("Content-Type", "application/json"),
+        ),
+    ),
+  );
+
+  render(
+    <AvailableDashboardsContext.Provider value={{ updateDashboard: jest.fn() }}>
+      <DashboardLoader {...mapDashboard}>
+        <TabContext.Consumer>
+          {({ activeTabId, getTab }) => (
+            <div data-testid="active-tab-grid-items">
+              {JSON.stringify(getTab(activeTabId)?.gridItems ?? null)}
+            </div>
+          )}
+        </TabContext.Consumer>
+      </DashboardLoader>
+    </AvailableDashboardsContext.Provider>,
+  );
+
+  const gridItems = JSON.parse(
+    (await screen.findByTestId("active-tab-grid-items")).textContent,
+  );
+  expect(JSON.parse(gridItems[0].args_string).layers).toEqual([]);
+  expect(JSON.parse(gridItems[0].metadata_string)).toEqual({
+    refreshRate: 0,
+    annotations: [{ name: "Callouts", defaults: {}, items: [] }],
+  });
+});
+
+test("DashboardLoader updateGridItem changes one item against the latest tabs", async () => {
+  const twoItems = JSON.parse(JSON.stringify(userDashboard));
+  const base = twoItems.tabs[0].gridItems[0];
+  twoItems.tabs[0].gridItems = [
+    { ...base, uuid: "map-a", i: "1", metadata_string: '{"n":0}' },
+    { ...base, uuid: "map-b", i: "2", metadata_string: '{"n":0}' },
+  ];
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/get/",
+      (req, res, ctx) =>
+        res(
+          ctx.status(200),
+          ctx.json({ success: true, dashboard: twoItems }),
+          ctx.set("Content-Type", "application/json"),
+        ),
+    ),
+  );
+
+  const setSetting = (value) => (item) => ({
+    ...item,
+    metadata_string: JSON.stringify({ n: value }),
+  });
+
+  render(
+    <AvailableDashboardsContext.Provider value={{ updateDashboard: jest.fn() }}>
+      <DashboardLoader {...twoItems}>
+        <TabContext.Consumer>
+          {({ activeTabId, getTab, updateGridItem }) => (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  // Two tiles writing in the same tick, as two maps' editors
+                  // do on one key press: neither may undo the other.
+                  updateGridItem(activeTabId, "map-a", setSetting(1));
+                  updateGridItem(activeTabId, "map-b", setSetting(2));
+                }}
+              >
+                write both
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updateGridItem(activeTabId, "no-such-tile", setSetting(9));
+                  updateGridItem("no-such-tab", "map-a", setSetting(9));
+                  updateGridItem(activeTabId, "map-a", (item) => item);
+                }}
+              >
+                write nothing
+              </button>
+              <div data-testid="settings">
+                {JSON.stringify(
+                  getTab(activeTabId)?.gridItems?.map(
+                    (item) => item.metadata_string,
+                  ) ?? null,
+                )}
+              </div>
+            </>
+          )}
+        </TabContext.Consumer>
+      </DashboardLoader>
+    </AvailableDashboardsContext.Provider>,
+  );
+
+  const settings = await screen.findByTestId("settings");
+  await waitFor(() =>
+    expect(JSON.parse(settings.textContent)).toEqual(['{"n":0}', '{"n":0}']),
+  );
+
+  await userEvent.click(screen.getByRole("button", { name: "write both" }));
+  expect(JSON.parse(settings.textContent)).toEqual(['{"n":1}', '{"n":2}']);
+
+  await userEvent.click(screen.getByRole("button", { name: "write nothing" }));
+  expect(JSON.parse(settings.textContent)).toEqual(['{"n":1}', '{"n":2}']);
+});

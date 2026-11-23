@@ -142,23 +142,23 @@ const sourceOptions = async () => {
   fireEvent.click(screen.getByRole("tab", { name: "Source" }));
   const select = await screen.findByLabelText("Source Type Input");
   selectEvent.openMenu(within(select).queryByRole("combobox") ?? select);
-  // Annotations is offered everywhere, so its option marks the menu as open.
-  await screen.findByText("Annotations");
-  return screen.queryAllByText(/^(Linked Extents|Annotations)$/);
+  // GeoJSON is offered everywhere, so its option marks the menu as open.
+  await screen.findByText("GeoJSON");
+  return screen.queryAllByText(/^(Linked Extents|GeoJSON)$/);
 };
 
 test("Linked Extents is offered when adding a layer to a dashboard map", async () => {
   mountModal();
   const options = (await sourceOptions()).map((o) => o.textContent);
   expect(options).toEqual(
-    expect.arrayContaining(["Linked Extents", "Annotations"]),
+    expect.arrayContaining(["Linked Extents", "GeoJSON"]),
   );
 });
 
 test("Linked Extents is not offered inside a popup layout", async () => {
   mountModal({ activeTabId: POPUP_TAB_ID });
   const options = (await sourceOptions()).map((o) => o.textContent);
-  expect(options).toContain("Annotations");
+  expect(options).toContain("GeoJSON");
   expect(options).not.toContain("Linked Extents");
 });
 
