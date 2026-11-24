@@ -2,6 +2,7 @@ import {
   applyBatchIdentityRules,
   applyItemIdentityRules,
   applyLegacyRasterStyleRules,
+  applySecretArgRules,
   convertLegacyRasterLayer,
 } from "components/dashboard/importIdentity";
 import { readViewGroupSettings } from "components/map/viewGroup";
@@ -890,5 +891,165 @@ describe("applyLegacyRasterStyleRules", () => {
     expect(typeof applyLegacyRasterStyleRules(asString).args_string).toBe(
       "string",
     );
+  });
+});
+
+describe("applySecretArgRules", () => {
+  const SECRET = "fixture-s3cret-value";
+  // As secretArgsBySource builds it from the plugin metadata. A plugin with no
+  // secret args is listed with an empty set; one not installed is absent.
+  const secretArgsOf = new Map([
+    ["secret_plugin", new Set(["api_key"])],
+    ["secret_layer", new Set(["token"])],
+    ["plain_plugin", new Set()],
+    ["Map", new Set()],
+  ]);
+
+  const pluginTile = (args, overrides = {}) => ({
+    i: "1",
+    uuid: "tile-uuid",
+    source: "secret_plugin",
+    args_string: JSON.stringify(args),
+    metadata_string: "{}",
+    ...overrides,
+  });
+
+  const secretLayer = (args, extra = {}) => ({
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "Gages",
+        layerId: "layer-1",
+        pluginSource: { source: "secret_layer", args },
+        source: { type: "GeoJSON", props: {} },
+      },
+    },
+    ...extra,
+  });
+
+  const popupLayer = (gridItems) => ({
+    ...staticLayer(),
+    popupConfig: { mode: "modal", gridItems },
+  });
+
+  test("blanks a tile's secret arg, keeping its key and the other args", () => {
+    const result = applySecretArgRules(
+      pluginTile({ station: "A", api_key: SECRET }),
+      secretArgsOf,
+    );
+
+    expect(argsOf(result)).toEqual({ station: "A", api_key: "" });
+    expect(typeof result.args_string).toBe("string");
+    expect(JSON.stringify(result)).not.toContain(SECRET);
+  });
+
+  test("blanks args that arrived as an object and returns an object", () => {
+    const gridItem = {
+      ...pluginTile({}),
+      args_string: { station: "A", api_key: SECRET },
+    };
+
+    const result = applySecretArgRules(gridItem, secretArgsOf);
+
+    expect(result.args_string).toEqual({ station: "A", api_key: "" });
+    // The input is not mutated.
+    expect(gridItem.args_string.api_key).toBe(SECRET);
+  });
+
+  test("blanks a value that is not a string", () => {
+    const result = applySecretArgRules(
+      pluginTile({ api_key: { user: "me", password: SECRET } }),
+      secretArgsOf,
+    );
+
+    expect(argsOf(result)).toEqual({ api_key: "" });
+  });
+
+  test("blanks a dynamic layer's secret plugin arg", () => {
+    const result = applySecretArgRules(
+      mapGridItem({ layers: [secretLayer({ station: "A", token: SECRET })] }),
+      secretArgsOf,
+    );
+
+    expect(
+      argsOf(result).layers[0].configuration.props.pluginSource.args,
+    ).toEqual({ station: "A", token: "" });
+    expect(JSON.stringify(result)).not.toContain(SECRET);
+  });
+
+  test("blanks a popup tile's secret arg, at any depth", () => {
+    const popupTile = pluginTile({ api_key: SECRET }, { uuid: "popup-tile" });
+    const nestedMap = mapGridItem(
+      {
+        layers: [
+          popupLayer([pluginTile({ api_key: SECRET }, { uuid: "deep-tile" })]),
+          secretLayer({ token: SECRET }),
+        ],
+      },
+      { uuid: "popup-map" },
+    );
+    const gridItem = mapGridItem({
+      layers: [popupLayer([popupTile, nestedMap])],
+    });
+
+    const result = applySecretArgRules(gridItem, secretArgsOf);
+
+    const [tile, map] = argsOf(result).layers[0].popupConfig.gridItems;
+    expect(argsOf(tile)).toEqual({ api_key: "" });
+    const [deepPopup, layer] = argsOf(map).layers;
+    expect(argsOf(deepPopup.popupConfig.gridItems[0])).toEqual({
+      api_key: "",
+    });
+    expect(layer.configuration.props.pluginSource.args).toEqual({ token: "" });
+    expect(JSON.stringify(result)).not.toContain(SECRET);
+  });
+
+  test("leaves the args of a plugin that is not installed as they are", () => {
+    const gridItem = pluginTile(
+      { api_key: "not-known-to-be-secret" },
+      { source: "missing_plugin" },
+    );
+
+    expect(applySecretArgRules(gridItem, secretArgsOf)).toBe(gridItem);
+  });
+
+  test.each([
+    ["a secret arg already blank", pluginTile({ api_key: "" })],
+    ["a secret arg holding null", pluginTile({ api_key: null })],
+    ["a tile with no secret arg", pluginTile({ station: "A" })],
+    [
+      "a plugin that declares no secret",
+      pluginTile({ api_key: "kept" }, { source: "plain_plugin" }),
+    ],
+    [
+      "a map whose layers hold no secret value",
+      mapGridItem({
+        layers: [
+          staticLayer(),
+          secretLayer({ token: "" }),
+          popupLayer([pluginTile({ api_key: "" })]),
+        ],
+      }),
+    ],
+  ])("returns %s by reference", (_label, gridItem) => {
+    expect(applySecretArgRules(gridItem, secretArgsOf)).toBe(gridItem);
+  });
+
+  test.each([
+    ["args that do not parse", pluginTile({}, { args_string: "{oops" })],
+    ["a grid item that is not an object", null],
+    [
+      "a layer whose pluginSource args do not parse",
+      mapGridItem({ layers: [secretLayer("{oops")] }),
+    ],
+  ])("returns %s unchanged", (_label, gridItem) => {
+    expect(applySecretArgRules(gridItem, secretArgsOf)).toBe(gridItem);
+  });
+
+  test("blanks nothing without plugin metadata", () => {
+    const gridItem = pluginTile({ api_key: SECRET });
+
+    expect(applySecretArgRules(gridItem, new Map())).toBe(gridItem);
+    expect(applySecretArgRules(gridItem, undefined)).toBe(gridItem);
   });
 });

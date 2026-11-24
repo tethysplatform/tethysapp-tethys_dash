@@ -1323,6 +1323,7 @@ export async function getStyleFields({
   sourceProps,
   layerProps,
   dashboard_uuid,
+  tileUUID,
   isDynamicMapLayer = false,
 }) {
   let fields = [];
@@ -1335,6 +1336,8 @@ export async function getStyleFields({
       sourceProps,
       layerName: layerProps?.name ?? "",
       dashboard_uuid,
+      tileUUID,
+      layerId: layerProps?.layerId,
       isDynamicMapLayer,
     });
     fields = [
@@ -1395,10 +1398,18 @@ export async function getStyleFields({
   return fields;
 }
 
+/**
+ * The attributes a layer's features carry, by sublayer name. A dynamic layer's
+ * come from its plugin's scaffold, in a request naming `dashboard_uuid`, the
+ * Map tile (`tileUUID`) and the layer's `layerId`, which a layer not saved yet
+ * does not have.
+ */
 export async function getLayerAttributes({
   sourceProps,
   layerName,
   dashboard_uuid,
+  tileUUID,
+  layerId,
   isDynamicMapLayer,
 }) {
   // setup constants
@@ -1412,8 +1423,14 @@ export async function getLayerAttributes({
 
   if (isDynamicMapLayer) {
     const apiResponse = await appAPI.getVisualizationData({
+      dashboard: dashboard_uuid,
+      tile: tileUUID,
+      layer: layerId,
       source: sourceProps.source,
       args: sourceProps.args ?? {},
+      // Only the layer editor reads a plugin's attributes, and runs the
+      // editor's args as sent.
+      allArgs: true,
     });
     if (!apiResponse?.success) {
       throw new Error(
@@ -1912,12 +1929,7 @@ function getFirstCoordinate(geometry) {
   return findCoord(coords);
 }
 
-export async function saveLayerJSON({
-  stringJSON,
-  csrf,
-  check_crs,
-  dashboard_uuid,
-}) {
+export async function saveLayerJSON({ stringJSON, check_crs, dashboard_uuid }) {
   let parsedJSON;
   if (stringJSON.startsWith('"') && stringJSON.endsWith('"')) {
     stringJSON = stringJSON.slice(1, -1);
@@ -1965,7 +1977,7 @@ export async function saveLayerJSON({
       data: JSON.stringify(parsedJSON),
       dashboard_uuid,
     };
-    const apiResponse = await appAPI.uploadJSON(JSONInfo, csrf);
+    const apiResponse = await appAPI.uploadJSON(JSONInfo);
 
     return apiResponse;
   } else {

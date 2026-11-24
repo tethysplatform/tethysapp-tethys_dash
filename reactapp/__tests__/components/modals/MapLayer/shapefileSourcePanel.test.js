@@ -29,7 +29,7 @@ function discovery(overrides = {}) {
 function renderPane(shapefileDiscovery) {
   render(
     <AppContext.Provider
-      value={{ dynamicMapLayers: [], mapLayerTemplates: [], csrf: "x" }}
+      value={{ dynamicMapLayers: [], mapLayerTemplates: [] }}
     >
       <LayoutContext.Provider value={{ uuid: "uuid" }}>
         <VariableInputsContext.Provider
@@ -155,7 +155,7 @@ describe("shapefile discovery panel", () => {
   it("renders no panel for a non-shapefile source", async () => {
     render(
       <AppContext.Provider
-        value={{ dynamicMapLayers: [], mapLayerTemplates: [], csrf: "x" }}
+        value={{ dynamicMapLayers: [], mapLayerTemplates: [] }}
       >
         <LayoutContext.Provider value={{ uuid: "uuid" }}>
           <VariableInputsContext.Provider

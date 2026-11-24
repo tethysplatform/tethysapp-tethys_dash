@@ -31,7 +31,11 @@ import RowMoveButtons, {
 } from "components/inputs/RowMoveButtons";
 import "components/modals/wideModal.css";
 import JSON5 from "json5";
-import { AppContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  GridItemContext,
+  LayoutContext,
+} from "components/contexts/Contexts";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
 
 const StyledSpinner = styled(Spinner)`
@@ -180,6 +184,10 @@ const AttributesPane = ({
   const [loadingFromUrl, setLoadingFromUrl] = useState(false);
   const [focusRequestFor, requestFocus] = useRowMoveFocus();
   const { dynamicMapLayers } = useContext(AppContext);
+  // The dashboard and the Map tile the layer belongs to, which a dynamic
+  // layer's request names.
+  const { uuid: dashboardUUID } = useContext(LayoutContext) ?? {};
+  const { gridItemUUID } = useContext(GridItemContext) ?? {};
   const clickOn = isClickEnabled(attributeProps);
   const hoverOn = isHoverEnabled(attributeProps);
 
@@ -349,6 +357,9 @@ const AttributesPane = ({
       return await getLayerAttributes({
         sourceProps,
         layerName: layerProps.name,
+        dashboard_uuid: dashboardUUID,
+        tileUUID: gridItemUUID,
+        layerId: layerProps.layerId,
         isDynamicMapLayer,
       });
     } catch (error) {
@@ -966,6 +977,7 @@ AttributesPane.propTypes = {
   sourceProps: sourcePropType, // configuration and properties for openlayers layer source
   layerProps: PropTypes.shape({
     name: PropTypes.string,
+    layerId: PropTypes.string, // set once the layer has been saved
   }), // configuration and properties for openlayers layer
   tabKey: PropTypes.string.isRequired, // react state that tracks what tab is shown
   // The popup type the layer had when the editor opened it, as

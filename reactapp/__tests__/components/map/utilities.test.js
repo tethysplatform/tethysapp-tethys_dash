@@ -174,7 +174,7 @@ test("getStyleFields Other Type", async () => {
 });
 
 test("getStyleFields dynamic map layer", async () => {
-  jest.spyOn(appAPI, "getVisualizationData").mockResolvedValueOnce({
+  const spy = jest.spyOn(appAPI, "getVisualizationData").mockResolvedValueOnce({
     success: true,
     data: {
       attributeAliases: {
@@ -191,12 +191,23 @@ test("getStyleFields dynamic map layer", async () => {
       source: "open_cw3e_geojson_layer",
       args: {},
     },
-    layerProps: { name: "My Layer" },
+    layerProps: { name: "My Layer", layerId: "layer-9" },
     dashboard_uuid: "some-uuid",
+    tileUUID: "map-tile-uuid",
     isDynamicMapLayer: true,
   });
 
   expect(styleFields).toStrictEqual(["stage", "flow"]);
+  // The plugin's scaffold is asked for under the layer's dashboard, map tile
+  // and layer, with every arg: only the layer editor asks.
+  expect(spy).toHaveBeenCalledWith({
+    dashboard: "some-uuid",
+    tile: "map-tile-uuid",
+    layer: "layer-9",
+    source: "open_cw3e_geojson_layer",
+    args: {},
+    allArgs: true,
+  });
 });
 
 test("createMarkerLayer", async () => {
@@ -3284,13 +3295,16 @@ test("getLayerAttributes Error", async () => {
 test("getLayerAttributes Dynamic Layer", async () => {
   const sourceProps = {
     source: "DynamicLayerPlugin",
+    args: { network: "west" },
   };
   const layerName = "test";
+  const bodies = [];
 
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
-      (req, res, ctx) => {
+      async (req, res, ctx) => {
+        bodies.push(await req.json());
         return res(
           ctx.delay(500),
           ctx.status(200),
@@ -3311,6 +3325,9 @@ test("getLayerAttributes Dynamic Layer", async () => {
   const attributes = await getLayerAttributes({
     sourceProps,
     layerName,
+    dashboard_uuid: "dash-uuid",
+    tileUUID: "map-tile-uuid",
+    layerId: "layer-9",
     isDynamicMapLayer: true,
   });
 
@@ -3321,6 +3338,16 @@ test("getLayerAttributes Dynamic Layer", async () => {
       { name: "omitted", alias: "omitted" },
     ],
   });
+  expect(bodies).toEqual([
+    {
+      dashboard: "dash-uuid",
+      tile: "map-tile-uuid",
+      layer: "layer-9",
+      source: "DynamicLayerPlugin",
+      args: { network: "west" },
+      allArgs: true,
+    },
+  ]);
 });
 
 test("getLayerAttributes Dynamic Layer, plugin error", async () => {
@@ -3330,7 +3357,7 @@ test("getLayerAttributes Dynamic Layer, plugin error", async () => {
   const layerName = "test";
 
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -3362,7 +3389,7 @@ test("getLayerAttributes Dynamic Layer, plugin error with message", async () => 
   const layerName = "test";
 
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -3395,7 +3422,7 @@ test("getLayerAttributes Dynamic Layer, no data", async () => {
   const layerName = "test";
 
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -3911,7 +3938,6 @@ test("saveLayerJSON stringified Object", async () => {
 
   const response = await saveLayerJSON({
     stringJSON: style,
-    csrf: "12345",
     check_crs: false,
   });
 
@@ -3929,7 +3955,6 @@ test("saveLayerJSON double quote url", async () => {
 
   const response = await saveLayerJSON({
     stringJSON: style,
-    csrf: "12345",
     check_crs: false,
   });
 
@@ -3947,7 +3972,6 @@ test("saveLayerJSON url", async () => {
 
   const response = await saveLayerJSON({
     stringJSON: style,
-    csrf: "12345",
     check_crs: false,
   });
 
@@ -3964,7 +3988,6 @@ test("saveLayerJSON url fail", async () => {
 
   const response = await saveLayerJSON({
     stringJSON: style,
-    csrf: "12345",
     check_crs: false,
   });
 
@@ -3982,7 +4005,6 @@ test("saveLayerJSON geojson crs null", async () => {
 
   const response = await saveLayerJSON({
     stringJSON: geojson,
-    csrf: "12345",
     check_crs: true,
   });
 
@@ -4007,12 +4029,17 @@ test("saveLayerJSON geojson", async () => {
 
   const response = await saveLayerJSON({
     stringJSON: geojson,
-    csrf: "12345",
     check_crs: true,
+    dashboard_uuid: "dash-uuid",
   });
 
   expect(response.success).toBe(true);
   expect(response.filename).toBe("some_file.json");
+  // The data alone: the client attaches the CSRF token itself.
+  expect(mockUploadJSON).toHaveBeenCalledWith({
+    data: geojson,
+    dashboard_uuid: "dash-uuid",
+  });
 });
 
 function makeVectorLayerWithFeatures(initialFeatureCount = 0) {

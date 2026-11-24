@@ -1,5 +1,13 @@
 import PropTypes from "prop-types";
-import { useEffect, useState, memo, useRef, useContext, Fragment } from "react";
+import {
+  useEffect,
+  useState,
+  memo,
+  useRef,
+  useContext,
+  useMemo,
+  Fragment,
+} from "react";
 import Image from "components/visualizations/Image";
 import ImageSequence from "components/visualizations/ImageSequence";
 import ImageCollection from "components/visualizations/ImageCollection";
@@ -15,12 +23,15 @@ import {
   updateObjectWithVariableInputs,
   findSelectOptionByValue,
   findUnresolvedFeatureTokens,
+  pendingSecretArgs,
+  storedSecretArgs,
 } from "components/visualizations/utilities";
 import {
   AppContext,
   EditingContext,
   VariableInputsContext,
   GridItemContext,
+  LayoutContext,
 } from "components/contexts/Contexts";
 import { valuesEqual } from "components/modals/utilities";
 import styled from "styled-components";
@@ -316,6 +327,14 @@ const BaseVisualization = () => {
   const [vizData, setVizData] = useState({});
   const [vizMetadata, setVizMetadata] = useState({});
   const { visualizations } = useContext(AppContext);
+  // The dashboard's provider sits above every tile, a layer popup's included:
+  // the popup's own layout reuses DashboardLayout under the same tree.
+  const {
+    uuid: dashboardUUID,
+    pendingSecrets,
+    storedSecrets,
+    editable,
+  } = useContext(LayoutContext) ?? {};
   const {
     variableInputValues,
     variableInputDateFormats,
@@ -333,6 +352,35 @@ const BaseVisualization = () => {
   const customMessages = useRef({});
   const [refreshCount, setRefreshCount] = useState(0);
   const { isEditing } = useContext(EditingContext);
+  // What this tile's secrets are, by the request: an editor's sends the
+  // secrets entered for it and not saved yet; any request relies on the ones
+  // stored for the args left out. Either changing refetches the tile -- once
+  // a secret is entered, and once a save stores or clears one.
+  //
+  // The object is kept while its content is equal, since a secret entered
+  // for any tile gives every tile new `pendingSecrets`, and the effect below
+  // that depends on it would otherwise re-run each tile's fetch check.
+  const secretStateKept = useRef(null);
+  const secretState = useMemo(() => {
+    const next = {
+      pending: isEditing
+        ? pendingSecretArgs(pendingSecrets, {
+            tile: gridItemUUID,
+            layer: "",
+            source: gridItemSource,
+          })
+        : {},
+      stored: storedSecretArgs(storedSecrets, {
+        tile: gridItemUUID,
+        layer: "",
+      }),
+    };
+    if (!valuesEqual(secretStateKept.current, next)) {
+      secretStateKept.current = next;
+    }
+    return secretStateKept.current;
+  }, [isEditing, pendingSecrets, storedSecrets, gridItemUUID, gridItemSource]);
+  const secretStateFetched = useRef(null);
   const dashboardVizRef = useRef();
   const { getMessageForRequest } = useContext(WebsocketContext);
   const requestId = useRef(gridItemUUID);
@@ -363,7 +411,7 @@ const BaseVisualization = () => {
       setVariableDependentVisualizations({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [variableInputValues, shouldLoad]);
+  }, [variableInputValues, shouldLoad, secretState]);
 
   // The refresh interval outlives the render that set it up, so it calls
   // through this ref. Calling the function directly would refresh with the
@@ -469,7 +517,8 @@ const BaseVisualization = () => {
             updatedGridItemArgs,
           ) ||
             gridItemSourceFetched.current !== gridItemSource ||
-            !valuesEqual(customMessages.current, customMessaging)))) &&
+            !valuesEqual(customMessages.current, customMessaging) ||
+            !valuesEqual(secretStateFetched.current, secretState)))) &&
       shouldLoad
     ) {
       if (isEmptyArgs) {
@@ -480,6 +529,7 @@ const BaseVisualization = () => {
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
       gridItemSourceFetched.current = gridItemSource;
       customMessages.current = customMessaging;
+      secretStateFetched.current = secretState;
 
       // Edit-time gate: when args reference `${feature.<key>}` and no
       // feature is in scope (e.g., the popup layout editor before a
@@ -507,6 +557,8 @@ const BaseVisualization = () => {
         sourceType,
         sourceArgs,
         itemData,
+        dashboardUUID,
+        tileUUID: gridItemUUID,
         argsString: gridItemArgsString,
         metadataString: gridItemMetadataString,
         variableInputValues,
@@ -519,6 +571,11 @@ const BaseVisualization = () => {
         variableInputDateFormats,
         variableInputSliderMeta,
         refresh,
+        secretArgs: secretState.pending,
+        // By who may edit the dashboard, not by edit mode: a popup's tiles are
+        // never in edit mode, and an editor's request runs as sent only when
+        // it carries every arg.
+        allArgs: editable,
       });
     }
   }

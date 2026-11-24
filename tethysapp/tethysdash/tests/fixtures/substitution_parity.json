@@ -1,0 +1,611 @@
+{
+  "description": "Shared cases for the viewer arg overlay (tethysapp/tethysdash/saved_settings.py). Each case's sent_args is what the browser sends for its saved_args and variables: reactapp/__tests__/components/visualizations/substitutionParity.test.js checks that through the call shape the real caller uses, getVisualization's for kind 'tile' and resolveLayerArgs's for kind 'layer'. The pytest feeds request_args, a request the browser would not send, when a case has one, and sent_args otherwise, to build_viewer_args and expects expected_run_args or expected_error. A value in expected_run_args equal to secret_marker stands for saved_settings.SECRET_ARG. viewer_sent_keys lists the args the request of a caller who may not edit the dashboard sends (dataRequestArgs, without allArgs): Jest checks the browser picks exactly those, and the pytest that the server builds the same run args, or the same refusal, from them alone. Values listed in a case's dynamic entries depend on the clock or the time zone; they were recorded in sent_args_time_zone, and Jest compares them as follows: 'date' any local ISO date, 'instant' the same moment, 'wall_clock' the same local date and time with any UTC offset.",
+  "secret_marker": { "__secret_arg__": true },
+  "sent_args_time_zone": "America/Phoenix",
+  "cases": [
+    {
+      "name": "exact tokens keep the variable's own type",
+      "kind": "tile",
+      "viewer_sent_keys": ["count", "flag", "items", "label", "off", "options", "zero"],
+      "saved_args": {
+        "count": "${Count}",
+        "flag": "${Flag}",
+        "zero": "${Zero}",
+        "off": "${Off}",
+        "options": "${Options}",
+        "items": "${Items}",
+        "label": "${Label}"
+      },
+      "arg_types": {
+        "count": "number",
+        "flag": "checkbox",
+        "zero": "number",
+        "off": "checkbox",
+        "options": "text",
+        "items": "text",
+        "label": "text"
+      },
+      "variables": {
+        "Count": 5,
+        "Flag": true,
+        "Zero": 0,
+        "Off": false,
+        "Options": { "a": 1 },
+        "Items": [1, "two"],
+        "Label": "Gauge 7"
+      },
+      "sent_args": {
+        "count": 5,
+        "flag": true,
+        "zero": 0,
+        "off": false,
+        "options": { "a": 1 },
+        "items": [1, "two"],
+        "label": "Gauge 7"
+      },
+      "expected_run_args": {
+        "count": 5,
+        "flag": true,
+        "zero": 0,
+        "off": false,
+        "options": { "a": 1 },
+        "items": [1, "two"],
+        "label": "Gauge 7"
+      }
+    },
+    {
+      "name": "an arg not wired to a variable runs with its saved value",
+      "kind": "tile",
+      "viewer_sent_keys": ["gauge"],
+      "saved_args": { "station": "ABC123", "gauge": "${Gauge}", "limit": 10 },
+      "arg_types": { "station": "text", "gauge": "text", "limit": "number" },
+      "variables": { "Gauge": "G1" },
+      "sent_args": { "station": "ABC123", "gauge": "G1", "limit": 10 },
+      "request_args": { "station": "EVIL", "gauge": "G1", "limit": 100000 },
+      "expected_run_args": { "station": "ABC123", "gauge": "G1", "limit": 10 }
+    },
+    {
+      "name": "a wired arg runs with the value the viewer chose",
+      "kind": "tile",
+      "viewer_sent_keys": ["gauge"],
+      "saved_args": { "gauge": "${Gauge}" },
+      "arg_types": { "gauge": "text" },
+      "variables": { "Gauge": "G1" },
+      "sent_args": { "gauge": "G1" },
+      "request_args": { "gauge": "G2" },
+      "expected_run_args": { "gauge": "G2" }
+    },
+    {
+      "name": "an inline template runs as sent",
+      "kind": "tile",
+      "viewer_sent_keys": ["title", "url"],
+      "saved_args": {
+        "url": "https://data.example.org/api?site=${Site}&format=json",
+        "title": "Site ${Count} (${Missing}) ${Options}"
+      },
+      "arg_types": { "url": "text", "title": "text" },
+      "variables": { "Site": "123", "Count": 5, "Options": { "a": 1 } },
+      "sent_args": {
+        "url": "https://data.example.org/api?site=123&format=json",
+        "title": "Site 5 () {\"a\":1}"
+      },
+      "expected_run_args": {
+        "url": "https://data.example.org/api?site=123&format=json",
+        "title": "Site 5 () {\"a\":1}"
+      }
+    },
+    {
+      "name": "an inline template takes the request's string when only a token span changed",
+      "kind": "tile",
+      "viewer_sent_keys": ["url"],
+      "saved_args": {
+        "url": "https://data.example.org/api?site=${Site}&format=json"
+      },
+      "arg_types": { "url": "text" },
+      "variables": { "Site": "123" },
+      "sent_args": {
+        "url": "https://data.example.org/api?site=123&format=json"
+      },
+      "request_args": {
+        "url": "https://data.example.org/api?site=456&format=json"
+      },
+      "expected_run_args": {
+        "url": "https://data.example.org/api?site=456&format=json"
+      }
+    },
+    {
+      "name": "an inline template refuses a changed literal prefix",
+      "kind": "tile",
+      "viewer_sent_keys": ["url"],
+      "saved_args": {
+        "url": "https://data.example.org/api?site=${Site}&format=json"
+      },
+      "arg_types": { "url": "text" },
+      "variables": { "Site": "123" },
+      "sent_args": {
+        "url": "https://data.example.org/api?site=123&format=json"
+      },
+      "request_args": {
+        "url": "https://evil.example.com/api?site=123&format=json"
+      },
+      "expected_error": "mismatch"
+    },
+    {
+      "name": "an inline template refuses a changed literal suffix",
+      "kind": "tile",
+      "viewer_sent_keys": ["url"],
+      "saved_args": {
+        "url": "https://data.example.org/api?site=${Site}&format=json"
+      },
+      "arg_types": { "url": "text" },
+      "variables": { "Site": "123" },
+      "sent_args": {
+        "url": "https://data.example.org/api?site=123&format=json"
+      },
+      "request_args": {
+        "url": "https://data.example.org/api?site=123&format=csv"
+      },
+      "expected_error": "mismatch"
+    },
+    {
+      "name": "adjacent tokens accept any string",
+      "kind": "tile",
+      "viewer_sent_keys": ["name"],
+      "saved_args": { "name": "${First}${Last}" },
+      "arg_types": { "name": "text" },
+      "variables": { "First": "Ada", "Last": "Lovelace" },
+      "sent_args": { "name": "AdaLovelace" },
+      "request_args": { "name": "anything at all" },
+      "expected_run_args": { "name": "anything at all" }
+    },
+    {
+      "name": "a nested token takes only its own leaf",
+      "kind": "tile",
+      "viewer_sent_keys": ["query"],
+      "saved_args": {
+        "query": {
+          "site": "${Site}",
+          "format": "json",
+          "limit": "${Limit}",
+          "fields": ["flow", "${Field}"],
+          "label": "Site ${Site}"
+        }
+      },
+      "arg_types": { "query": "text" },
+      "variables": { "Site": "S1", "Limit": 25, "Field": "stage" },
+      "sent_args": {
+        "query": {
+          "site": "S1",
+          "format": "json",
+          "limit": "25",
+          "fields": ["flow", "stage"],
+          "label": "Site S1"
+        }
+      },
+      "request_args": {
+        "query": {
+          "site": "S2",
+          "format": "xml",
+          "limit": "50",
+          "fields": ["evil", "temperature"],
+          "label": "Site S2"
+        }
+      },
+      "expected_run_args": {
+        "query": {
+          "site": "S2",
+          "format": "json",
+          "limit": "50",
+          "fields": ["flow", "temperature"],
+          "label": "Site S2"
+        }
+      }
+    },
+    {
+      "name": "a token in an object key refuses",
+      "kind": "tile",
+      "viewer_sent_keys": ["query"],
+      "saved_args": { "query": { "${Field}": 1 } },
+      "arg_types": { "query": "text" },
+      "variables": { "Field": "flow" },
+      "sent_args": { "query": { "flow": 1 } },
+      "expected_error": "mismatch"
+    },
+    {
+      "name": "a token spanning structure refuses",
+      "kind": "tile",
+      "viewer_sent_keys": ["pair"],
+      "saved_args": { "pair": ["${a", "b}"] },
+      "arg_types": { "pair": "text" },
+      "variables": {},
+      "sent_args": { "pair": [""] },
+      "expected_error": "mismatch"
+    },
+    {
+      "name": "a nested object with a key the saved one lacks refuses",
+      "kind": "tile",
+      "viewer_sent_keys": ["query"],
+      "saved_args": { "query": { "site": "${Site}" } },
+      "arg_types": { "query": "text" },
+      "variables": { "Site": "S1" },
+      "sent_args": { "query": { "site": "S1" } },
+      "request_args": { "query": { "site": "S1", "format": "xml" } },
+      "expected_error": "mismatch"
+    },
+    {
+      "name": "a nested list of another length refuses",
+      "kind": "tile",
+      "viewer_sent_keys": ["sites"],
+      "saved_args": { "sites": ["${Site}", "fixed"] },
+      "arg_types": { "sites": "text" },
+      "variables": { "Site": "S1" },
+      "sent_args": { "sites": ["S1", "fixed"] },
+      "request_args": { "sites": ["S1"] },
+      "expected_error": "mismatch"
+    },
+    {
+      "name": "a secret arg is resolved server-side even when it holds a token",
+      "kind": "tile",
+      "viewer_sent_keys": ["api_key"],
+      "saved_args": { "api_key": "${Key}", "token": "", "station": "ABC" },
+      "arg_types": {
+        "api_key": "secret",
+        "token": "secret",
+        "station": "text"
+      },
+      "variables": { "Key": "typed-in-the-browser" },
+      "sent_args": {
+        "api_key": "typed-in-the-browser",
+        "token": "",
+        "station": "ABC"
+      },
+      "expected_run_args": {
+        "api_key": { "__secret_arg__": true },
+        "token": { "__secret_arg__": true },
+        "station": "ABC"
+      }
+    },
+    {
+      "name": "extra request keys are ignored and a missing wired key runs empty",
+      "kind": "tile",
+      "viewer_sent_keys": ["gauge"],
+      "saved_args": { "gauge": "${Gauge}", "station": "ABC" },
+      "arg_types": { "gauge": "text", "station": "text" },
+      "variables": {},
+      "sent_args": { "gauge": "", "station": "ABC" },
+      "request_args": { "station": "ABC", "injected": "x" },
+      "expected_run_args": { "gauge": "", "station": "ABC" }
+    },
+    {
+      "name": "feature tokens count as wired",
+      "kind": "tile",
+      "viewer_sent_keys": ["feature_id", "title"],
+      "saved_args": {
+        "feature_id": "${feature.id}",
+        "title": "Feature ${feature.name}"
+      },
+      "arg_types": { "feature_id": "text", "title": "text" },
+      "variables": {},
+      "sent_args": {
+        "feature_id": "${feature.id}",
+        "title": "Feature ${feature.name}"
+      },
+      "request_args": { "feature_id": 42, "title": "Feature Alpha" },
+      "expected_run_args": { "feature_id": 42, "title": "Feature Alpha" }
+    },
+    {
+      "name": "a saved relative date takes the request's date",
+      "kind": "tile",
+      "viewer_sent_keys": ["end", "start"],
+      "saved_args": { "start": "now-1D", "end": "now" },
+      "arg_types": { "start": "date", "end": "date" },
+      "variables": {},
+      "sent_args": {
+        "start": "2026-11-19T17:00:00-07:00",
+        "end": "2026-11-20T17:00:00-07:00"
+      },
+      "dynamic": [
+        { "path": ["start"], "compare": "date" },
+        { "path": ["end"], "compare": "date" }
+      ],
+      "expected_run_args": {
+        "start": "2026-11-19T17:00:00-07:00",
+        "end": "2026-11-20T17:00:00-07:00"
+      }
+    },
+    {
+      "name": "a saved relative date runs as saved when the request is not a date",
+      "kind": "tile",
+      "viewer_sent_keys": ["end", "start"],
+      "saved_args": { "start": "now-1D", "end": "now" },
+      "arg_types": { "start": "date", "end": "date" },
+      "variables": {},
+      "sent_args": {
+        "start": "2026-11-19T17:00:00-07:00",
+        "end": "2026-11-20T17:00:00-07:00"
+      },
+      "dynamic": [
+        { "path": ["start"], "compare": "date" },
+        { "path": ["end"], "compare": "date" }
+      ],
+      "request_args": {
+        "start": "Robert'); DROP TABLE dashboards;--",
+        "end": 12
+      },
+      "expected_run_args": { "start": "now-1D", "end": "now" }
+    },
+    {
+      "name": "a saved preset passes through",
+      "kind": "tile",
+      "viewer_sent_keys": ["date"],
+      "saved_args": { "date": "latest" },
+      "arg_types": { "date": "date" },
+      "variables": {},
+      "sent_args": { "date": "latest" },
+      "expected_run_args": { "date": "latest" }
+    },
+    {
+      "name": "a fixed date-only value takes the browser's reading of it",
+      "kind": "tile",
+      "viewer_sent_keys": ["day"],
+      "saved_args": { "day": "2024-01-15" },
+      "arg_types": { "day": "date" },
+      "variables": {},
+      "sent_args": { "day": "2024-01-14T17:00:00-07:00" },
+      "dynamic": [{ "path": ["day"], "compare": "instant" }],
+      "expected_run_args": { "day": "2024-01-14T17:00:00-07:00" }
+    },
+    {
+      "name": "a fixed date and time takes the browser's reading of it",
+      "kind": "tile",
+      "viewer_sent_keys": ["at", "stamp", "until"],
+      "saved_args": {
+        "at": "01/15/2024 12:00 AM",
+        "until": "2024-01-15T06:30",
+        "stamp": "2024-01-15T07:00:00.000Z"
+      },
+      "arg_types": { "at": "date", "until": "date", "stamp": "date" },
+      "variables": {},
+      "sent_args": {
+        "at": "2024-01-15T00:00:00-07:00",
+        "until": "2024-01-15T06:30:00-07:00",
+        "stamp": "2024-01-15T00:00:00-07:00"
+      },
+      "dynamic": [
+        { "path": ["at"], "compare": "wall_clock" },
+        { "path": ["until"], "compare": "wall_clock" },
+        { "path": ["stamp"], "compare": "instant" }
+      ],
+      "expected_run_args": {
+        "at": "2024-01-15T00:00:00-07:00",
+        "until": "2024-01-15T06:30:00-07:00",
+        "stamp": "2024-01-15T00:00:00-07:00"
+      }
+    },
+    {
+      "name": "a fixed date runs as saved when the request moves it more than 14 hours or is not a date",
+      "kind": "tile",
+      "viewer_sent_keys": ["at", "stamp", "until"],
+      "saved_args": {
+        "at": "01/15/2024 12:00 AM",
+        "until": "2024-01-15T06:30",
+        "stamp": "2024-01-15T07:00:00.000Z"
+      },
+      "arg_types": { "at": "date", "until": "date", "stamp": "date" },
+      "variables": {},
+      "sent_args": {
+        "at": "2024-01-15T00:00:00-07:00",
+        "until": "2024-01-15T06:30:00-07:00",
+        "stamp": "2024-01-15T00:00:00-07:00"
+      },
+      "dynamic": [
+        { "path": ["at"], "compare": "wall_clock" },
+        { "path": ["until"], "compare": "wall_clock" },
+        { "path": ["stamp"], "compare": "instant" }
+      ],
+      "request_args": {
+        "at": "2024-01-16T00:00:00-07:00",
+        "until": "not a date",
+        "stamp": "2024-01-14T17:00:00+14:00"
+      },
+      "expected_run_args": {
+        "at": "01/15/2024 12:00 AM",
+        "until": "2024-01-15T06:30",
+        "stamp": "2024-01-15T07:00:00.000Z"
+      }
+    },
+    {
+      "name": "a legacy date-hour arg follows the same rules",
+      "kind": "tile",
+      "viewer_sent_keys": ["at", "start"],
+      "saved_args": { "start": "now-6H", "at": "01/15/2024 3:00 PM" },
+      "arg_types": { "start": "date-hour", "at": "date-hour" },
+      "variables": {},
+      "sent_args": {
+        "start": "2026-11-20T11:00:00-07:00",
+        "at": "2024-01-15T15:00:00-07:00"
+      },
+      "dynamic": [
+        { "path": ["start"], "compare": "date" },
+        { "path": ["at"], "compare": "wall_clock" }
+      ],
+      "expected_run_args": {
+        "start": "2026-11-20T11:00:00-07:00",
+        "at": "2024-01-15T15:00:00-07:00"
+      }
+    },
+    {
+      "name": "a date range resolves each endpoint by its own rule",
+      "kind": "tile",
+      "viewer_sent_keys": ["window"],
+      "saved_args": {
+        "window": {
+          "Start Date": "${Start}",
+          "End Date": "01/31/2024 12:00 AM"
+        }
+      },
+      "arg_types": { "window": "date-range" },
+      "variables": { "Start": "2024-01-01T00:00:00Z" },
+      "sent_args": {
+        "window": {
+          "Start Date": "2023-12-31T17:00:00-07:00",
+          "End Date": "2024-01-31T00:00:00-07:00"
+        }
+      },
+      "dynamic": [
+        { "path": ["window", "Start Date"], "compare": "instant" },
+        { "path": ["window", "End Date"], "compare": "wall_clock" }
+      ],
+      "expected_run_args": {
+        "window": {
+          "Start Date": "2023-12-31T17:00:00-07:00",
+          "End Date": "2024-01-31T00:00:00-07:00"
+        }
+      }
+    },
+    {
+      "name": "a date range keeps a wired endpoint from the request and a fixed one moved too far as saved",
+      "kind": "tile",
+      "viewer_sent_keys": ["window"],
+      "saved_args": {
+        "window": {
+          "Start Date": "${Start}",
+          "End Date": "01/31/2024 12:00 AM"
+        }
+      },
+      "arg_types": { "window": "date-range" },
+      "variables": { "Start": "2024-01-01T00:00:00Z" },
+      "sent_args": {
+        "window": {
+          "Start Date": "2023-12-31T17:00:00-07:00",
+          "End Date": "2024-01-31T00:00:00-07:00"
+        }
+      },
+      "dynamic": [
+        { "path": ["window", "Start Date"], "compare": "instant" },
+        { "path": ["window", "End Date"], "compare": "wall_clock" }
+      ],
+      "request_args": {
+        "window": {
+          "Start Date": "1999-01-01T00:00:00Z",
+          "End Date": "2030-01-01T00:00:00-07:00"
+        }
+      },
+      "expected_run_args": {
+        "window": {
+          "Start Date": "1999-01-01T00:00:00Z",
+          "End Date": "01/31/2024 12:00 AM"
+        }
+      }
+    },
+    {
+      "name": "a relative date range takes the request's dates",
+      "kind": "tile",
+      "viewer_sent_keys": ["window"],
+      "saved_args": { "window": { "Start Date": "now-7D", "End Date": "now" } },
+      "arg_types": { "window": "date-range" },
+      "variables": {},
+      "sent_args": {
+        "window": {
+          "Start Date": "2026-11-13T17:00:00-07:00",
+          "End Date": "2026-11-20T17:00:00-07:00"
+        }
+      },
+      "dynamic": [
+        { "path": ["window", "Start Date"], "compare": "date" },
+        { "path": ["window", "End Date"], "compare": "date" }
+      ],
+      "expected_run_args": {
+        "window": {
+          "Start Date": "2026-11-13T17:00:00-07:00",
+          "End Date": "2026-11-20T17:00:00-07:00"
+        }
+      }
+    },
+    {
+      "name": "an exact-token date arg takes the request's value",
+      "kind": "tile",
+      "viewer_sent_keys": ["start"],
+      "saved_args": { "start": "${Start}" },
+      "arg_types": { "start": "date" },
+      "variables": { "Start": "now-1D" },
+      "date_formats": { "Start": "MM/dd/yyyy h:mm aa" },
+      "sent_args": { "start": "2026-11-19T17:00:00-07:00" },
+      "dynamic": [{ "path": ["start"], "compare": "date" }],
+      "expected_run_args": { "start": "2026-11-19T17:00:00-07:00" }
+    },
+    {
+      "name": "an inline-token date arg takes the browser's resolved date",
+      "kind": "tile",
+      "viewer_sent_keys": ["at"],
+      "saved_args": { "at": "${Day} 12:00 AM" },
+      "arg_types": { "at": "date" },
+      "variables": { "Day": "01/15/2024" },
+      "sent_args": { "at": "2024-01-15T00:00:00-07:00" },
+      "dynamic": [{ "path": ["at"], "compare": "wall_clock" }],
+      "expected_run_args": { "at": "2024-01-15T00:00:00-07:00" }
+    },
+    {
+      "name": "an inline-token date arg refuses a request that is neither a date nor the template",
+      "kind": "tile",
+      "viewer_sent_keys": ["at"],
+      "saved_args": { "at": "${Day} 12:00 AM" },
+      "arg_types": { "at": "date" },
+      "variables": { "Day": "01/15/2024" },
+      "sent_args": { "at": "2024-01-15T00:00:00-07:00" },
+      "dynamic": [{ "path": ["at"], "compare": "wall_clock" }],
+      "request_args": { "at": "not a date" },
+      "expected_error": "mismatch"
+    },
+    {
+      "name": "a layer resolves no dates",
+      "kind": "layer",
+      "viewer_sent_keys": ["api_key", "end_date", "site"],
+      "saved_args": {
+        "start_date": "now-1D",
+        "end_date": "${End}",
+        "site": "${Site}",
+        "api_key": "${Key}"
+      },
+      "arg_types": {
+        "start_date": "date",
+        "end_date": "date",
+        "site": "text",
+        "api_key": "secret"
+      },
+      "variables": {
+        "End": "01/15/2024 12:00 AM",
+        "Site": "S1",
+        "Key": "typed-in-the-browser"
+      },
+      "date_formats": { "End": "yyyyMMdd" },
+      "sent_args": {
+        "start_date": "now-1D",
+        "end_date": "20240115",
+        "site": "S1",
+        "api_key": "typed-in-the-browser"
+      },
+      "expected_run_args": {
+        "start_date": "now-1D",
+        "end_date": "20240115",
+        "site": "S1",
+        "api_key": { "__secret_arg__": true }
+      }
+    },
+    {
+      "name": "a layer's saved relative date runs as saved and a wired date takes the request's string",
+      "kind": "layer",
+      "viewer_sent_keys": ["end_date"],
+      "saved_args": { "start_date": "now-1D", "end_date": "${End}" },
+      "arg_types": { "start_date": "date", "end_date": "date" },
+      "variables": { "End": "01/15/2024 12:00 AM" },
+      "date_formats": { "End": "yyyyMMdd" },
+      "sent_args": { "start_date": "now-1D", "end_date": "20240115" },
+      "request_args": {
+        "start_date": "2024-01-01T00:00:00Z",
+        "end_date": "20240116"
+      },
+      "expected_run_args": { "start_date": "now-1D", "end_date": "20240116" }
+    }
+  ]
+}

@@ -49,6 +49,8 @@ from tethysapp.tethysdash.model import (
     move_workspace_layer_files,
     read_layer_file,
     store_layer_file,
+    DashboardTab,
+    TileSecret,
 )
 from unittest.mock import MagicMock, call
 from tethysapp.tethysdash import model as model_module
@@ -60,8 +62,17 @@ from sqlalchemy.exc import ProgrammingError
 from django.contrib.auth.models import AnonymousUser
 from tethysapp.tethysdash.exceptions import (
     DASHBOARD_NOT_FOUND,
+    SECRET_CHANGES_MALFORMED,
+    SECRET_SETTING_GONE,
     LayerStorageQuotaExceeded,
+    SecretChangeRefused,
     UnsafePath,
+)
+from tethysapp.tethysdash import tile_secrets
+from tethysapp.tethysdash.tile_secrets import SecretIdentity, decrypt, encrypt
+from tethysapp.tethysdash.tests.fixtures.echo_secret_plugin import (
+    EchoSecretIntake,
+    EchoSecretPlugin,
 )
 from django.test import override_settings
 from django.core.files.storage import default_storage
@@ -1235,6 +1246,7 @@ def test_get_dashboards_specific_dashboard_view(
         "description": dashboard.description,
         "notes": dashboard.notes,
         "tabs": [],
+        "storedSecrets": [],
         "image": None,
         "uuid": "5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f",
         "unrestrictedPlacement": False,
@@ -1499,6 +1511,7 @@ def test_parse_db_dashboard_dashboard_view(
         "image": None,
         "notes": dashboard.notes,
         "tabs": [],
+        "storedSecrets": [],
         "unrestrictedPlacement": False,
         "autoThumbnail": True,
         "owner": test_owner_user.username,
@@ -3517,3 +3530,760 @@ def test_can_view_dashboard_refuses_an_unknown_dashboard(
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     assert can_view_dashboard(test_owner_user, str(uuid4())) is False
+
+
+# Secrets saved, read and swept with the dashboard
+
+ECHO_SECRET = "s3cr3t-api-key"
+OTHER_SECRET = "0ther-s3cr3t-key"
+
+
+@pytest.fixture
+def secrets_on(mocker, monkeypatch, mock_app_get_ps_db):
+    """The app's database, with the echo secret plugins as the only ones installed.
+
+    The key rotation warning counts as given, so no test depends on another's.
+    """
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch("tethysapp.tethysdash.visualizations.intake", new=EchoSecretIntake())
+    monkeypatch.setattr(tile_secrets, "_warned_derived_keys_only", True)
+
+
+def _secret_tile(source="echo_secret", api_key="", **fields):
+    """A new tile of a plugin whose api_key arg is secret, as the browser saves it."""
+    return {
+        "i": "1",
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1,
+        "source": source,
+        "args_string": json.dumps({"api_key": api_key, "site": "A"}),
+        "metadata_string": "{}",
+        "uuid": str(uuid4()),
+        **fields,
+    }
+
+
+def _secret_layer(layer_id, api_key="", source="echo_secret_layer", popup_items=None):
+    """A dynamic map layer of a plugin whose api_key arg is secret."""
+    layer = {
+        "configuration": {
+            "type": "VectorLayer",
+            "props": {
+                "name": layer_id,
+                "layerId": layer_id,
+                "pluginSource": {
+                    "source": source,
+                    "args": {"api_key": api_key, "site": "A"},
+                },
+            },
+        }
+    }
+    if popup_items is not None:
+        layer["popupConfig"] = {"gridItems": popup_items}
+    return layer
+
+
+def _secret_map(*layers):
+    return _secret_tile("Map", args_string=json.dumps({"layers": list(layers)}))
+
+
+def _tab(items, name="Tab"):
+    return {"name": name, "gridItems": items}
+
+
+def _set(tile, value=ECHO_SECRET, layer="", arg="api_key"):
+    return {"tile": tile, "layer": layer, "arg": arg, "value": value}
+
+
+def _clear(tile, layer="", arg="api_key"):
+    return _set(tile, None, layer, arg)
+
+
+def _save(user, dashboard, tabs, changes=None):
+    """Save the dashboard's tabs, with secret changes if given, as the editor does."""
+    updates = {"tabs": tabs}
+    if changes is not None:
+        updates["secretChanges"] = changes
+    return update_named_dashboard(user, dashboard.id, updates)
+
+
+def _with_items(tab, items):
+    return {**tab, "gridItems": items}
+
+
+def _add_saved_tile(db_session, dashboard, tile, tab_id):
+    """Store a tile as an older save would have, without the save's checks."""
+    db_session.add(
+        GridItem(
+            dashboard_id=dashboard.id,
+            tab_id=tab_id,
+            uuid=tile["uuid"],
+            i="1",
+            x=0,
+            y=0,
+            w=1,
+            h=1,
+            source=tile["source"],
+            args_string=tile["args_string"],
+            metadata_string="{}",
+        )
+    )
+    db_session.commit()
+
+
+def _secret_rows(db_session, dashboard):
+    """The dashboard's stored secrets by place, read afresh: the save wrote them."""
+    return {
+        (row.tile_uuid, row.layer_id, row.arg_name): row
+        for row in db_session.query(TileSecret)
+        .filter_by(dashboard_id=dashboard.id)
+        .populate_existing()
+    }
+
+
+def _value_of(dashboard, row):
+    identity = SecretIdentity(
+        dashboard.uuid, row.tile_uuid, row.layer_id, row.arg_name, row.plugin_source
+    )
+    return decrypt(identity, row.ciphertext).reveal()
+
+
+def _stored(db_session, dashboard):
+    """The dashboard's stored secrets by place, as their values."""
+    return {
+        place: _value_of(dashboard, row)
+        for place, row in _secret_rows(db_session, dashboard).items()
+    }
+
+
+def _saved_args(db_session, dashboard):
+    return [
+        args
+        for (args,) in db_session.query(GridItem.args_string).filter_by(
+            dashboard_id=dashboard.id
+        )
+    ]
+
+
+def _paths(*places):
+    """Served stored-secret places, in the order the server lists them."""
+    return [
+        {"tile": tile, "layer": layer, "arg": arg}
+        for tile, layer, arg in sorted(places)
+    ]
+
+
+@pytest.mark.django_db
+def test_a_secret_set_on_save_is_stored_encrypted_and_only_its_place_served(
+    dashboard, db_session, secrets_on, test_owner_user
+):
+    tile = _secret_tile()
+
+    served = _save(test_owner_user, dashboard, [_tab([tile])], [_set(tile["uuid"])])
+
+    (row,) = _secret_rows(db_session, dashboard).values()
+    assert (row.tile_uuid, row.layer_id, row.arg_name, row.plugin_source) == (
+        tile["uuid"],
+        "",
+        "api_key",
+        "echo_secret",
+    )
+    assert row.updated_by == test_owner_user.username
+    assert _value_of(dashboard, row) == ECHO_SECRET
+    assert ECHO_SECRET not in row.ciphertext
+    assert served["storedSecrets"] == _paths((tile["uuid"], "", "api_key"))
+    assert ECHO_SECRET not in json.dumps(served)
+    assert [json.loads(args) for args in _saved_args(db_session, dashboard)] == [
+        {"api_key": "", "site": "A"}
+    ]
+
+
+@pytest.mark.django_db
+def test_a_dynamic_layers_and_a_popup_tiles_secrets_are_stored_by_place(
+    dashboard, db_session, secrets_on, test_owner_user
+):
+    popup = _secret_tile()
+    map_tile = _secret_map(_secret_layer("layer-1", popup_items=[popup]))
+
+    served = _save(
+        test_owner_user,
+        dashboard,
+        [_tab([map_tile])],
+        [
+            _set(map_tile["uuid"], layer="layer-1"),
+            _set(popup["uuid"], OTHER_SECRET),
+        ],
+    )
+
+    assert _stored(db_session, dashboard) == {
+        (map_tile["uuid"], "layer-1", "api_key"): ECHO_SECRET,
+        (popup["uuid"], "", "api_key"): OTHER_SECRET,
+    }
+    assert served["storedSecrets"] == _paths(
+        (map_tile["uuid"], "layer-1", "api_key"), (popup["uuid"], "", "api_key")
+    )
+
+    # Taking the popup off the layer sweeps its tile's secret, and only that.
+    (saved_map,) = served["tabs"][0]["gridItems"]
+    without_popup = {
+        **saved_map,
+        "args_string": json.dumps({"layers": [_secret_layer("layer-1")]}),
+    }
+    served = _save(
+        test_owner_user,
+        dashboard,
+        [_with_items(served["tabs"][0], [without_popup])],
+    )
+
+    assert _stored(db_session, dashboard) == {
+        (map_tile["uuid"], "layer-1", "api_key"): ECHO_SECRET
+    }
+    assert served["storedSecrets"] == _paths((map_tile["uuid"], "layer-1", "api_key"))
+
+
+@pytest.mark.django_db
+def test_a_clear_removes_the_stored_secret(
+    dashboard, db_session, secrets_on, test_owner_user
+):
+    tile = _secret_tile()
+    served = _save(test_owner_user, dashboard, [_tab([tile])], [_set(tile["uuid"])])
+
+    served = _save(test_owner_user, dashboard, served["tabs"], [_clear(tile["uuid"])])
+
+    assert _stored(db_session, dashboard) == {}
+    assert served["storedSecrets"] == []
+
+
+@pytest.mark.django_db
+def test_an_editor_replaces_a_stored_secret(
+    dashboard, db_session, secrets_on, test_owner_user, test_admin_user
+):
+    tile = _secret_tile()
+    served = _save(test_owner_user, dashboard, [_tab([tile])], [_set(tile["uuid"])])
+
+    _save(
+        test_admin_user, dashboard, served["tabs"], [_set(tile["uuid"], OTHER_SECRET)]
+    )
+
+    (row,) = _secret_rows(db_session, dashboard).values()
+    assert _value_of(dashboard, row) == OTHER_SECRET
+    assert row.updated_by == test_admin_user.username
+
+
+@pytest.mark.django_db
+def test_the_last_change_to_a_place_counts_whatever_the_case_of_its_tile(
+    dashboard, db_session, secrets_on, test_owner_user
+):
+    tile, other = _secret_tile(), _secret_tile()
+    served = _save(
+        test_owner_user,
+        dashboard,
+        [_tab([tile, other])],
+        [_set(tile["uuid"]), _clear(other["uuid"]), _set(other["uuid"].upper())],
+    )
+
+    _save(
+        test_owner_user,
+        dashboard,
+        served["tabs"],
+        [_set(tile["uuid"].upper(), OTHER_SECRET), _clear(tile["uuid"])],
+    )
+
+    # A place is stored under its saved tile's own uuid.
+    assert _stored(db_session, dashboard) == {
+        (other["uuid"], "", "api_key"): ECHO_SECRET
+    }
+
+
+def _drop_plain_tile(items):
+    return [item for item in items if item["source"] != "echo_secret"]
+
+
+def _switch_plain_tile_plugin(items):
+    return [
+        (
+            {**item, "source": "echo_secret_layer"}
+            if item["source"] == "echo_secret"
+            else item
+        )
+        for item in items
+    ]
+
+
+def _drop_plain_tile_arg(items):
+    return [
+        (
+            {**item, "args_string": json.dumps({"site": "A"})}
+            if item["source"] == "echo_secret"
+            else item
+        )
+        for item in items
+    ]
+
+
+def _with_map_layers(*layers):
+    def edit(items):
+        return [
+            (
+                {**item, "args_string": json.dumps({"layers": list(layers)})}
+                if item["source"] == "Map"
+                else item
+            )
+            for item in items
+        ]
+
+    return edit
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "edit, swept",
+    [
+        (_drop_plain_tile, "tile"),
+        (_switch_plain_tile_plugin, "tile"),
+        (_drop_plain_tile_arg, "tile"),
+        (_with_map_layers(), "layer"),
+        (_with_map_layers(_secret_layer("layer-1", source="echo_secret")), "layer"),
+        (_with_map_layers(_secret_layer("layer-2")), "layer"),
+    ],
+    ids=[
+        "tile removed",
+        "tile's plugin changed",
+        "arg gone from the tile's args",
+        "layer removed",
+        "layer's plugin changed",
+        "layer's id changed",
+    ],
+)
+def test_a_save_sweeps_the_secrets_its_tiles_no_longer_take(
+    edit, swept, dashboard, db_session, secrets_on, test_owner_user
+):
+    tile = _secret_tile()
+    map_tile = _secret_map(_secret_layer("layer-1"))
+    places = {
+        "tile": (tile["uuid"], "", "api_key"),
+        "layer": (map_tile["uuid"], "layer-1", "api_key"),
+    }
+    served = _save(
+        test_owner_user,
+        dashboard,
+        [_tab([tile, map_tile])],
+        [_set(tile["uuid"]), _set(map_tile["uuid"], layer="layer-1")],
+    )
+    (saved_tab,) = served["tabs"]
+
+    served = _save(
+        test_owner_user,
+        dashboard,
+        [_with_items(saved_tab, edit(saved_tab["gridItems"]))],
+    )
+
+    (kept,) = set(places) - {swept}
+    assert _stored(db_session, dashboard) == {places[kept]: ECHO_SECRET}
+    assert served["storedSecrets"] == _paths(places[kept])
+
+
+@pytest.mark.django_db
+def test_a_secret_its_plugin_no_longer_declares_is_swept(
+    dashboard, db_session, secrets_on, test_owner_user, mocker
+):
+    tile = _secret_tile()
+    served = _save(test_owner_user, dashboard, [_tab([tile])], [_set(tile["uuid"])])
+
+    class NoLongerSecret(EchoSecretPlugin):
+        args = {"api_key": "text", "site": "text"}
+
+    mocker.patch(
+        "tethysapp.tethysdash.visualizations.intake",
+        new=SimpleNamespace(
+            source=SimpleNamespace(registry={"echo_secret": NoLongerSecret}),
+            open_echo_secret=NoLongerSecret,
+        ),
+    )
+    served = _save(test_owner_user, dashboard, served["tabs"])
+
+    assert _stored(db_session, dashboard) == {}
+    assert served["storedSecrets"] == []
+
+
+@pytest.mark.django_db
+def test_a_secret_set_for_the_new_plugin_survives_the_sweep(
+    dashboard, db_session, secrets_on, test_owner_user
+):
+    tile = _secret_tile()
+    served = _save(test_owner_user, dashboard, [_tab([tile])], [_set(tile["uuid"])])
+    (saved_tab,) = served["tabs"]
+
+    _save(
+        test_owner_user,
+        dashboard,
+        [_with_items(saved_tab, _switch_plain_tile_plugin(saved_tab["gridItems"]))],
+        [_set(tile["uuid"], OTHER_SECRET)],
+    )
+
+    (row,) = _secret_rows(db_session, dashboard).values()
+    assert row.plugin_source == "echo_secret_layer"
+    assert _value_of(dashboard, row) == OTHER_SECRET
+
+
+@pytest.mark.django_db
+def test_moving_a_tile_to_another_tab_or_adding_a_tab_keeps_its_secret(
+    dashboard, db_session, secrets_on, test_owner_user
+):
+    tile = _secret_tile()
+    served = _save(
+        test_owner_user,
+        dashboard,
+        [_tab([tile], "First"), _tab([], "Second")],
+        [_set(tile["uuid"])],
+    )
+    first, second = served["tabs"]
+
+    served = _save(
+        test_owner_user,
+        dashboard,
+        [
+            _with_items(first, []),
+            _with_items(second, first["gridItems"]),
+            _tab([], "Added"),
+        ],
+    )
+
+    assert [tab["name"] for tab in served["tabs"]] == ["First", "Second", "Added"]
+    assert [item["uuid"] for item in served["tabs"][1]["gridItems"]] == [tile["uuid"]]
+    assert _stored(db_session, dashboard) == {
+        (tile["uuid"], "", "api_key"): ECHO_SECRET
+    }
+    assert served["storedSecrets"] == _paths((tile["uuid"], "", "api_key"))
+
+
+@pytest.mark.django_db
+def test_a_save_without_changes_keeps_a_secret_another_editor_set(
+    dashboard, db_session, secrets_on, test_owner_user, test_admin_user
+):
+    tile = _secret_tile()
+    # The editor has the dashboard open...
+    loaded = _save(test_admin_user, dashboard, [_tab([tile])])
+    # ...while the owner sets a secret...
+    _save(test_owner_user, dashboard, loaded["tabs"], [_set(tile["uuid"])])
+    # ...and the editor saves an edit of their own.
+    served = _save(
+        test_admin_user, dashboard, [{**loaded["tabs"][0], "name": "Renamed"}]
+    )
+
+    assert _stored(db_session, dashboard) == {
+        (tile["uuid"], "", "api_key"): ECHO_SECRET
+    }
+    assert served["storedSecrets"] == _paths((tile["uuid"], "", "api_key"))
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"name": "Renamed"},
+        {"image": "data:image/png;base64," + base64.b64encode(b"png").decode()},
+    ],
+    ids=["name only", "thumbnail only"],
+)
+def test_a_save_without_tabs_neither_sweeps_nor_applies_secret_changes(
+    updates, dashboard, db_session, secrets_on, test_owner_user
+):
+    tile = _secret_tile()
+    _save(test_owner_user, dashboard, [_tab([tile])], [_set(tile["uuid"])])
+    # A secret no saved tile takes, which a save of the tabs would sweep.
+    db_session.add(
+        TileSecret(
+            dashboard_id=dashboard.id,
+            tile_uuid="gone",
+            arg_name="api_key",
+            plugin_source="echo_secret",
+            ciphertext="unread",
+            updated_by="someone",
+        )
+    )
+    db_session.commit()
+
+    update_named_dashboard(
+        test_owner_user,
+        dashboard.id,
+        {**updates, "secretChanges": [_set(tile["uuid"], OTHER_SECRET)]},
+    )
+
+    rows = _secret_rows(db_session, dashboard)
+    assert set(rows) == {(tile["uuid"], "", "api_key"), ("gone", "", "api_key")}
+    assert _value_of(dashboard, rows[(tile["uuid"], "", "api_key")]) == ECHO_SECRET
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "changes, message",
+    [
+        (lambda tile, map_tile, other: [_set(tile, arg="site")], SECRET_SETTING_GONE),
+        (lambda tile, map_tile, other: [_set(str(uuid4()))], SECRET_SETTING_GONE),
+        (
+            lambda tile, map_tile, other: [_set(map_tile, layer="no-such-layer")],
+            SECRET_SETTING_GONE,
+        ),
+        (lambda tile, map_tile, other: [_set(tile, arg="token")], SECRET_SETTING_GONE),
+        (lambda tile, map_tile, other: [_set(map_tile)], SECRET_SETTING_GONE),
+        (lambda tile, map_tile, other: [_set(other)], SECRET_SETTING_GONE),
+        (lambda tile, map_tile, other: [_set(tile, "")], SECRET_CHANGES_MALFORMED),
+        (lambda tile, map_tile, other: [_set(tile, 1234)], SECRET_CHANGES_MALFORMED),
+        (
+            lambda tile, map_tile, other: [{"tile": tile, "arg": "api_key"}],
+            SECRET_CHANGES_MALFORMED,
+        ),
+        (
+            lambda tile, map_tile, other: [_set(tile, layer=["layer-1"])],
+            SECRET_CHANGES_MALFORMED,
+        ),
+        (lambda tile, map_tile, other: [_set("")], SECRET_CHANGES_MALFORMED),
+        (lambda tile, map_tile, other: ["api_key"], SECRET_CHANGES_MALFORMED),
+        (lambda tile, map_tile, other: _set(tile), SECRET_CHANGES_MALFORMED),
+    ],
+    ids=[
+        "arg not secret",
+        "no such tile",
+        "no such layer",
+        "arg not among the tile's args",
+        "tile not a plugin",
+        "plugin not installed",
+        "empty value",
+        "value not a string",
+        "no value",
+        "layer not a string",
+        "no tile",
+        "change not an object",
+        "changes not a list",
+    ],
+)
+def test_a_secret_change_that_cannot_be_applied_refuses_the_whole_save(
+    changes, message, dashboard, db_session, secrets_on, test_owner_user
+):
+    tile = _secret_tile()
+    map_tile = _secret_map(_secret_layer("layer-1"))
+    other = _secret_tile(source="uninstalled")
+    served = _save(
+        test_owner_user,
+        dashboard,
+        [_tab([tile, map_tile, other], "Saved")],
+        [_set(tile["uuid"])],
+    )
+    (saved_tab,) = served["tabs"]
+    before = _saved_args(db_session, dashboard)
+    refused_changes = changes(tile["uuid"], map_tile["uuid"], other["uuid"])
+    if isinstance(refused_changes, list):
+        # Alongside changes that alone would be applied.
+        refused_changes = [
+            _set(tile["uuid"], OTHER_SECRET),
+            _set(map_tile["uuid"], layer="layer-1"),
+            *refused_changes,
+        ]
+
+    with pytest.raises(SecretChangeRefused) as refused:
+        _save(
+            test_owner_user,
+            dashboard,
+            [{**saved_tab, "name": "Changed", "gridItems": saved_tab["gridItems"][:2]}],
+            refused_changes,
+        )
+
+    assert str(refused.value) == message
+    assert _stored(db_session, dashboard) == {
+        (tile["uuid"], "", "api_key"): ECHO_SECRET
+    }
+    assert _saved_args(db_session, dashboard) == before
+    assert db_session.query(DashboardTab.name).filter_by(
+        dashboard_id=dashboard.id
+    ).all() == [("Saved",)]
+
+
+@pytest.mark.django_db
+def test_a_clear_for_a_tile_removed_in_the_same_save_is_ignored(
+    dashboard, db_session, secrets_on, test_owner_user
+):
+    tile, other = _secret_tile(), _secret_tile()
+    served = _save(
+        test_owner_user,
+        dashboard,
+        [_tab([tile, other])],
+        [_set(tile["uuid"]), _set(other["uuid"], OTHER_SECRET)],
+    )
+    (saved_tab,) = served["tabs"]
+    kept = [item for item in saved_tab["gridItems"] if item["uuid"] == other["uuid"]]
+
+    served = _save(
+        test_owner_user,
+        dashboard,
+        [_with_items(saved_tab, kept)],
+        [_clear(tile["uuid"]), _clear(str(uuid4()), layer="layer-1")],
+    )
+
+    assert _stored(db_session, dashboard) == {
+        (other["uuid"], "", "api_key"): OTHER_SECRET
+    }
+    assert served["storedSecrets"] == _paths((other["uuid"], "", "api_key"))
+
+
+@pytest.mark.django_db
+def test_a_value_left_in_a_secret_arg_is_served_blank_and_never_saved(
+    dashboard, db_session, secrets_on, test_owner_user
+):
+    """A plugin newly declaring an arg secret, or a hand-written import, can leave a
+    value in saved args. It is treated as missing: served blank, with no stored
+    secret listed for its place, and blanked by the next save."""
+    served = _save(test_owner_user, dashboard, [_tab([])])
+    tab_id = served["tabs"][0]["id"]
+    plain = _secret_tile(api_key=ECHO_SECRET)
+    popup = _secret_tile(api_key=OTHER_SECRET)
+    map_tile = _secret_map(
+        _secret_layer("layer-1", api_key=ECHO_SECRET, popup_items=[popup])
+    )
+    for tile in (plain, map_tile):
+        _add_saved_tile(db_session, dashboard, tile, tab_id)
+
+    served = get_dashboards(test_owner_user, dashboard_view=True, id=dashboard.id)
+
+    assert ECHO_SECRET not in json.dumps(served)
+    assert OTHER_SECRET not in json.dumps(served)
+    assert served["storedSecrets"] == []
+    served_plain, served_map = served["tabs"][0]["gridItems"]
+    assert json.loads(served_plain["args_string"]) == {"api_key": "", "site": "A"}
+    (layer,) = json.loads(served_map["args_string"])["layers"]
+    assert layer["configuration"]["props"]["pluginSource"]["args"] == {
+        "api_key": "",
+        "site": "A",
+    }
+    assert json.loads(layer["popupConfig"]["gridItems"][0]["args_string"]) == {
+        "api_key": "",
+        "site": "A",
+    }
+
+    # A save sending the values back, as a page loaded before them would, keeps none.
+    held = {tile["uuid"]: tile["args_string"] for tile in (plain, map_tile)}
+    _save(
+        test_owner_user,
+        dashboard,
+        [
+            _with_items(
+                served["tabs"][0],
+                [
+                    {**item, "args_string": held[item["uuid"]]}
+                    for item in served["tabs"][0]["gridItems"]
+                ],
+            )
+        ],
+    )
+
+    saved = _saved_args(db_session, dashboard)
+    assert len(saved) == 2
+    assert not any(ECHO_SECRET in args or OTHER_SECRET in args for args in saved)
+    assert _stored(db_session, dashboard) == {}
+
+
+@pytest.mark.django_db
+def test_an_uninstalled_plugins_args_and_secrets_are_left_alone(
+    dashboard, db_session, secrets_on, test_owner_user
+):
+    tile = _secret_tile(source="uninstalled", api_key="kept-as-saved")
+    served = _save(test_owner_user, dashboard, [_tab([tile])])
+    identity = SecretIdentity(
+        dashboard.uuid, tile["uuid"], "", "api_key", "uninstalled"
+    )
+    db_session.add(
+        TileSecret(
+            dashboard_id=dashboard.id,
+            tile_uuid=tile["uuid"],
+            arg_name="api_key",
+            plugin_source="uninstalled",
+            ciphertext=encrypt(identity, ECHO_SECRET),
+            updated_by="someone",
+        )
+    )
+    db_session.commit()
+
+    served = _save(test_owner_user, dashboard, served["tabs"])
+
+    (served_tile,) = served["tabs"][0]["gridItems"]
+    assert json.loads(served_tile["args_string"])["api_key"] == "kept-as-saved"
+    assert _stored(db_session, dashboard) == {
+        (tile["uuid"], "", "api_key"): ECHO_SECRET
+    }
+
+
+@pytest.mark.django_db
+def test_copying_a_dashboard_copies_no_secret(
+    dashboard, db_session, secrets_on, test_owner_user, test_member_user
+):
+    tile = _secret_tile()
+    served = _save(test_owner_user, dashboard, [_tab([tile])], [_set(tile["uuid"])])
+    # A value an older save left in a secret arg, deep in a map.
+    legacy = _secret_map(
+        _secret_layer(
+            "layer-1",
+            api_key=OTHER_SECRET,
+            popup_items=[_secret_tile(api_key=OTHER_SECRET)],
+        )
+    )
+    _add_saved_tile(db_session, dashboard, legacy, served["tabs"][0]["id"])
+
+    new_dashboard_id, _ = copy_named_dashboard(
+        test_member_user, dashboard.id, "Copy", str(uuid4())
+    )
+
+    copy = db_session.query(Dashboard).filter_by(id=new_dashboard_id).one()
+    assert copy.tile_secrets == []
+    assert len(copy.grid_items) == 2
+    assert not any(OTHER_SECRET in item.args_string for item in copy.grid_items)
+    assert _stored(db_session, dashboard) == {
+        (tile["uuid"], "", "api_key"): ECHO_SECRET
+    }
+
+
+@pytest.mark.django_db
+def test_deleting_a_dashboard_deletes_its_secrets(
+    dashboard, db_session, secrets_on, test_owner_user
+):
+    tile = _secret_tile()
+    _save(test_owner_user, dashboard, [_tab([tile])], [_set(tile["uuid"])])
+
+    delete_named_dashboard(test_owner_user, dashboard.id)
+
+    assert db_session.query(TileSecret).count() == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("as_tabs", [True, False], ids=["tabs", "grid items"])
+def test_adding_a_dashboard_stores_no_value_found_in_a_secret_arg(
+    as_tabs, db_session, secrets_on, test_owner_user
+):
+    items = [
+        _secret_tile(api_key=ECHO_SECRET),
+        _secret_map(
+            _secret_layer(
+                "layer-1",
+                api_key=ECHO_SECRET,
+                popup_items=[_secret_tile(api_key=OTHER_SECRET)],
+            )
+        ),
+    ]
+
+    new_dashboard_id = add_new_dashboard(
+        test_owner_user,
+        str(uuid4()),
+        "Imported",
+        "",
+        "",
+        False,
+        True,
+        [] if as_tabs else items,
+        [_tab(items)] if as_tabs else [],
+    )
+
+    added = db_session.query(Dashboard).filter_by(id=new_dashboard_id).one()
+    saved = [item.args_string for item in added.grid_items]
+    assert len(saved) == 2
+    assert not any(ECHO_SECRET in args or OTHER_SECRET in args for args in saved)

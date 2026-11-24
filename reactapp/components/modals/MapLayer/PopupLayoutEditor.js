@@ -14,6 +14,7 @@ import DashboardLayout from "components/dashboard/DashboardLayout";
 import { POPUP_TAB_ID } from "components/map/viewGroup";
 import "components/modals/wideModal.css";
 import { deriveRowHeight } from "components/modals/PopupModal/PopupModalChrome";
+import { useDiscardSecretsEntered } from "components/inputs/SecretInput";
 
 const DEFAULT_POSITION = {
   leftPct: 20,
@@ -204,6 +205,9 @@ const PopupLayoutEditor = ({
   const [localGridItems, setLocalGridItems] = useState(
     () => popupConfig?.gridItems ?? [],
   );
+  // The popup tiles' secrets entered and kept in their own editors are part
+  // of this layout's edit.
+  const discardSecretsEntered = useDiscardSecretsEntered();
 
   // Re-seed local state whenever the editor (re-)opens. popupConfig is
   // intentionally omitted from the dep list — re-seeding on every parent
@@ -344,6 +348,7 @@ const PopupLayoutEditor = ({
   }
 
   function handleCancel() {
+    discardSecretsEntered();
     onClose();
   }
 

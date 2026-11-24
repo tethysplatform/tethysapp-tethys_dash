@@ -20,6 +20,7 @@ import {
   userDashboard,
   mockedMapBase,
   mockedLiveChatBase,
+  mockedDashboards,
 } from "__tests__/utilities/constants";
 import BaseVisualization, {
   Visualization,
@@ -35,6 +36,7 @@ import {
   GridItemContext,
   AppContext,
   EditingContext,
+  LayoutContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
@@ -42,6 +44,7 @@ import appAPI from "services/api/app";
 import * as runtimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
 import * as layerExtent from "components/map/layerExtent";
 import * as mapUtilities from "components/map/utilities";
+import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
 
 jest.mock("components/visualizations/ModuleLoader", () => {
   const MockModuleLoader = () => <div>ModuleLoader Mock</div>;
@@ -143,7 +146,7 @@ it("Initializes a Base Item with an empty div and updates it with an image and p
   // Set REDIS_WS_URL so WebSocket logic is used
   process.env.REDIS_WS_URL = "ws://localhost:1234";
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -402,7 +405,7 @@ it("Passes a Map's saved Map Selection setting through to the map", async () => 
 it("Creates an Base Item with a Live Chat", async () => {
   const date = Date.now();
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -506,7 +509,7 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
   jest.useFakeTimers();
   jest.spyOn(utilities, "getVisualization");
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -575,7 +578,7 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
 it("Creates an Base Item with an image obtained from the api, no refresh when editing", async () => {
   jest.useFakeTimers();
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -637,7 +640,7 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
 
 it("Creates an Base Item with a plot obtained from the api", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -681,7 +684,7 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
 
 it("Creates an Base Item with a custom module obtained from the api", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -725,7 +728,7 @@ it("Creates an Base Item with a custom module obtained from the api", async () =
 
 it("Creates an Base Item with a table obtained from the api", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -769,7 +772,7 @@ it("Creates an Base Item with a table obtained from the api", async () => {
 
 it("Creates an Base Item with a card obtained from the api", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -813,7 +816,7 @@ it("Creates an Base Item with a card obtained from the api", async () => {
 
 it("Gives the user an error message if an unknown viz type is obtained from the api", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -877,7 +880,7 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
 
 it("Gives the user an error message if the api couldn't retrieve data", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -933,6 +936,70 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
   expect(message).toBeInTheDocument();
 });
 
+// Before, a data request answered with an HTTP error that was not the
+// server's own refusal rejected, and the tile stayed on its loader.
+it.each([
+  [
+    "a CSRF failure page",
+    403,
+    "<h1>Forbidden (403)</h1><p>CSRF verification failed.</p>",
+  ],
+  ["a gateway's 502", 502, "<h1>502 Bad Gateway</h1>"],
+])("%s shows the tile's error message", async (_, status, page) => {
+  server.use(
+    rest.post(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) =>
+        res(
+          ctx.status(status),
+          ctx.set("Content-Type", "text/html"),
+          ctx.body(page),
+        ),
+    ),
+  );
+
+  render(
+    createLoadedComponent({
+      children: (
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedUnknownBase.source,
+            gridItemArgsString: mockedUnknownBase.args_string,
+            gridItemMetadataString: mockedUnknownBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
+      ),
+      options: {
+        visualizations: [
+          {
+            label: "Visualization Group",
+            options: [
+              {
+                source: "unknown_api",
+                value: "plugin_value",
+                label: "plugin_label",
+                args: { plugin_arg: "text" },
+                type: "some type",
+                tags: ["test", "plugin"],
+                description: "some description",
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
+
+  expect(
+    await screen.findByText("Failed to retrieve data"),
+  ).toBeInTheDocument();
+  expect(screen.queryByTestId("Loading...")).not.toBeInTheDocument();
+});
+
 it("Base - update text variable input", async () => {
   const user = userEvent.setup();
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
@@ -965,7 +1032,7 @@ it("Base - update text variable input", async () => {
   const dashboards = { dashboards: [mockedDashboard] };
 
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -1108,7 +1175,7 @@ it("Base - update date variable input", async () => {
   const dashboards = { dashboards: [mockedDashboard] };
 
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -1417,7 +1484,7 @@ it("Base - initial relative date variable input", async () => {
   const dashboards = { dashboards: [mockedDashboard] };
 
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -2205,16 +2272,27 @@ describe("plugin variable inputs preloaded before render", () => {
 
     // A ran first, then B with A's value; neither ran again for its own tile.
     expect(callsFor(spy, "picker_a")).toHaveLength(1);
+    // The preload names the dashboard and the variable input's own tile.
     expect(callsFor(spy, "picker_b")).toEqual([
-      { source: "picker_b", args: { region: "west" }, requestId: "uuid-2" },
+      {
+        dashboard: "user-uuid",
+        tile: "uuid-2",
+        source: "picker_b",
+        args: { region: "west" },
+        requestId: "uuid-2",
+        allArgs: true,
+      },
     ]);
     expect(spy.mock.calls[0][0].source).toBe("picker_a");
     // The dependent fetched once, with the resolved value, and never warned.
     expect(callsFor(spy, "text_plugin")).toEqual([
       {
+        dashboard: "user-uuid",
+        tile: "uuid-1",
         source: "text_plugin",
         args: { station: "west-station" },
         requestId: "uuid-1",
+        allArgs: true,
       },
     ]);
     expect(warnings.seen).toEqual([]);
@@ -2586,5 +2664,427 @@ describe("a static map layer whose source names a variable input", () => {
     expect(fittedUrl(zoomSpy.mock.calls[1])).toBe(
       "https://example.test/b.geojson",
     );
+  });
+});
+
+describe("a tile's data request", () => {
+  const DATA_URL = "http://api.test/apps/tethysdash/visualizations/get/";
+
+  // Answers every data request with `answer` and keeps each body it was sent.
+  const captureDataRequests = (answer) => {
+    const bodies = [];
+    server.use(
+      rest.post(DATA_URL, async (req, res, ctx) => {
+        bodies.push(await req.json());
+        return answer(req, res, ctx);
+      }),
+    );
+    return bodies;
+  };
+
+  const plotAnswer = (req, res, ctx) =>
+    res(
+      ctx.status(200),
+      ctx.json({ success: true, data: { text: "Plotted" }, viz_type: "text" }),
+    );
+
+  const stationValues = {
+    variableInputValues: { Station: "ABC" },
+    variableInputDateFormats: {},
+    variableInputSliderMeta: {},
+    setVariableInputValues: () => {},
+  };
+
+  const renderTile = ({ argsString, metadataString = "{}" }) =>
+    render(
+      createLoadedComponent({
+        children: (
+          <VariableInputsContext.Provider value={stationValues}>
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: "station_plot",
+                gridItemArgsString: argsString,
+                gridItemMetadataString: metadataString,
+                gridItemUUID: "tile-uuid",
+                shouldLoad: true,
+              }}
+            >
+              <BaseVisualization />
+            </GridItemContext.Provider>
+          </VariableInputsContext.Provider>
+        ),
+      }),
+    );
+
+  it("names the dashboard and the tile, and carries the resolved args", async () => {
+    const bodies = captureDataRequests(plotAnswer);
+
+    renderTile({ argsString: JSON.stringify({ station: "${Station}" }) });
+
+    expect(await screen.findByText("Plotted")).toBeInTheDocument();
+    expect(bodies).toEqual([
+      {
+        dashboard: "user-uuid",
+        tile: "tile-uuid",
+        source: "station_plot",
+        args: { station: "ABC" },
+        requestId: "tile-uuid",
+        allArgs: true,
+      },
+    ]);
+  });
+
+  it("from a layer popup names the popup tile, under the same dashboard", async () => {
+    const bodies = captureDataRequests(plotAnswer);
+    const popupTile = {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 4,
+      h: 4,
+      uuid: "popup-tile-uuid",
+      source: "station_plot",
+      args_string: JSON.stringify({ station: "${feature.station_id}" }),
+      metadata_string: "{}",
+    };
+
+    render(
+      createLoadedComponent({
+        children: (
+          <PopupModalChrome
+            feature={{
+              layerName: "Stations",
+              attributes: { station_id: "XYZ" },
+            }}
+            popupConfig={{ gridItems: [popupTile] }}
+          />
+        ),
+      }),
+    );
+
+    expect(await screen.findByText("Plotted")).toBeInTheDocument();
+    expect(bodies).toEqual([
+      {
+        dashboard: "user-uuid",
+        tile: "popup-tile-uuid",
+        source: "station_plot",
+        args: { station: "XYZ" },
+        requestId: "popup-tile-uuid",
+        // A popup's tiles are never in edit mode, but its caller may edit
+        // the dashboard, so the request carries every arg and says so.
+        allArgs: true,
+      },
+    ]);
+  });
+
+  it.each([
+    "Dashboard not found.",
+    "This dashboard has changed. Reload it to see the latest version.",
+    "This tile needs a secret that hasn't been set up yet.",
+  ])("shows the refusal %p in the tile", async (message) => {
+    captureDataRequests((req, res, ctx) =>
+      res(
+        ctx.status(200),
+        ctx.json({ success: false, data: { error: message }, viz_type: null }),
+      ),
+    );
+
+    renderTile({ argsString: JSON.stringify({ station: "${Station}" }) });
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "the server's 413",
+      (req, res, ctx) =>
+        res(
+          ctx.status(413),
+          ctx.json({
+            success: false,
+            data: {
+              error:
+                "The values sent are too large. A request must be smaller than 2.5 MB.",
+            },
+            viz_type: null,
+          }),
+        ),
+      "The values sent are too large. A request must be smaller than 2.5 MB.",
+    ],
+    [
+      "a proxy's bare 413",
+      (req, res, ctx) =>
+        res(
+          ctx.status(413),
+          ctx.set("Content-Type", "text/html"),
+          ctx.body("<html><h1>413 Request Entity Too Large</h1></html>"),
+        ),
+      "The values sent are too large.",
+    ],
+    [
+      "a 405",
+      (req, res, ctx) =>
+        res(
+          ctx.status(405),
+          ctx.set("Content-Type", "text/html"),
+          ctx.body("<html><h1>405 Not Allowed</h1></html>"),
+        ),
+      "This page is out of date. Reload it to see the latest version.",
+    ],
+  ])("shows %s in the tile", async (_, answer, message) => {
+    captureDataRequests(answer);
+
+    renderTile({ argsString: JSON.stringify({ station: "${Station}" }) });
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+  });
+});
+
+describe("a tile's secrets", () => {
+  const DATA_URL = "http://api.test/apps/tethysdash/visualizations/get/";
+  const SECRET = "typed-tile-s3cret";
+
+  const captureDataRequests = () => {
+    const bodies = [];
+    server.use(
+      rest.post(DATA_URL, async (req, res, ctx) => {
+        bodies.push(await req.json());
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: { text: "Shown" },
+            viz_type: "text",
+          }),
+        );
+      }),
+    );
+    return bodies;
+  };
+
+  // Enters a secret for the tile, as its editor's secret field does.
+  const EnterSecret = () => {
+    const { setPendingSecret } = useContext(LayoutContext);
+    return (
+      <button
+        onClick={() =>
+          setPendingSecret({
+            tile: "tile-uuid",
+            layer: "",
+            arg: "api_key",
+            source: "secret_plot",
+            value: SECRET,
+          })
+        }
+      >
+        Enter secret
+      </button>
+    );
+  };
+
+  // The plugin as the dashboard's visualization list declares it, its
+  // api_key a secret.
+  const secretPlotList = [
+    {
+      label: "Test",
+      options: [
+        {
+          source: "secret_plot",
+          value: "Secret Plot",
+          label: "Secret Plot",
+          args: { station: "text", api_key: "secret" },
+          type: "text",
+        },
+      ],
+    },
+  ];
+  // The dashboard as someone who may only view it loads it.
+  const viewersDashboard = {
+    ...mockedDashboards.dashboards[0],
+    userPermission: "viewer",
+  };
+
+  const renderTile = (options) =>
+    render(
+      createLoadedComponent({
+        options: { visualizations: secretPlotList, ...options },
+        children: (
+          <>
+            <EnterSecret />
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: "secret_plot",
+                gridItemArgsString: JSON.stringify({
+                  station: "A",
+                  api_key: "",
+                }),
+                gridItemMetadataString: "{}",
+                gridItemUUID: "tile-uuid",
+                shouldLoad: true,
+              }}
+            >
+              <BaseVisualization />
+            </GridItemContext.Provider>
+          </>
+        ),
+      }),
+    );
+
+  it("an editor's request sends the secret entered for the tile, and entering one refetches it", async () => {
+    const bodies = captureDataRequests();
+    renderTile({ inEditing: true });
+    expect(await screen.findByText("Shown")).toBeInTheDocument();
+    // Every arg, for a caller who may edit, but no blank secret.
+    expect(bodies.map((body) => body.args)).toEqual([{ station: "A" }]);
+
+    await userEvent.click(screen.getByText("Enter secret"));
+
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    expect(bodies[1]).toEqual({
+      dashboard: "user-uuid",
+      tile: "tile-uuid",
+      source: "secret_plot",
+      args: { station: "A", api_key: SECRET },
+      requestId: "tile-uuid",
+      allArgs: true,
+    });
+  });
+
+  it("after a save the tile runs with the secret stored", async () => {
+    const bodies = captureDataRequests();
+    server.use(
+      rest.post(
+        "http://api.test/apps/tethysdash/dashboards/update/",
+        async (req, res, ctx) => {
+          const { id, ...saved } = await req.json();
+          return res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              updated_dashboard: {
+                ...userDashboard,
+                ...saved,
+                id,
+                storedSecrets: [
+                  { tile: "tile-uuid", layer: "", arg: "api_key" },
+                ],
+              },
+            }),
+          );
+        },
+      ),
+    );
+    const Save = () => {
+      const { saveLayoutContext } = useContext(LayoutContext);
+      return (
+        <button onClick={() => saveLayoutContext({ tabs: userDashboard.tabs })}>
+          Save dashboard
+        </button>
+      );
+    };
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <EnterSecret />
+            <Save />
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: "secret_plot",
+                gridItemArgsString: JSON.stringify({
+                  station: "A",
+                  api_key: "",
+                }),
+                gridItemMetadataString: "{}",
+                gridItemUUID: "tile-uuid",
+                shouldLoad: true,
+              }}
+            >
+              <BaseVisualization />
+            </GridItemContext.Provider>
+          </>
+        ),
+        options: { inEditing: true },
+      }),
+    );
+    expect(await screen.findByText("Shown")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("Enter secret"));
+    await waitFor(() => expect(bodies).toHaveLength(2));
+
+    await userEvent.click(screen.getByText("Save dashboard"));
+
+    await waitFor(() => expect(bodies).toHaveLength(3));
+    expect(bodies.map((body) => body.args.api_key)).toEqual(["", SECRET, ""]);
+  });
+
+  it("a secret entered for another tile neither refetches this one nor reruns its fetch check", async () => {
+    const bodies = captureDataRequests();
+    const EnterOtherSecret = () => {
+      const { setPendingSecret } = useContext(LayoutContext);
+      return (
+        <button
+          onClick={() =>
+            setPendingSecret({
+              tile: "other-tile-uuid",
+              layer: "",
+              arg: "api_key",
+              source: "secret_plot",
+              value: SECRET,
+            })
+          }
+        >
+          Enter another tile's secret
+        </button>
+      );
+    };
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <EnterOtherSecret />
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: "secret_plot",
+                gridItemArgsString: JSON.stringify({
+                  station: "A",
+                  api_key: "",
+                }),
+                gridItemMetadataString: "{}",
+                gridItemUUID: "tile-uuid",
+                shouldLoad: true,
+              }}
+            >
+              <BaseVisualization />
+            </GridItemContext.Provider>
+          </>
+        ),
+        options: { inEditing: true },
+      }),
+    );
+    expect(await screen.findByText("Shown")).toBeInTheDocument();
+    const substitute = jest.spyOn(utilities, "updateObjectWithVariableInputs");
+    try {
+      await userEvent.click(screen.getByText("Enter another tile's secret"));
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+      expect(substitute).not.toHaveBeenCalled();
+      expect(bodies).toHaveLength(1);
+      expect(screen.getByText("Shown")).toBeInTheDocument();
+    } finally {
+      substitute.mockRestore();
+    }
+  });
+
+  it("a viewer's request never sends a pending secret", async () => {
+    const bodies = captureDataRequests();
+    renderTile({ initialDashboard: viewersDashboard });
+    expect(await screen.findByText("Shown")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("Enter secret"));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+    // Nothing but what a viewer's request can change: the station is not
+    // wired to a variable input, and the secret is the server's.
+    expect(bodies.map((body) => body.args)).toEqual([{}]);
   });
 });

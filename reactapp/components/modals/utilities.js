@@ -3,6 +3,12 @@
 // means re-checking CardHeader's max-height in landingPage/DashboardCard.js.
 export const DASHBOARD_NAME_MAX_LENGTH = 40;
 
+// How long a plugin's args must hold still in an editor before the plugin is
+// run for them: a typed arg changes at every keystroke, and each run goes to
+// the server, for the wrong value until the typing stops. The tile editor's
+// preview and the layer editor's automatic Fetch defaults both wait it.
+export const ARGS_SETTLE_MS = 500;
+
 export function getInitialInputValue(value) {
   let inputValue;
   if (value === "text") {

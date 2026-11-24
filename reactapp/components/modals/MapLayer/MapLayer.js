@@ -4,7 +4,14 @@ import useSourceArgumentDiscovery from "components/modals/MapLayer/sourceArgumen
 import Modal from "react-bootstrap/Modal";
 import styled from "styled-components";
 import Button from "react-bootstrap/Button";
-import { useState, useRef, useContext, useEffect, useCallback } from "react";
+import {
+  useState,
+  useRef,
+  useContext,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import Alert from "react-bootstrap/Alert";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
@@ -20,8 +27,10 @@ import StylePane, {
 import LabelsPane from "components/modals/MapLayer/LabelsPane";
 import PopupConfigPane from "components/modals/MapLayer/PopupConfigPane";
 import PopupLayoutEditor from "components/modals/MapLayer/PopupLayoutEditor";
+import { useDiscardSecretsEntered } from "components/inputs/SecretInput";
 import {
   AppContext,
+  GridItemContext,
   LayoutContext,
   TabContext,
   VariableInputsContext,
@@ -61,7 +70,9 @@ import {
   checkRequiredKeys,
 } from "components/modals/utilities";
 import {
+  dataRequestArgs,
   findSelectOptionByValue,
+  pendingSecretArgs,
   updateObjectWithVariableInputs,
 } from "components/visualizations/utilities";
 import { useMapContext } from "components/contexts/MapContext";
@@ -339,11 +350,27 @@ const MapLayerModal = ({
   const labelsContainerRef = useRef(null);
   const annotationsContainerRef = useRef(null);
   const outlineContainerRef = useRef(null);
-  const { csrf, mapLayerTemplates, dynamicMapLayers } = useContext(AppContext);
-  const { uuid, editable: hostDashboardEditable } = useContext(LayoutContext);
+  const { mapLayerTemplates, dynamicMapLayers } = useContext(AppContext);
+  const {
+    uuid,
+    editable: hostDashboardEditable,
+    pendingSecrets,
+    discardPendingSecrets,
+  } = useContext(LayoutContext);
   const { variableInputValues, variableInputDateFormats } = useContext(
     VariableInputsContext,
   );
+  // What the editor's plugin requests name besides the dashboard: the Map tile
+  // the layer belongs to, on a tab or in a layer popup, and the layer, once it
+  // has been saved -- the server has no layer by a new one's id yet.
+  const { gridItemUUID } = useContext(GridItemContext) ?? {};
+  const savedLayerId = layerInfo?.layerProps?.layerId;
+  // The layerId a dynamic layer is saved with. A new one is given its id now,
+  // not when first saved, so a secret entered before then is pending under
+  // the id the layer is saved with (see DashboardLoader).
+  const [draftLayerId] = useState(uuidv4);
+  const layerId = (savedLayerId ?? layerProps?.layerId) || draftLayerId;
+  const discardSecretsEntered = useDiscardSecretsEntered();
   const mapContext = useMapContext();
   // The popup layout editor and the runtime popup modal both mount their reused
   // dashboard layout under a synthetic tab, and this modal is opened from inside
@@ -362,6 +389,34 @@ const MapLayerModal = ({
   const isDynamicLayer =
     !!sourceProps?.type &&
     !!findSelectOptionByValue(dynamicMapLayers, sourceProps.type);
+  // The secrets entered for this layer's plugin and not saved, which every
+  // preview of it runs with: Fetch defaults, and the Style and Attributes
+  // tabs' field discovery. Kept as text, so a preview reruns only when this
+  // layer's own change.
+  const layerSecretKey = JSON.stringify(
+    isDynamicLayer
+      ? pendingSecretArgs(pendingSecrets, {
+          tile: gridItemUUID,
+          layer: layerId,
+          source: sourceProps?.source,
+        })
+      : {},
+  );
+  // The source props the previews read: the editor's, with those secrets in
+  // the plugin args and no blank secret arg (see dataRequestArgs). Never
+  // saved; saveLayer reads `sourceProps`.
+  const previewSourceProps = useMemo(() => {
+    if (!isDynamicLayer) return sourceProps;
+    const args = dataRequestArgs({
+      rawArgs: sourceProps.args,
+      resolvedArgs: sourceProps.args,
+      argTypes: findSelectOptionByValue(dynamicMapLayers, sourceProps.type)
+        ?.args,
+      kind: "layer",
+      allArgs: true,
+    });
+    return { ...sourceProps, args: { ...args, ...JSON.parse(layerSecretKey) } };
+  }, [isDynamicLayer, sourceProps, dynamicMapLayers, layerSecretKey]);
   // Same predicate the Style tab uses to decide a source carries per-feature
   // vector geometry. Rasters, tiles and WMS images have no features to label.
   // Annotations and Linked Extents draw what the author places, not data, so
@@ -529,7 +584,7 @@ const MapLayerModal = ({
     }
 
     if (isDecorationSourceType(sourceProps.type)) {
-      addMapLayer(
+      addLayerAndClose(
         buildDecorationLayerEntry({
           sourceType: sourceProps.type,
           layerProps: validLayerProps,
@@ -538,15 +593,11 @@ const MapLayerModal = ({
           linkedExtentStyle,
         }),
       );
-      handleModalClose();
       return;
     }
 
     let mapConfiguration;
     if (isRuntime) {
-      const existingLayerId =
-        layerInfo?.layerProps?.layerId ?? layerProps?.layerId;
-      const layerId = existingLayerId || uuidv4();
       mapConfiguration = {
         configuration: {
           type: isRuntimeGeoTIFF
@@ -595,8 +646,7 @@ const MapLayerModal = ({
         mapConfiguration.configuration.layerVisibility = false;
       }
       mapConfiguration.tablePopupType = "none";
-      addMapLayer(mapConfiguration);
-      handleModalClose();
+      addLayerAndClose(mapConfiguration);
       return;
     }
 
@@ -703,7 +753,6 @@ const MapLayerModal = ({
       if (isJsonBody) {
         const apiResponse = await saveLayerJSON({
           stringJSON: sourceProps.geojson,
-          csrf,
           check_crs: true,
           dashboard_uuid: uuid,
         });
@@ -743,7 +792,6 @@ const MapLayerModal = ({
       // earlier source type could no longer be seen or removed.
       const apiResponse = await saveLayerJSON({
         stringJSON: style,
-        csrf,
         dashboard_uuid: uuid,
       });
       if (!apiResponse.success) {
@@ -772,15 +820,39 @@ const MapLayerModal = ({
       mapConfiguration.configuration.labels = labels;
     }
 
-    addMapLayer(mapConfiguration);
+    addLayerAndClose(mapConfiguration);
+  }
+
+  // The secrets entered here stay pending until the dashboard is saved, but
+  // for those entered for a plugin the layer no longer has: another plugin,
+  // a template's source or any layer that is not a dynamic one.
+  function addLayerAndClose(entry) {
+    discardPendingSecrets?.({
+      tile: gridItemUUID,
+      layer: layerId,
+      keepSource: isDynamicLayer ? sourceProps.source : null,
+    });
+    addMapLayer(entry);
+    handleModalClose();
+  }
+
+  // Closing without saving discards every setting changed here, the secrets
+  // entered with them.
+  function closeWithoutSaving() {
+    discardSecretsEntered();
     handleModalClose();
   }
 
   const onLayoutChange = async (e) => {
     setSelectedOption(e);
     const apiResponse = await appAPI.getVisualizationData({
+      dashboard: uuid,
+      tile: gridItemUUID,
+      layer: savedLayerId,
       source: e.source,
       args: {},
+      // The layer editor is an editor's, so its requests run as sent.
+      allArgs: true,
     });
 
     if (!apiResponse.success) {
@@ -834,13 +906,11 @@ const MapLayerModal = ({
     setLegend(apiResponse.data.legend);
   };
 
-  // Which plugin is selected now, for a plugin's defaults that arrive after the
-  // author has already moved on to another.
-  const selectedPluginSourceRef = useRef(sourceProps?.source);
-  selectedPluginSourceRef.current = sourceProps?.source;
-
+  // `isCurrent` says whether this request is still the Source tab's newest: a
+  // reply that a newer request, or another plugin picked, has replaced
+  // applies nothing.
   const fetchPluginDefaults = useCallback(
-    async (source, args) => {
+    async (source, args, isCurrent) => {
       try {
         const resolvedArgs = updateObjectWithVariableInputs({
           args,
@@ -848,9 +918,31 @@ const MapLayerModal = ({
           variableInputDateFormats,
         });
         const apiResponse = await appAPI.getVisualizationData({
+          dashboard: uuid,
+          tile: gridItemUUID,
+          layer: savedLayerId,
           source,
-          args: resolvedArgs,
+          args: {
+            ...dataRequestArgs({
+              rawArgs: args,
+              resolvedArgs,
+              argTypes: findSelectOptionByValue(
+                dynamicMapLayers,
+                source,
+                "source",
+              )?.args,
+              kind: "layer",
+              allArgs: true,
+            }),
+            ...pendingSecretArgs(pendingSecrets, {
+              tile: gridItemUUID,
+              layer: layerId,
+              source,
+            }),
+          },
+          allArgs: true,
         });
+        if (!isCurrent()) return { success: false };
         if (!apiResponse.success) {
           return {
             success: false,
@@ -915,10 +1007,6 @@ const MapLayerModal = ({
         if (
           getDynamicLayerSourceType(dynamicMapLayers, { source }) === "GeoTIFF"
         ) {
-          // The author picked another plugin while this one was answering.
-          if (selectedPluginSourceRef.current !== source) {
-            return { success: true };
-          }
           const scaffoldSource = config.props?.source ?? {};
           setRasterStyle(rasterStyleSettings(config.style));
           setSourceProps((prev) => ({
@@ -944,6 +1032,11 @@ const MapLayerModal = ({
       setLegend,
       variableInputValues,
       variableInputDateFormats,
+      uuid,
+      gridItemUUID,
+      savedLayerId,
+      pendingSecrets,
+      layerId,
     ],
   );
 
@@ -951,7 +1044,7 @@ const MapLayerModal = ({
     <>
       <Modal
         show={showModal}
-        onHide={handleModalClose}
+        onHide={closeWithoutSaving}
         className={
           hiddenForMapEdit
             ? "map-layer map-layer-hidden-for-extent-draw"
@@ -1012,6 +1105,7 @@ const MapLayerModal = ({
                 onFetchPluginDefaults={fetchPluginDefaults}
                 shapefileDiscovery={shapefileDiscovery}
                 argumentDiscovery={argumentDiscovery}
+                layerId={layerId}
               />
             </Tab>
             {isAnnotations && (
@@ -1062,7 +1156,7 @@ const MapLayerModal = ({
                     setErrorMessage={setErrorMessage}
                     containerRef={styleContainerRef}
                     layerProps={layerProps}
-                    sourceProps={sourceProps}
+                    sourceProps={previewSourceProps}
                     rasterStyle={rasterStyle}
                     setRasterStyle={setRasterStyle}
                     shapefileDiscovery={shapefileDiscovery}
@@ -1114,7 +1208,7 @@ const MapLayerModal = ({
                 <AttributesPane
                   attributeProps={attributeProps}
                   setAttributeProps={setAttributeProps}
-                  sourceProps={sourceProps}
+                  sourceProps={previewSourceProps}
                   layerProps={layerProps}
                   tabKey={tabKey}
                   shapefileDiscovery={shapefileDiscovery}
@@ -1178,7 +1272,7 @@ const MapLayerModal = ({
             <RightGroup>
               <Button
                 variant="secondary"
-                onClick={handleModalClose}
+                onClick={closeWithoutSaving}
                 aria-label={"Close Layer Modal Button"}
               >
                 Close

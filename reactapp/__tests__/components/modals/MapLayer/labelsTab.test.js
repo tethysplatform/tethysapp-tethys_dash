@@ -47,9 +47,7 @@ const mountModal = ({
   dynamicMapLayers = [],
 } = {}) => {
   render(
-    <AppContext.Provider
-      value={{ csrf: "csrf", mapLayerTemplates: [], dynamicMapLayers }}
-    >
+    <AppContext.Provider value={{ mapLayerTemplates: [], dynamicMapLayers }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <TabContext.Provider value={{ activeTabId }}>
           <VariableInputsContext.Provider

@@ -333,13 +333,10 @@ test("Permission Groups Manage Modal, new Group and save New User", async () => 
 
   await userEvent.click(createGroup);
 
-  expect(mockUpdatePermissionGroup).toHaveBeenCalledWith(
-    {
-      ...expectedPermissionGroup,
-      id: null,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdatePermissionGroup).toHaveBeenCalledWith({
+    ...expectedPermissionGroup,
+    id: null,
+  });
 
   expect(mockSetSuccessMessage).toHaveBeenCalledWith(
     'Permission group "New Group" created successfully.',
@@ -407,7 +404,6 @@ test("Permission Groups Manage, admin and edit group", async () => {
 
   expect(mockUpdatePermissionGroup).toHaveBeenCalledWith(
     expectedPermissionGroup,
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 
   expect(mockSetSuccessMessage).toHaveBeenCalledWith(

@@ -1,6 +1,24 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useContext,
+  useMemo,
+} from "react";
 import axios from "axios";
-import { updateObjectWithVariableInputs } from "components/visualizations/utilities";
+import {
+  dataRequestArgs,
+  findSelectOptionByValue,
+  pendingSecretArgs,
+  storedSecretArgs,
+  updateObjectWithVariableInputs,
+} from "components/visualizations/utilities";
+import {
+  AppContext,
+  EditingContext,
+  LayoutContext,
+} from "components/contexts/Contexts";
 import { swapVectorLayerFeatures } from "components/map/utilities";
 import { rasterStyleSettings } from "components/map/geoTIFFStyle";
 import {
@@ -229,6 +247,9 @@ function changeIdentity(configuration) {
 
 export default function useRuntimeLayerFetcher({
   layers,
+  // The dashboard and the Map tile the layers belong to, which every request
+  // names along with its layer's layerId.
+  dashboardUUID,
   gridItemUUID,
   sessionNonce,
   mapRef,
@@ -265,6 +286,19 @@ export default function useRuntimeLayerFetcher({
   // label. A failed fetch leaves it alone, because the old raster is still the
   // one on screen.
   const [rasterLegendByLayerId, setRasterLegendByLayerId] = useState({});
+  // An editor's requests carry the secrets entered for their layers and not
+  // saved yet (see pendingSecretArgs); a viewer's never do. The places holding
+  // a stored secret are read too, so a save that stores or clears one
+  // refetches the layer with what is stored now.
+  const { pendingSecrets, storedSecrets, editable } =
+    useContext(LayoutContext) ?? {};
+  const { isEditing } = useContext(EditingContext) ?? {};
+  // The plugins' arg types, for the args a request sends (dataRequestArgs).
+  const { dynamicMapLayers } = useContext(AppContext) ?? {};
+  const editorSecrets = useMemo(
+    () => (isEditing ? pendingSecrets : undefined),
+    [isEditing, pendingSecrets],
+  );
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -461,14 +495,26 @@ export default function useRuntimeLayerFetcher({
   // The arguments a request is sent with, and the stamp a paint of them is
   // compared by for zoomToLayerOnChange (see zoomOnChange.js). The plugin is
   // part of the stamp's saved config, so switching it is an edit.
+  //
+  // An editor's pending secrets join the arguments sent, so entering one
+  // refetches the layer with it, but never the stamp: a secret is no variable
+  // change, and never zooms.
   const resolveLayerArgs = useCallback(
-    (pluginSource) => {
+    (pluginSource, layerId) => {
       const rawArgs = pluginSource.args ?? {};
-      const resolvedArgs = updateObjectWithVariableInputs({
+      let resolvedArgs = updateObjectWithVariableInputs({
         args: rawArgs,
         variableInputs: variableInputValues ?? {},
         variableInputDateFormats,
       });
+      const secretArgs = pendingSecretArgs(editorSecrets, {
+        tile: gridItemUUID,
+        layer: layerId,
+        source: pluginSource.source,
+      });
+      if (Object.keys(secretArgs).length > 0) {
+        resolvedArgs = { ...resolvedArgs, ...secretArgs };
+      }
       const zoomStamp = zoomStampFor(
         { source: pluginSource.source, args: rawArgs },
         variableInputValues,
@@ -476,7 +522,13 @@ export default function useRuntimeLayerFetcher({
       );
       return { resolvedArgs, zoomStamp };
     },
-    [variableInputValues, variableInputDateFormats, mapExtentVariable],
+    [
+      variableInputValues,
+      variableInputDateFormats,
+      mapExtentVariable,
+      editorSecrets,
+      gridItemUUID,
+    ],
   );
 
   const performFetch = useCallback(
@@ -513,10 +565,26 @@ export default function useRuntimeLayerFetcher({
 
       return appAPI
         .getVisualizationFeatures({
+          dashboard: dashboardUUID,
+          tile: gridItemUUID,
+          layer: layerId,
           source: pluginSource.source,
-          args: resolvedArgs,
+          // Every arg for a caller who may edit the dashboard, whose request
+          // then runs as sent; a viewer's wired ones only (dataRequestArgs).
+          args: dataRequestArgs({
+            rawArgs: pluginSource.args,
+            resolvedArgs,
+            argTypes: findSelectOptionByValue(
+              dynamicMapLayers ?? [],
+              pluginSource.source,
+              "source",
+            )?.args,
+            kind: "layer",
+            allArgs: editable,
+          }),
           requestId,
           cancelToken: cancelTokenSource.token,
+          allArgs: editable,
         })
         .then((response) => {
           if (!isMountedRef.current) return;
@@ -595,6 +663,7 @@ export default function useRuntimeLayerFetcher({
     },
     [
       sessionNonce,
+      dashboardUUID,
       gridItemUUID,
       mapRef,
       onBeforeSwap,
@@ -605,6 +674,8 @@ export default function useRuntimeLayerFetcher({
       clearLegend,
       paintRaster,
       claimGeneration,
+      dynamicMapLayers,
+      editable,
     ],
   );
 
@@ -725,8 +796,19 @@ export default function useRuntimeLayerFetcher({
 
     runtimeLayers.forEach((layer) => {
       const { layerId, pluginSource } = layer.configuration.props;
-      const { resolvedArgs, zoomStamp } = resolveLayerArgs(pluginSource);
-      const renderIdentity = changeIdentity(layer.configuration);
+      const { resolvedArgs, zoomStamp } = resolveLayerArgs(
+        pluginSource,
+        layerId,
+      );
+      // A save that stores or clears one of the layer's secrets changes what
+      // the next request runs with, though nothing the request sends changes.
+      const renderIdentity = {
+        ...changeIdentity(layer.configuration),
+        storedSecrets: storedSecretArgs(storedSecrets, {
+          tile: gridItemUUID,
+          layer: layerId,
+        }),
+      };
       const schedule = () =>
         scheduleFetch(layerId, pluginSource, resolvedArgs, renderIdentity);
 
@@ -814,7 +896,14 @@ export default function useRuntimeLayerFetcher({
       };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layers, variableInputValues, variableInputDateFormats, refreshTick]);
+  }, [
+    layers,
+    variableInputValues,
+    variableInputDateFormats,
+    refreshTick,
+    editorSecrets,
+    storedSecrets,
+  ]);
 
   return { errorsByLayerId, loadingByLayerId, rasterLegendByLayerId };
 }

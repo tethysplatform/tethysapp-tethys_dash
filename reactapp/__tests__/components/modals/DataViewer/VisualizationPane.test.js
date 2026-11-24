@@ -1,6 +1,12 @@
 import { useRef, useState, useContext } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import VisualizationPane, {
   VisualizationArguments,
 } from "components/modals/DataViewer/VisualizationPane";
@@ -14,9 +20,35 @@ import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
-import { AppContext, AppTourContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  AppTourContext,
+  GridItemContext,
+  LayoutContext,
+} from "components/contexts/Contexts";
 import { findVisualizationBySource } from "components/visualizations/utilities";
+import { ARGS_SETTLE_MS } from "components/modals/utilities";
+import appAPI from "services/api/app";
 import MapContextProvider from "components/contexts/MapContext";
+
+// A plugin tile's preview, after its first, waits for the args to hold still
+// (ARGS_SETTLE_MS). This makes a change and lets that wait pass on a fake
+// clock, so the preview starts before any reply can land, then goes back to
+// the real clock for what the test does next. No real preview timer may be
+// pending when it starts: the fake clock cannot clear one.
+function changeAndLetThePreviewStart(change) {
+  jest.useFakeTimers();
+  try {
+    change();
+    act(() => {
+      jest.advanceTimersByTime(ARGS_SETTLE_MS);
+    });
+    // Nothing was left on the fake clock for the real one to drop.
+    expect(jest.getTimerCount()).toBe(0);
+  } finally {
+    jest.useRealTimers();
+  }
+}
 
 const TestingComponent = ({
   source,
@@ -498,7 +530,7 @@ test("Visualization Pane Other Type", async () => {
   const mockSetVizMetadata = jest.fn();
   const mockSetShowingSubModal = jest.fn();
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -556,7 +588,9 @@ test("Visualization Pane Other Type", async () => {
   expect(await screen.findByText("Plugin Arg")).toBeInTheDocument();
 
   const pluginArg1Input = screen.getByLabelText("Plugin Arg Input");
-  fireEvent.change(pluginArg1Input, { target: { value: "some value" } });
+  changeAndLetThePreviewStart(() =>
+    fireEvent.change(pluginArg1Input, { target: { value: "some value" } }),
+  );
 
   expect(mockSetVizType).toHaveBeenLastCalledWith("loader");
   expect(mockSetVizData).toHaveBeenLastCalledWith({});
@@ -616,7 +650,9 @@ test("Visualization Pane Other Type", async () => {
   expect(await screen.findByText("Plugin Arg3")).toBeInTheDocument();
 
   const pluginArg3Input = screen.getByLabelText("Plugin Arg3 Input");
-  fireEvent.change(pluginArg3Input, { target: { value: "some new value" } });
+  changeAndLetThePreviewStart(() =>
+    fireEvent.change(pluginArg3Input, { target: { value: "some new value" } }),
+  );
 
   expect(mockSetVizMetadata).toHaveBeenLastCalledWith({
     source: "plugin_source3",
@@ -634,6 +670,466 @@ test("Visualization Pane Other Type", async () => {
   });
 });
 
+// Opens the pane on a new tile and picks a plugin taking one text arg, whose
+// blank first value is not previewed. Returns the arg's input.
+async function pickTextPlugin(setVizData = jest.fn()) {
+  const gridItem = JSON.parse(JSON.stringify(userDashboard)).tabs[0]
+    .gridItems[0];
+  render(
+    createLoadedComponent({
+      children: (
+        <GridItemContext.Provider value={{ gridItemUUID: "edited-tile-uuid" }}>
+          <TestingComponent
+            source={gridItem.source}
+            argsString={gridItem.args_string}
+            setGridItemMessage={jest.fn()}
+            vizType={"loader"}
+            setVizType={jest.fn()}
+            setVizData={setVizData}
+            setVizMetadata={jest.fn()}
+            setShowingSubModal={jest.fn()}
+          />
+        </GridItemContext.Provider>
+      ),
+      options: { inDataViewerMode: true },
+    }),
+  );
+  await userEvent.click(
+    await screen.findByLabelText("Search Visualization Type Button"),
+  );
+  fireEvent.click(await screen.findByText("Visualization Group"));
+  fireEvent.click(
+    await screen.findByLabelText("plugin_label Visualization Card"),
+  );
+  fireEvent.click(await screen.findByText("plugin_label"));
+  return screen.findByLabelText("Plugin Arg Input");
+}
+
+// What the plugin answers for a value: a table titled after it.
+const tableFor = (value) => ({
+  success: true,
+  viz_type: "table",
+  data: { title: value, data: [] },
+});
+
+test("a plugin tile's preview waits for typing to stop, then runs once for the whole value", async () => {
+  const spy = jest
+    .spyOn(appAPI, "getVisualizationData")
+    .mockImplementation(async ({ args }) => tableFor(args.plugin_arg));
+  try {
+    const input = await pickTextPlugin();
+
+    jest.useFakeTimers();
+    try {
+      // Keystrokes half the wait apart: none of the gaps is a pause.
+      for (const value of ["s", "so", "som", "some"]) {
+        fireEvent.change(input, { target: { value } });
+        act(() => {
+          jest.advanceTimersByTime(ARGS_SETTLE_MS / 2);
+        });
+        expect(spy).not.toHaveBeenCalled();
+      }
+      act(() => {
+        jest.advanceTimersByTime(ARGS_SETTLE_MS);
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ args: { plugin_arg: "some" } }),
+    );
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a preview's reply that a newer preview has replaced shows nothing", async () => {
+  let replyForFirst;
+  const spy = jest
+    .spyOn(appAPI, "getVisualizationData")
+    .mockImplementation(({ args }) =>
+      args.plugin_arg === "first"
+        ? new Promise((resolve) => {
+            replyForFirst = () => resolve(tableFor("first"));
+          })
+        : Promise.resolve(tableFor(args.plugin_arg)),
+    );
+  const setVizData = jest.fn();
+  try {
+    const input = await pickTextPlugin(setVizData);
+
+    // The first value's preview is held; the second's answers at once.
+    for (const value of ["first", "second"]) {
+      changeAndLetThePreviewStart(() =>
+        fireEvent.change(input, { target: { value } }),
+      );
+    }
+    await waitFor(() =>
+      expect(setVizData).toHaveBeenLastCalledWith(
+        expect.objectContaining({ title: "second" }),
+      ),
+    );
+    await act(async () => replyForFirst());
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(setVizData).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: "first" }),
+    );
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a preview's reply that lands while newer args wait to settle shows nothing", async () => {
+  let replyForFirst;
+  const spy = jest
+    .spyOn(appAPI, "getVisualizationData")
+    .mockImplementation(({ args }) =>
+      args.plugin_arg === "first"
+        ? new Promise((resolve) => {
+            replyForFirst = () => resolve(tableFor("first"));
+          })
+        : Promise.resolve(tableFor(args.plugin_arg)),
+    );
+  const setVizData = jest.fn();
+  try {
+    const input = await pickTextPlugin(setVizData);
+    changeAndLetThePreviewStart(() =>
+      fireEvent.change(input, { target: { value: "first" } }),
+    );
+
+    jest.useFakeTimers();
+    try {
+      // "second" waits to settle, and "first" answers meanwhile.
+      fireEvent.change(input, { target: { value: "second" } });
+      await act(async () => {
+        replyForFirst();
+        await spy.mock.results[0].value;
+      });
+      expect(setVizData).not.toHaveBeenCalledWith(
+        expect.objectContaining({ title: "first" }),
+      );
+      act(() => {
+        jest.advanceTimersByTime(ARGS_SETTLE_MS);
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+    await waitFor(() =>
+      expect(setVizData).toHaveBeenLastCalledWith(
+        expect.objectContaining({ title: "second" }),
+      ),
+    );
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a plugin picked from the dropdown previews at once, and its reply shows", async () => {
+  const spy = jest
+    .spyOn(appAPI, "getVisualizationData")
+    .mockImplementation(async ({ source, args }) =>
+      tableFor(`${source}: ${args.plugin_arg}`),
+    );
+  const setVizData = jest.fn();
+  try {
+    const input = await pickTextPlugin(setVizData);
+    changeAndLetThePreviewStart(() =>
+      fireEvent.change(input, { target: { value: "some value" } }),
+    );
+    await waitFor(() =>
+      expect(setVizData).toHaveBeenLastCalledWith(
+        expect.objectContaining({ title: "plugin_source: some value" }),
+      ),
+    );
+
+    // The value carries over to a plugin taking the same arg, so picking
+    // that plugin previews it at once: picking is no keystroke.
+    const [typeDropdown] = await screen.findAllByRole("combobox");
+    await userEvent.click(typeDropdown);
+    const pick = await screen.findByText("plugin_label2");
+    jest.useFakeTimers();
+    try {
+      fireEvent.click(pick);
+      // Within the pick itself, and never again after the wait for typing.
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          source: "plugin_source2",
+          args: { plugin_arg: "some value" },
+        }),
+      );
+      act(() => {
+        jest.advanceTimersByTime(ARGS_SETTLE_MS);
+      });
+      expect(spy).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+    await waitFor(() =>
+      expect(setVizData).toHaveBeenLastCalledWith(
+        expect.objectContaining({ title: "plugin_source2: some value" }),
+      ),
+    );
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("the preview names the dashboard and the tile being edited", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  const bodies = [];
+  server.use(
+    rest.post(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      async (req, res, ctx) => {
+        bodies.push(await req.json());
+        return res(
+          ctx.status(200),
+          ctx.json({ success: true, data: { text: "t" }, viz_type: "text" }),
+        );
+      },
+    ),
+  );
+
+  render(
+    createLoadedComponent({
+      children: (
+        <GridItemContext.Provider value={{ gridItemUUID: "edited-tile-uuid" }}>
+          <TestingComponent
+            source={gridItem.source}
+            argsString={gridItem.args_string}
+            setGridItemMessage={jest.fn()}
+            vizType={"loader"}
+            setVizType={jest.fn()}
+            setVizData={jest.fn()}
+            setVizMetadata={jest.fn()}
+            setShowingSubModal={jest.fn()}
+          />
+        </GridItemContext.Provider>
+      ),
+      options: { inDataViewerMode: true },
+    }),
+  );
+
+  await userEvent.click(
+    await screen.findByLabelText("Search Visualization Type Button"),
+  );
+  fireEvent.click(await screen.findByText("Visualization Group"));
+  fireEvent.click(
+    await screen.findByLabelText("plugin_label Visualization Card"),
+  );
+  fireEvent.click(await screen.findByText("plugin_label"));
+  fireEvent.change(await screen.findByLabelText("Plugin Arg Input"), {
+    target: { value: "some value" },
+  });
+
+  await waitFor(() => expect(bodies).toHaveLength(1));
+  expect(bodies[0]).toEqual({
+    dashboard: "user-uuid",
+    tile: "edited-tile-uuid",
+    source: "plugin_source",
+    args: { plugin_arg: "some value" },
+    requestId: 12345678,
+    // Only an editor previews here, and an editor's request runs as sent.
+    allArgs: true,
+  });
+});
+
+describe("a tile's secret arg", () => {
+  const SECRET = "typed-tile-s3cret";
+  const secretVisualizations = [
+    {
+      label: "Secret Group",
+      options: [
+        {
+          source: "secret_plugin",
+          value: "secret_value",
+          label: "Secret Plugin",
+          args: { station: "text", api_key: "secret" },
+          type: "text",
+          tags: [],
+          description: "",
+        },
+        {
+          source: "other_secret_plugin",
+          value: "other_secret_value",
+          label: "Other Secret Plugin",
+          args: { api_key: "secret" },
+          type: "text",
+          tags: [],
+          description: "",
+        },
+      ],
+    },
+  ];
+  const tilePath = { tile: "edited-tile-uuid", layer: "", arg: "api_key" };
+  const argsString = JSON.stringify({ station: "A", api_key: "" });
+
+  const PendingCount = () => {
+    const { pendingSecrets } = useContext(LayoutContext);
+    return (
+      <p data-testid="pending-count">{Object.keys(pendingSecrets).length}</p>
+    );
+  };
+
+  const showPane = (storedSecrets) => {
+    const dashboards = JSON.parse(JSON.stringify(mockedDashboards));
+    dashboards.dashboards[0].tabs[0].gridItems = [
+      {
+        id: 1,
+        uuid: "edited-tile-uuid",
+        i: "1",
+        x: 0,
+        y: 0,
+        w: 20,
+        h: 20,
+        source: "secret_plugin",
+        args_string: argsString,
+        metadata_string: "{}",
+      },
+    ];
+    dashboards.dashboards[0].storedSecrets = storedSecrets;
+    const bodies = [];
+    server.use(
+      rest.post(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        async (req, res, ctx) => {
+          bodies.push(await req.json());
+          return res(
+            ctx.status(200),
+            ctx.json({ success: true, data: { text: "t" }, viz_type: "text" }),
+          );
+        },
+      ),
+    );
+    render(
+      createLoadedComponent({
+        children: (
+          <GridItemContext.Provider
+            value={{ gridItemUUID: "edited-tile-uuid" }}
+          >
+            <TestingComponent
+              source="secret_plugin"
+              argsString={argsString}
+              setGridItemMessage={jest.fn()}
+              vizType={"loader"}
+              setVizType={jest.fn()}
+              setVizData={jest.fn()}
+              setVizMetadata={jest.fn()}
+              setShowingSubModal={jest.fn()}
+            />
+            <PendingCount />
+            <button>Elsewhere</button>
+          </GridItemContext.Provider>
+        ),
+        options: {
+          inDataViewerMode: true,
+          dashboards,
+          visualizations: secretVisualizations,
+        },
+      }),
+    );
+    return bodies;
+  };
+
+  test("the preview runs with the secret entered before the tile is saved, which the tile's args never hold", async () => {
+    const bodies = showPane([]);
+
+    // A missing secret does not hold the preview back: the server answers
+    // for it. The preview sends every other arg, and never a blank secret.
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toMatchObject({
+      tile: "edited-tile-uuid",
+      source: "secret_plugin",
+    });
+    expect(bodies[0].args).toEqual({ station: "A" });
+    expect(screen.getByText(/This tile needs a secret/)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Api Key Input"), SECRET);
+    await userEvent.click(screen.getByText("Elsewhere"));
+
+    await waitFor(() =>
+      expect(bodies.at(-1).args).toEqual({ station: "A", api_key: SECRET }),
+    );
+    expect(screen.getByTestId("viz-input-values")).toHaveTextContent(
+      JSON.stringify({ station: "A", api_key: "" }),
+    );
+    expect(document.body.innerHTML).not.toContain(SECRET);
+  });
+
+  test("a stored secret shows as set", async () => {
+    showPane([tilePath]);
+
+    expect(await screen.findByText("Secret set")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Api Key Input")).not.toBeInTheDocument();
+  });
+
+  test("switching the plugin shows neither the secret entered for the old one, which is kept until the tile is saved, nor its stored secret", async () => {
+    showPane([tilePath]);
+    await userEvent.click(await screen.findByLabelText("Replace Api Key"));
+    await userEvent.type(screen.getByLabelText("Api Key Input"), SECRET);
+    await userEvent.click(screen.getByText("Elsewhere"));
+    expect(screen.getByTestId("pending-count")).toHaveTextContent("1");
+
+    const comboboxes = await screen.findAllByRole("combobox");
+    await userEvent.click(comboboxes[0]);
+    fireEvent.click(await screen.findByText("Other Secret Plugin"));
+
+    expect(
+      await screen.findByText(/This tile needs a secret/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Secret set")).not.toBeInTheDocument();
+    expect(screen.queryByText(/New secret entered/)).not.toBeInTheDocument();
+    // Discarded when the tile is saved with the other plugin, so closing the
+    // editor without saving loses nothing (see DataViewer).
+    expect(screen.getByTestId("pending-count")).toHaveTextContent("1");
+  });
+
+  test("a plugin picked through the search, with a secret pending, previews at once with its own args", async () => {
+    const bodies = showPane([tilePath]);
+    await userEvent.click(await screen.findByLabelText("Replace Api Key"));
+    await userEvent.type(screen.getByLabelText("Api Key Input"), SECRET);
+    await userEvent.click(screen.getByText("Elsewhere"));
+    await waitFor(() =>
+      expect(bodies.at(-1)?.args).toEqual({ station: "A", api_key: SECRET }),
+    );
+
+    await userEvent.click(
+      await screen.findByLabelText("Search Visualization Type Button"),
+    );
+    fireEvent.click(await screen.findByText("Secret Group"));
+    // Clicking a plugin's card picks it.
+    const pick = await screen.findByLabelText(
+      "Other Secret Plugin Visualization Card",
+    );
+    const spy = jest.spyOn(appAPI, "getVisualizationData").mockResolvedValue({
+      success: true,
+      data: { text: "t" },
+      viz_type: "text",
+    });
+    jest.useFakeTimers();
+    try {
+      fireEvent.click(pick);
+      // Within the pick itself, and never with the station the previous
+      // plugin took; nor again after the wait for typing.
+      expect(spy.mock.calls.map(([request]) => request)).toEqual([
+        expect.objectContaining({ source: "other_secret_plugin", args: {} }),
+      ]);
+      act(() => {
+        jest.advanceTimersByTime(ARGS_SETTLE_MS);
+      });
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+      spy.mockRestore();
+    }
+  });
+});
+
 test("Visualization Pane Other Type Checkbox", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.tabs[0].gridItems[0];
@@ -644,7 +1140,7 @@ test("Visualization Pane Other Type Checkbox", async () => {
   const mockSetVizMetadata = jest.fn();
   const mockSetShowingSubModal = jest.fn();
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -755,13 +1251,16 @@ test("Visualization Pane Other Type Checkbox", async () => {
   const falseOption = await screen.findByText("False");
   await userEvent.click(falseOption);
 
-  expect(mockSetVizMetadata).toHaveBeenLastCalledWith({
-    source: "plugin_source_checkbox",
-    args: {
-      plugin_arg: false,
-    },
-    requestId: 12345678,
-  });
+  // Previewed once the args have held still.
+  await waitFor(() =>
+    expect(mockSetVizMetadata).toHaveBeenLastCalledWith({
+      source: "plugin_source_checkbox",
+      args: {
+        plugin_arg: false,
+      },
+      requestId: 12345678,
+    }),
+  );
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify({
       plugin_arg: false,
@@ -772,13 +1271,15 @@ test("Visualization Pane Other Type Checkbox", async () => {
   const variableOption = await screen.findByText("Test Variable");
   await userEvent.click(variableOption);
 
-  expect(mockSetVizMetadata).toHaveBeenLastCalledWith({
-    source: "plugin_source_checkbox",
-    args: {
-      plugin_arg: "",
-    },
-    requestId: 12345678,
-  });
+  await waitFor(() =>
+    expect(mockSetVizMetadata).toHaveBeenLastCalledWith({
+      source: "plugin_source_checkbox",
+      args: {
+        plugin_arg: "",
+      },
+      requestId: 12345678,
+    }),
+  );
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify({
       // eslint-disable-next-line
@@ -798,7 +1299,7 @@ test("Visualization Pane Viz With Empty Args", async () => {
   const mockSetVizMetadata = jest.fn();
   const mockSetShowingSubModal = jest.fn();
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -1672,8 +2173,12 @@ test("Visualization Pane Subs Args", async () => {
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
     "Cell updated to show plugin_label",
   );
-  expect(mockSetVizType).toHaveBeenLastCalledWith("loader");
-  expect(mockSetVizData).toHaveBeenLastCalledWith({});
+  // The preview started, and its reply landed: it waited for the args to
+  // hold still, so the reply can already be in by the time they are seen.
+  expect(mockSetVizType).toHaveBeenCalledWith("loader");
+  await waitFor(() =>
+    expect(mockSetVizType).toHaveBeenLastCalledWith("plotly"),
+  );
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify({
       plugin_arg: "arg1",
@@ -1704,7 +2209,10 @@ test("Visualization Pane Subs Args", async () => {
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
     "Cell updated to show plugin_label",
   );
-  expect(mockSetVizType).toHaveBeenLastCalledWith("loader");
+  // That preview's reply landed too.
+  await waitFor(() =>
+    expect(mockSetVizType).toHaveBeenLastCalledWith("plotly"),
+  );
   expect(mockSetVizData).toHaveBeenLastCalledWith({
     config: undefined,
     data: undefined,

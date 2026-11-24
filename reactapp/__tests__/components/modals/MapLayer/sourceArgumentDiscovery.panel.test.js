@@ -40,7 +40,7 @@ function renderPane({
 }) {
   render(
     <AppContext.Provider
-      value={{ dynamicMapLayers: [], mapLayerTemplates: [], csrf: "x" }}
+      value={{ dynamicMapLayers: [], mapLayerTemplates: [] }}
     >
       <LayoutContext.Provider value={{ uuid: "uuid" }}>
         <VariableInputsContext.Provider
@@ -256,7 +256,7 @@ describe("source argument discovery in the editor", () => {
   it("renders without a discovery hook at all", async () => {
     render(
       <AppContext.Provider
-        value={{ dynamicMapLayers: [], mapLayerTemplates: [], csrf: "x" }}
+        value={{ dynamicMapLayers: [], mapLayerTemplates: [] }}
       >
         <LayoutContext.Provider value={{ uuid: "uuid" }}>
           <VariableInputsContext.Provider

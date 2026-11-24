@@ -23,6 +23,7 @@ import {
   applyBatchIdentityRules,
   applyItemIdentityRules,
   applyLegacyRasterStyleRules,
+  applySecretArgRules,
 } from "components/dashboard/importIdentity";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
@@ -31,6 +32,7 @@ import {
   getGridItem,
   downloadJSONFile,
   findVisualizationBySource,
+  secretArgsBySource,
 } from "components/visualizations/utilities";
 import {
   useLayoutSuccessAlertContext,
@@ -255,7 +257,22 @@ export const handleGridItemExport = async (gridItem, dashboard_uuid) => {
   return exportedGridItem;
 };
 
-export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
+/**
+ * Prepare one grid item from an import file to be saved to a dashboard.
+ *
+ * @param {object} gridItem the grid item as the file holds it
+ * @param {string} dashboard_uuid the dashboard its layer files are stored under
+ * @param {Map<string, Set<string>>} [secretArgsOf] plugin source -> its secret
+ *   arg names (`secretArgsBySource`), whose values are blanked; a plugin it
+ *   does not list is left as it is
+ * @returns {Promise<object>} `{success: true, importedGridItem}`, or
+ *   `{success: false, message}`
+ */
+export const handleGridItemImport = async (
+  gridItem,
+  dashboard_uuid,
+  secretArgsOf = new Map(),
+) => {
   let importedGridItem = JSON.parse(JSON.stringify(gridItem));
   // Hand-authored and script-generated files are the input class this whole
   // path serves, so a malformed `args_string` is expected traffic. Neither
@@ -318,6 +335,11 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
   // reads. Converted first, so the walk below sees the shape it keeps: a
   // raster's style is its settings, and stays inline rather than uploaded.
   importedGridItem = applyLegacyRasterStyleRules(importedGridItem);
+  // A secret is stored for one tile of one dashboard and is never in args, so
+  // a value a file holds for one -- typically a hand-written file -- is not
+  // carried into this dashboard. The arg arrives blank and the author enters
+  // the secret again. Blanked first, so nothing below handles the value.
+  importedGridItem = applySecretArgRules(importedGridItem, secretArgsOf);
 
   if (importedGridItem.source === "Map") {
     if (
@@ -347,7 +369,6 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
             stringJSON: JSON.stringify(
               mapLayer.configuration.props.source.geojson,
             ),
-            csrf,
             check_crs: true,
             dashboard_uuid,
           });
@@ -369,7 +390,6 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
         if (mapLayer.configuration.style && !isRasterStyle) {
           const apiResponse = await saveLayerJSON({
             stringJSON: JSON.stringify(mapLayer.configuration.style),
-            csrf,
             check_crs: false,
             dashboard_uuid,
           });
@@ -437,7 +457,7 @@ const DashboardItem = () => {
     VariableInputsContext,
   );
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
-  const { visualizations } = useContext(AppContext);
+  const { visualizations, dynamicMapLayers } = useContext(AppContext);
   const { uuid } = useContext(LayoutContext);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const [attribution, setAttribution] = useState(
@@ -593,6 +613,12 @@ const DashboardItem = () => {
     // is how these two drifted apart in the first place. The args here are still
     // a JSON string; the applier hands one back.
     newGridItem = applyItemIdentityRules(newGridItem);
+    // A copy never carries a secret: the original's is stored for the
+    // original alone, so the copy's secret args start blank, popups included.
+    newGridItem = applySecretArgRules(
+      newGridItem,
+      secretArgsBySource(visualizations, dynamicMapLayers),
+    );
     // R28/AE9: the copy stays in the same view group but never inherits the
     // group's initial-extent flag -- two flagged members would make the group's
     // opening view depend on the order the dashboard is scanned in. Expressed as

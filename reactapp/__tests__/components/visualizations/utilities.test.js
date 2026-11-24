@@ -3,6 +3,8 @@
 // literal `${...}` strings appear throughout test names and assertions on
 // purpose, so disable the missing-backtick lint at the file level.
 import {
+  dataRequestArgs,
+  isDateArgType,
   getVisualization,
   getGridItem,
   updateObjectWithVariableInputs,
@@ -24,6 +26,12 @@ import {
   getPublishedVariableInputValues,
   getVariableInputDateFormat,
   buildPreloadedRequestKey,
+  SECRET_ARG_TYPE,
+  secretArgNames,
+  secretArgsBySource,
+  secretPlaceKey,
+  pendingSecretArgs,
+  storedSecretArgs,
 } from "components/visualizations/utilities";
 import appAPI from "services/api/app";
 import {
@@ -51,7 +59,7 @@ beforeEach(() => {
 
 test("getVisualization bad response", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -88,7 +96,7 @@ test("getVisualization bad response", async () => {
 
 test("getVisualization bad response with custom messaging", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -129,7 +137,7 @@ test("getVisualization bad response with custom messaging", async () => {
 
 test("getVisualization bad type", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -169,7 +177,7 @@ test("getVisualization bad type", async () => {
 test("getVisualization plotly", async () => {
   const plotData = { data: {}, layout: {} };
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -225,7 +233,7 @@ test("getVisualization plotly passes through subplot toggle opt-in keys", async 
     min_plot_width: 1200,
   };
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -263,7 +271,7 @@ test("getVisualization plotly passes through subplot toggle opt-in keys", async 
 
 test("getVisualization image", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -305,7 +313,7 @@ test("getVisualization image", async () => {
 test("getVisualization image caches result, skips repeat request, refresh bypasses", async () => {
   let requestCount = 0;
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         requestCount += 1;
@@ -377,7 +385,7 @@ test("getVisualization image caches result, skips repeat request, refresh bypass
 test("getVisualization does not cache an image whose date arg is the 'latest' preset", async () => {
   let requestCount = 0;
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         requestCount += 1;
@@ -479,7 +487,7 @@ test("image cache evicts the least-recently-used entry past the limit", () => {
 
 test("getVisualization, empty variable and no custom messaging", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -518,7 +526,7 @@ test("getVisualization, empty variable and no custom messaging", async () => {
 
 test("getVisualization, empty variable and custom messaging", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -566,7 +574,7 @@ test("getVisualization table", async () => {
     subtitle: "Some Subtitle",
   };
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -612,7 +620,7 @@ test("getVisualization card", async () => {
     description: "Some Description",
   };
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -659,7 +667,7 @@ test("getVisualization map", async () => {
     legend: [],
   };
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -954,7 +962,7 @@ test("getVisualization custom", async () => {
     props: {},
   };
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -997,7 +1005,7 @@ test("getVisualization custom", async () => {
 
 test("getVisualization text", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -1036,7 +1044,7 @@ test("getVisualization text", async () => {
 
 test("getVisualization variable input", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -1085,7 +1093,7 @@ test("getVisualization variable input", async () => {
 test("getVisualization Live Chat", async () => {
   const date = Date.now();
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -1151,7 +1159,7 @@ test("getVisualization imageCollection", async () => {
     columns: 2,
   };
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -3058,5 +3066,403 @@ describe("preloaded visualization cache", () => {
     });
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy.mock.calls[0][0].args).toEqual({ region: "east" });
+  });
+});
+
+describe("getVisualization's data request", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  const run = () => {
+    const setVizType = jest.fn();
+    const setVizData = jest.fn();
+    return getVisualization({
+      setVizType,
+      setVizData,
+      sourceType: "text",
+      sourceArgs: { station: "text" },
+      itemData: { source: "station_text", args: {}, requestId: "tile-uuid" },
+      dashboardUUID: "dash-uuid",
+      tileUUID: "tile-uuid",
+      argsString: JSON.stringify({ station: "${Station}" }),
+      metadataString: "{}",
+      variableInputValues: { Station: "ABC" },
+      dashboardView: true,
+    }).then(() => ({ setVizType, setVizData }));
+  };
+
+  it("names the dashboard and the tile, and sends the resolved args only", async () => {
+    const spy = jest.spyOn(appAPI, "getVisualizationData").mockResolvedValue({
+      success: true,
+      viz_type: "text",
+      data: { text: "" },
+    });
+
+    await run();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0]).toEqual({
+      dashboard: "dash-uuid",
+      tile: "tile-uuid",
+      source: "station_text",
+      args: { station: "ABC" },
+      requestId: "tile-uuid",
+    });
+  });
+
+  it("shows the server's refusal as the tile's error", async () => {
+    jest.spyOn(appAPI, "getVisualizationData").mockResolvedValue({
+      success: false,
+      viz_type: null,
+      data: {
+        error:
+          "This dashboard has changed. Reload it to see the latest version.",
+      },
+    });
+
+    const { setVizType, setVizData } = await run();
+
+    expect(setVizType).toHaveBeenLastCalledWith("vizError");
+    expect(setVizData).toHaveBeenLastCalledWith({
+      error: "This dashboard has changed. Reload it to see the latest version.",
+    });
+  });
+});
+
+/* eslint-disable no-template-curly-in-string */
+describe("dataRequestArgs", () => {
+  const rawArgs = {
+    station: "${Station}",
+    title: "Flow at ${Station}",
+    filter: { ids: ["${Station}", "fixed"] },
+    start: "now-1D",
+    plot: "flow",
+    api_key: "",
+  };
+  const resolvedArgs = {
+    station: "USGS01",
+    title: "Flow at USGS01",
+    filter: { ids: ["USGS01", "fixed"] },
+    start: "2026-11-22T00:00:00-07:00",
+    plot: "flow",
+    api_key: "",
+  };
+  const argTypes = {
+    station: "text",
+    title: "text",
+    filter: "text",
+    start: "date",
+    plot: "text",
+    api_key: "secret",
+  };
+
+  test("for anyone else, a tile sends its wired args and its date args, and nothing else", () => {
+    expect(
+      dataRequestArgs({
+        rawArgs,
+        resolvedArgs,
+        argTypes,
+        kind: "tile",
+        allArgs: false,
+      }),
+    ).toEqual({
+      station: "USGS01",
+      title: "Flow at USGS01",
+      filter: { ids: ["USGS01", "fixed"] },
+      start: "2026-11-22T00:00:00-07:00",
+    });
+  });
+
+  test("a dynamic layer resolves no dates, so sends a date arg only when it is wired", () => {
+    expect(
+      Object.keys(
+        dataRequestArgs({
+          rawArgs,
+          resolvedArgs,
+          argTypes,
+          kind: "layer",
+          allArgs: false,
+        }),
+      ),
+    ).toEqual(["station", "title", "filter"]);
+  });
+
+  test("for a caller who may edit, every arg is sent, but never a blank secret, and a typed one is", () => {
+    expect(
+      dataRequestArgs({
+        rawArgs,
+        resolvedArgs,
+        argTypes,
+        kind: "tile",
+        allArgs: true,
+      }),
+    ).toEqual({
+      station: "USGS01",
+      title: "Flow at USGS01",
+      filter: { ids: ["USGS01", "fixed"] },
+      start: "2026-11-22T00:00:00-07:00",
+      plot: "flow",
+    });
+    expect(
+      dataRequestArgs({
+        rawArgs,
+        resolvedArgs: { ...resolvedArgs, api_key: "typed" },
+        argTypes,
+        kind: "tile",
+        allArgs: true,
+      }).api_key,
+    ).toBe("typed");
+  });
+
+  test("every arg type containing date is a date", () => {
+    expect(
+      ["date", "date-hour", "date-range", "text", ["a"], undefined].map(
+        isDateArgType,
+      ),
+    ).toEqual([true, true, true, false, false, false]);
+  });
+});
+/* eslint-enable no-template-curly-in-string */
+
+describe("secret args", () => {
+  const SECRET = "typed-s3cret";
+
+  test("secretArgNames lists the args typed secret", () => {
+    expect(SECRET_ARG_TYPE).toBe("secret");
+    expect(
+      secretArgNames({ station: "text", api_key: "secret", token: "secret" }),
+    ).toEqual(["api_key", "token"]);
+    expect(secretArgNames({ layers: ["a", "b"] })).toEqual([]);
+    expect(secretArgNames(undefined)).toEqual([]);
+  });
+
+  test("secretArgsBySource maps each listed plugin to its secret args", () => {
+    const bySource = secretArgsBySource(
+      [
+        {
+          label: "Plugins",
+          options: [
+            { source: "secret_plugin", args: { a: "text", key: "secret" } },
+            { source: "plain_plugin", args: { a: "text" } },
+          ],
+        },
+      ],
+      [
+        {
+          label: "Layers",
+          options: [{ source: "layer", args: { t: "secret" } }],
+        },
+      ],
+      undefined,
+    );
+
+    expect([...bySource.keys()]).toEqual([
+      "secret_plugin",
+      "plain_plugin",
+      "layer",
+    ]);
+    expect([...bySource.get("secret_plugin")]).toEqual(["key"]);
+    expect(bySource.get("plain_plugin").size).toBe(0);
+    expect([...bySource.get("layer")]).toEqual(["t"]);
+    // A plugin that is not installed is not listed: nothing is known of it.
+    expect(bySource.has("missing_plugin")).toBe(false);
+  });
+
+  test("secretPlaceKey names a place by tile in any case, layer and arg", () => {
+    expect(secretPlaceKey({ tile: "Tile-A", arg: "api_key" })).toBe(
+      secretPlaceKey({ tile: "tile-a", layer: "", arg: "api_key" }),
+    );
+    expect(
+      secretPlaceKey({ tile: "tile-a", layer: "layer-1", arg: "token" }),
+    ).not.toBe(secretPlaceKey({ tile: "tile-a", layer: "", arg: "token" }));
+  });
+
+  test("pendingSecretArgs gives a place's pending sets for its plugin only", () => {
+    const pending = {
+      a: {
+        tile: "TILE",
+        layer: "",
+        arg: "api_key",
+        source: "plugin_a",
+        value: SECRET,
+      },
+      b: {
+        tile: "tile",
+        layer: "",
+        arg: "other",
+        source: "plugin_b",
+        value: "for-another-plugin",
+      },
+      c: {
+        tile: "tile",
+        layer: "",
+        arg: "cleared",
+        source: "plugin_a",
+        value: null,
+      },
+      d: {
+        tile: "tile",
+        layer: "layer-1",
+        arg: "token",
+        source: "plugin_a",
+        value: "for-a-layer",
+      },
+    };
+
+    expect(
+      pendingSecretArgs(pending, {
+        tile: "tile",
+        layer: "",
+        source: "plugin_a",
+      }),
+    ).toEqual({ api_key: SECRET });
+    expect(
+      pendingSecretArgs(pending, {
+        tile: "tile",
+        layer: "layer-1",
+        source: "plugin_a",
+      }),
+    ).toEqual({ token: "for-a-layer" });
+    expect(
+      pendingSecretArgs(undefined, { tile: "tile", source: "plugin_a" }),
+    ).toEqual({});
+  });
+
+  test("storedSecretArgs lists the args a place holds a stored secret for", () => {
+    const stored = [
+      { tile: "tile", layer: "", arg: "b_key" },
+      { tile: "TILE", layer: "", arg: "a_key" },
+      { tile: "tile", layer: "layer-1", arg: "token" },
+      { tile: "other", layer: "", arg: "c_key" },
+    ];
+    expect(storedSecretArgs(stored, { tile: "tile", layer: "" })).toEqual([
+      "a_key",
+      "b_key",
+    ]);
+    expect(
+      storedSecretArgs(stored, { tile: "tile", layer: "layer-1" }),
+    ).toEqual(["token"]);
+    expect(storedSecretArgs(undefined, { tile: "tile" })).toEqual([]);
+  });
+
+  describe("in a tile's data request", () => {
+    const DATA_URL = "http://api.test/apps/tethysdash/visualizations/get/";
+
+    const captureDataRequests = (vizType = "text", data = { text: "ok" }) => {
+      const bodies = [];
+      server.use(
+        rest.post(DATA_URL, async (req, res, ctx) => {
+          bodies.push(await req.json());
+          return res(
+            ctx.status(200),
+            ctx.json({ success: true, viz_type: vizType, data }),
+          );
+        }),
+      );
+      return bodies;
+    };
+
+    const request = (overrides) => {
+      const itemData = { source: "secret_plugin", requestId: "request-id" };
+      return {
+        itemData,
+        params: {
+          setVizType: jest.fn(),
+          setVizData: jest.fn(),
+          sourceType: "text",
+          sourceArgs: { station: "text", api_key: "secret" },
+          itemData,
+          dashboardUUID: "dash-uuid",
+          tileUUID: "tile-uuid",
+          metadataString: "{}",
+          argsString: JSON.stringify({ station: "A", api_key: "" }),
+          variableInputValues: {},
+          ...overrides,
+        },
+      };
+    };
+
+    test("an editor's request sends the secret entered for the tile, which the tile's args never hold", async () => {
+      const bodies = captureDataRequests();
+      const { itemData, params } = request({
+        secretArgs: { api_key: SECRET },
+        allArgs: true,
+      });
+
+      await getVisualization(params);
+
+      expect(bodies).toEqual([
+        {
+          dashboard: "dash-uuid",
+          tile: "tile-uuid",
+          source: "secret_plugin",
+          args: { station: "A", api_key: SECRET },
+          requestId: "request-id",
+          allArgs: true,
+        },
+      ]);
+      expect(itemData.args).toEqual({ station: "A", api_key: "" });
+    });
+
+    test("a viewer's request sends only the wired and date args, and an editor's every arg, saying so", async () => {
+      const bodies = captureDataRequests();
+      const withWiring = (allArgs) =>
+        request({
+          sourceArgs: { station: "text", plot: "text", start: "date" },
+          argsString: JSON.stringify({
+            // eslint-disable-next-line no-template-curly-in-string
+            station: "${Station}",
+            plot: "flow",
+            start: "2026-11-01",
+          }),
+          variableInputValues: { Station: "USGS01" },
+          allArgs,
+        }).params;
+
+      await getVisualization(withWiring(false));
+      await getVisualization(withWiring(true));
+
+      expect(bodies.map((body) => Object.keys(body.args).sort())).toEqual([
+        ["start", "station"],
+        ["plot", "start", "station"],
+      ]);
+      expect(bodies[0].args.station).toBe("USGS01");
+      expect(bodies.map((body) => body.allArgs)).toEqual([undefined, true]);
+    });
+
+    test("a request with no secret entered leaves the secret arg out, which runs the stored one", async () => {
+      const bodies = captureDataRequests();
+
+      await getVisualization(request({ secretArgs: {}, allArgs: true }).params);
+      await getVisualization(request().params);
+
+      // For a caller who may edit every other arg goes; for anyone else only
+      // the wired ones, and the station is not wired.
+      expect(bodies.map((body) => body.args)).toEqual([{ station: "A" }, {}]);
+    });
+
+    test("a plugin that takes a secret never has its image cached", async () => {
+      clearImageVizCache();
+      const bodies = captureDataRequests("image", "image_path");
+      const imageRequest = (secretArgs) =>
+        request({ sourceType: "image", secretArgs }).params;
+
+      await getVisualization(imageRequest({ api_key: SECRET }));
+      await getVisualization(imageRequest({ api_key: "another-secret" }));
+      await getVisualization(imageRequest(undefined));
+
+      expect(bodies.map((body) => body.args.api_key)).toEqual([
+        SECRET,
+        "another-secret",
+        undefined,
+      ]);
+      expect(
+        getCachedImageViz(
+          buildImageVizCacheKey({
+            source: "secret_plugin",
+            args: { station: "A", api_key: "" },
+          }),
+        ),
+      ).toBeUndefined();
+    });
   });
 });

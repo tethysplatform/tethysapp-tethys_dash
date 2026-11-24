@@ -11,7 +11,11 @@ import { getLayerAttributes } from "components/map/utilities";
 import { resolveTablePopupType } from "components/map/popupAttributes";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import PropTypes from "prop-types";
-import { AppContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  GridItemContext,
+  LayoutContext,
+} from "components/contexts/Contexts";
 
 jest.mock("components/map/utilities", () => {
   const originalModule = jest.requireActual("components/map/utilities");
@@ -104,6 +108,39 @@ test("AttributesPane successful query no attributes", async () => {
   ).toBeInTheDocument();
   expect(screen.getByText("states")).toBeInTheDocument();
   expect(await screen.findByLabelText("name Input 0")).toHaveValue("");
+});
+
+test("AttributesPane queries under the layer's dashboard, map tile and layer", async () => {
+  mockedGetLayerAttributes.mockResolvedValue({});
+  const sourceProps = {
+    type: "WMS",
+    props: {
+      url: "http://localhost:8081/geoserver/wms",
+      params: { LAYERS: "topp:states" },
+    },
+  };
+  render(
+    <LayoutContext.Provider value={{ uuid: "dash-uuid" }}>
+      <GridItemContext.Provider value={{ gridItemUUID: "map-tile-uuid" }}>
+        <TestingComponent
+          sourceProps={sourceProps}
+          layerProps={{ name: "states", layerId: "layer-9" }}
+          tabKey={"attributes"}
+        />
+      </GridItemContext.Provider>
+    </LayoutContext.Provider>,
+  );
+
+  await waitFor(() =>
+    expect(mockedGetLayerAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceProps,
+        dashboard_uuid: "dash-uuid",
+        tileUUID: "map-tile-uuid",
+        layerId: "layer-9",
+      }),
+    ),
+  );
 });
 
 test("AttributesPane successful query no initial variables or popups", async () => {

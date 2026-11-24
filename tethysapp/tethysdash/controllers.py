@@ -14,6 +14,9 @@ from django.core.exceptions import RequestDataTooBig
 from tethys_sdk.permissions import has_permission
 from django.contrib.sessions.backends.db import SessionStore
 from django.conf import settings
+from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.debug import sensitive_variables
 from tethys_sdk.routing import controller
 from tethysapp.tethysdash.app import App
 from tethysapp.tethysdash.model import (
@@ -38,20 +41,35 @@ from tethysapp.tethysdash.model import (
     can_edit_dashboard,
     can_view_dashboard,
     read_layer_file,
+    secret_args_lookup,
     store_layer_file,
 )
 from django.core.cache import cache
 from tethysapp.tethysdash.visualizations import (
+    MODE_FEATURES,
+    DataRequest,
     get_available_visualizations,
+    get_chat_history,
     get_visualization,
     get_restricted_visualizations,
+    prepare_run_args,
+    secret_values_of,
 )
+from tethysapp.tethysdash.saved_settings import LIVE_CHAT, blank_secret_args
+from tethysapp.tethysdash.tile_secrets import redact
 from tethysapp.tethysdash.auth import require_login
 from tethysapp.tethysdash.exceptions import (
+    DATA_REQUEST_FAILED,
     INVALID_FILE_PATH,
+    PAGE_OUT_OF_DATE,
+    DashboardNotFound,
+    DashboardUpdateRefused,
+    DataRequestRefused,
     LayerStorageQuotaExceeded,
+    SecretChangeRefused,
     UnsafePath,
     VisualizationError,
+    request_too_large_message,
 )
 from tethysapp.tethysdash.utilities import sanitize_json_values
 from sqlalchemy.exc import SQLAlchemyError
@@ -156,12 +174,21 @@ def _get_main_bundle_path(request):
 
 
 @controller(login_required=False)
+@ensure_csrf_cookie
+@never_cache
 def home(request):
     """
     Controller for the app home page.
 
     Renders the main application interface by loading the React frontend
     through the index.html template.
+
+    Every visitor, signed in or not, leaves with a CSRF cookie, and the page
+    carries the token and the cookie's name for the frontend's request
+    interceptor (``services/api/client.js``), which falls back to the embedded
+    token when the cookie cannot be read. The shell is never cached, so a cached
+    copy cannot hand out a stale token. Both decorators sit beneath
+    ``@controller``, which registers the function it is given.
 
     Args:
         request: Django HTTP request object
@@ -173,7 +200,10 @@ def home(request):
     return App.render(
         request,
         "index.html",
-        context={"main_bundle_path": _get_main_bundle_path(request)},
+        context={
+            "main_bundle_path": _get_main_bundle_path(request),
+            "csrf_cookie_name": settings.CSRF_COOKIE_NAME,
+        },
     )
 
 
@@ -266,55 +296,143 @@ def ping(request):
         return JsonResponse({"status": -1, "EXPIRE_AFTER": 0, "WARN_AFTER": 0})
 
 
-@api_view(["GET"])
-@controller(url="tethysdash/visualizations/get", login_required=False)
-def visualization(request):
-    """
-    API controller for retrieving visualization data.
+def _scrubbed_log(text, secret_values):
+    """Log a line scrubbed of a request's secret values (see tile_secrets.redact)."""
+    print(redact(text, secret_values))
 
-    Fetches visualization data based on the provided source and arguments.
-    Handles visualization errors and returns appropriate responses.
+
+def _data_error(message, secret_values=(), status=200, log=None):
+    """
+    The response to a data request that was refused or failed.
+
+    Every error the data endpoint returns, and every line it logs about one, goes
+    through here, so what reaches the browser and the log is decided in one place.
+    Both are scrubbed of the run's secret values, an editor's typed ones included,
+    and of any URL password (see tile_secrets.redact).
 
     Args:
-        request: Django HTTP request object with query parameters:
-            - source: String identifying the visualization source
-            - args: JSON string containing visualization arguments
+        message (str): The error the browser shows
+        secret_values (sequence): The secret values of the request's run
+        status (int): The HTTP status
+        log: What to log, if anything
 
     Returns:
-        JsonResponse: Dictionary containing:
-            - success: Boolean indicating if the request was successful
-            - data: Visualization data or error information
-            - viz_type: Type of visualization returned
+        JsonResponse: ``{"success": False, "data": {"error": message},
+            "viz_type": None}``
     """
-    viz_source = request.GET["source"]
-    viz_args = json.loads(request.GET["args"])
-    viz_request_id = request.GET.get("requestId")
-    mode = request.GET.get("mode", "scaffold")
-    data = None
-    viz_type = None
-    success = True
+    if log is not None:
+        _scrubbed_log(log, secret_values)
+    return JsonResponse(
+        {
+            "success": False,
+            "data": {"error": redact(message, secret_values)},
+            "viz_type": None,
+        },
+        status=status,
+    )
+
+
+@sensitive_variables()
+def _answer_data_request(request, secret_values):
+    """
+    Run the data request in the body for the caller, after the dashboard check.
+
+    The secret values the run takes are added to ``secret_values`` as soon as they
+    are known, before the plugin is constructed, so whatever fails from then on is
+    scrubbed of them.
+    """
+    data_request = DataRequest.from_body(json.loads(request.body))
+    try:
+        if data_request.source == LIVE_CHAT:
+            history = get_chat_history(request.user, data_request)
+            return JsonResponse(
+                {"success": True, "data": history, "viz_type": LIVE_CHAT}
+            )
+        run_args = prepare_run_args(request.user, data_request)
+    except (DashboardNotFound, DataRequestRefused) as refusal:
+        return _data_error(str(refusal), secret_values)
+    secret_values.extend(secret_values_of(run_args))
 
     try:
         viz_type, data = get_visualization(
-            viz_source, viz_args, request.user, viz_request_id, mode=mode
+            data_request.source,
+            run_args,
+            request.user,
+            data_request.request_id,
+            mode=data_request.mode,
         )
     except VisualizationError as e:
-        print(f"VisualizationError: {e}")
-        data = {"error": str(e)}
-        success = False
+        return _data_error(str(e), secret_values, log=f"VisualizationError: {e}")
     except Exception as e:
         # For runtime feature fetches, pass the plugin's exception message
         # through so authors can self-diagnose from the per-layer error UI.
         # Scaffold callers keep the existing sanitized message to preserve
         # backward-compatible info-disclosure posture.
-        if mode == "features":
-            data = {"error": str(e)}
-        else:
-            data = {"error": "Failed to retrieve data"}
-        print(e)
-        success = False
+        message = str(e) if data_request.mode == MODE_FEATURES else DATA_REQUEST_FAILED
+        return _data_error(message, secret_values, log=e)
 
-    return JsonResponse({"success": success, "data": data, "viz_type": viz_type})
+    return JsonResponse({"success": True, "data": data, "viz_type": viz_type})
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/visualizations/get", login_required=False)
+def visualization(request):
+    """
+    API controller for retrieving visualization data.
+
+    Runs a tile's plugin, or a dynamic map layer's within a Map tile, for any caller
+    who may view the tile's dashboard, signed out on a public one included. A caller
+    who may also edit the dashboard runs the args as sent; anyone else runs the
+    tile's or layer's saved settings, taking from the request only the values the
+    browser fills in (see visualizations.prepare_run_args). Nothing about the plugin
+    is loaded before the dashboard check.
+
+    POST only, with a JSON body. ``@api_view`` is not in the request path, so the
+    method is checked here.
+
+    Args:
+        request: Django HTTP request object with a JSON body containing:
+            - dashboard: The dashboard's uuid
+            - tile: The tile's uuid, top-level or in a layer popup
+            - layer: Optional; a dynamic layer's layerId within the tile
+            - source: String identifying the visualization source
+            - args: Object of the args the browser resolved
+            - mode: "scaffold" (default) or "features"
+            - requestId: Optional; only correlates progress messages
+
+    Returns:
+        JsonResponse: Dictionary containing:
+            - success: Boolean indicating if the request was successful
+            - data: Visualization data, or ``{"error": message}``
+            - viz_type: Type of visualization returned, or None
+            Refusals and failures answer 200 with ``success`` False, except a
+            method other than POST (405) and a body over the portal's limit (413).
+            Anything unexpected, a malformed body included, answers a generic
+            error rather than Django's error page.
+
+    A plugin's secret args take their values on the server (see
+    visualizations.prepare_run_args), so the whole view answers through one
+    handler: every error it returns and every line it logs is scrubbed of them,
+    and nothing reaches Django's error page. A result holding one is refused.
+    """
+    if request.method != "POST":
+        response = _data_error(PAGE_OUT_OF_DATE, status=405)
+        response["Allow"] = "POST"
+        return response
+    secret_values = []
+    try:
+        return _answer_data_request(request, secret_values)
+    except RequestDataTooBig:
+        return _data_error(
+            request_too_large_message(settings.DATA_UPLOAD_MAX_MEMORY_SIZE),
+            status=413,
+        )
+    except Exception as e:
+        return _data_error(
+            DATA_REQUEST_FAILED,
+            secret_values,
+            log=f"Failed to answer a data request: {e}",
+        )
 
 
 @api_view(["GET"])
@@ -874,6 +992,105 @@ def delete_dashboard(request):
         return JsonResponse({"success": False, "message": message})
 
 
+# The answer to a dashboard save that failed for any reason not written for the editor.
+UPDATE_FAILED = "Failed to update the dashboard. Check server for logs."
+
+# The errors a dashboard save is refused with whose messages are written for the
+# editor. Any other error's text is internal, such as a KeyError's bare key name, so
+# it is logged and the editor told only UPDATE_FAILED.
+_UPDATE_REFUSALS = (
+    DashboardNotFound,
+    DashboardUpdateRefused,
+    LayerStorageQuotaExceeded,
+    SecretChangeRefused,
+)
+
+
+def _dict_members(value):
+    """The members of a list that are dicts; nothing for anything else."""
+    if isinstance(value, list):
+        yield from (member for member in value if isinstance(member, dict))
+
+
+def _collect_update_secrets(dashboard_updates, found):
+    """
+    Add to found every secret value a dashboard save carries.
+
+    That is the value of each of its ``secretChanges``, and any value in a secret
+    arg of its tabs' tiles, which the save blanks rather than stores (see
+    saved_settings.blank_secret_args). A body of another shape carries none that
+    can be found.
+    """
+    if not isinstance(dashboard_updates, dict):
+        return
+    for change in _dict_members(dashboard_updates.get("secretChanges")):
+        if isinstance(change.get("value"), str):
+            found.append(change["value"])
+    secret_args_of = secret_args_lookup()
+    for tab in _dict_members(dashboard_updates.get("tabs")):
+        for item in _dict_members(tab.get("gridItems")):
+            found.extend(
+                blank_secret_args(
+                    item.get("source"), item.get("args_string"), secret_args_of
+                )[1]
+            )
+
+
+def _update_error(message, secret_values, log=None):
+    """
+    The answer to a dashboard save that was refused or failed.
+
+    Every error the save endpoint returns, and every line it logs about one, goes
+    through here or _scrubbed_log, scrubbed of every secret value the save carried
+    (see _collect_update_secrets).
+
+    Args:
+        message (str): The error the browser shows
+        secret_values (list): The secret values the save carried
+        log: What to log, if anything
+
+    Returns:
+        JsonResponse: ``{"success": False, "message": message}``
+    """
+    if log is not None:
+        _scrubbed_log(log, secret_values)
+    return JsonResponse({"success": False, "message": redact(message, secret_values)})
+
+
+def _save_dashboard_update(request, secret_values):
+    """Save the dashboard update in the body, adding the secrets it carries to
+    secret_values before anything can fail on them."""
+    dashboard_updates = json.loads(request.body)
+    _collect_update_secrets(dashboard_updates, secret_values)
+    dashboard_id = dashboard_updates.pop("id")
+    saves_layers = "tabs" in dashboard_updates
+
+    try:
+        updated_dashboard = update_named_dashboard(
+            request.user, dashboard_id, dashboard_updates
+        )
+    except _UPDATE_REFUSALS as refusal:
+        message = _get_error_message(refusal, UPDATE_FAILED)
+        return _update_error(message, secret_values, log=refusal)
+    except Exception as e:
+        return _update_error(UPDATE_FAILED, secret_values, log=e)
+    _scrubbed_log(f"Successfully updated the dashboard {dashboard_id}", secret_values)
+
+    # The save is committed by now, so a sweep that fails must not report it as
+    # failed; the files it missed are swept with the next save.
+    if saves_layers:
+        try:
+            clean_up_dashboard_files(dashboard_id)
+        except Exception as error:
+            _scrubbed_log(
+                f"Could not remove the unused layer files of dashboard "
+                f"{dashboard_id}: {error}",
+                secret_values,
+            )
+
+    return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
+
+
 @api_view(["POST"])
 @controller(url="tethysdash/dashboards/update", login_required=True)
 @require_login
@@ -884,56 +1101,40 @@ def update_dashboard(request):
     Updates dashboard properties based on the provided data. Handles request
     size limitations and provides appropriate error messages.
 
+    A save can carry secrets, in ``secretChanges`` and as values typed into secret
+    args, so the whole view answers through one handler: every error it returns
+    and every line it logs is scrubbed of them, and nothing reaches Django's error
+    page.
+
     Args:
         request: Django HTTP request object with JSON body containing:
             - id: String ID of the dashboard to update
             - Additional fields to update (name, description, etc.)
+            - secretChanges: Optional, with tabs only; a list of
+              ``{"tile", "layer", "arg", "value"}``, setting a secret arg of a tile,
+              or of a dynamic layer within it, to a string value, or clearing it
+              with a null one (see model._save_tile_secrets)
 
     Returns:
         JsonResponse: Dictionary containing:
             - success: Boolean indicating if update was successful
-            - updated_dashboard: Updated dashboard object if successful
+            - updated_dashboard: Updated dashboard object if successful, its
+              secret args blank and the places holding a stored secret listed
+              in storedSecrets
             - message: Error message if unsuccessful
     """
-
+    secret_values = []
     try:
-        dashboard_updates = json.loads(request.body)
+        return _save_dashboard_update(request, secret_values)
     except RequestDataTooBig:
-        return JsonResponse(
-            {
-                "success": False,
-                "message": f"File size too big. Total request must be less than {settings.DATA_UPLOAD_MAX_MEMORY_SIZE/1024} KB",  # noqa: E501
-            }
+        return _update_error(
+            f"File size too big. Total request must be less than {settings.DATA_UPLOAD_MAX_MEMORY_SIZE/1024} KB",  # noqa: E501
+            secret_values,
         )
-
-    dashboard_id = dashboard_updates.pop("id")
-    user = request.user
-    saves_layers = "tabs" in dashboard_updates
-
-    try:
-        updated_dashboard = update_named_dashboard(
-            user, dashboard_id, dashboard_updates
-        )
-        print(f"Successfully updated the dashboard {dashboard_id}")
-
-        # The save is committed by now, so a sweep that fails must not report it as
-        # failed; the files it missed are swept with the next save.
-        if saves_layers:
-            try:
-                clean_up_dashboard_files(dashboard_id)
-            except Exception as error:
-                print(
-                    f"Could not remove the unused layer files of dashboard "
-                    f"{dashboard_id}: {error}"
-                )
-
-        return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
     except Exception as e:
-        print(e)
-        message = _get_error_message(
-            e, f"Failed to update the dashboard {dashboard_id}. Check server for logs."
+        return _update_error(
+            UPDATE_FAILED, secret_values, log=f"Failed to update a dashboard: {e}"
         )
-        return JsonResponse({"success": False, "message": message})
 
 
 @api_view(["POST"])

@@ -534,6 +534,7 @@ const MapVisualization = ({
   const { errorsByLayerId, loadingByLayerId, rasterLegendByLayerId } =
     useRuntimeLayerFetcher({
       layers,
+      dashboardUUID: uuid,
       gridItemUUID,
       sessionNonce,
       mapRef: visualizationRef,

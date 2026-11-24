@@ -117,13 +117,10 @@ test("DashboardCard editable, open and edit name", async () => {
   ).toBeInTheDocument();
   expect(screen.queryByLabelText("Title Input")).not.toBeInTheDocument();
 
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      id: userDashboard.id,
-      name: `${userDashboard.name} updated`,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    id: userDashboard.id,
+    name: `${userDashboard.name} updated`,
+  });
 });
 
 test("DashboardCard editable, edit name with blur", async () => {
@@ -174,13 +171,10 @@ test("DashboardCard editable, edit name with blur", async () => {
   ).toBeInTheDocument();
   expect(screen.queryByLabelText("Title Input")).not.toBeInTheDocument();
 
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      id: userDashboard.id,
-      name: `${userDashboard.name} updated`,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    id: userDashboard.id,
+    name: `${userDashboard.name} updated`,
+  });
 });
 
 test("DashboardCard editable, edit name but cancel", async () => {
@@ -447,13 +441,10 @@ test("DashboardCard editable, edit description", async () => {
     ).not.toBeInTheDocument();
   });
 
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      id: userDashboard.id,
-      description: `${userDashboard.description} updated`,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    id: userDashboard.id,
+    description: `${userDashboard.description} updated`,
+  });
 });
 
 test("DashboardCard editable, edit description with blur", async () => {
@@ -511,13 +502,10 @@ test("DashboardCard editable, edit description with blur", async () => {
     ).not.toBeInTheDocument();
   });
 
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      id: userDashboard.id,
-      description: `${userDashboard.description} updated`,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    id: userDashboard.id,
+    description: `${userDashboard.description} updated`,
+  });
 });
 
 test("DashboardCard editable, edit description new line", async () => {
@@ -579,13 +567,10 @@ test("DashboardCard editable, edit description new line", async () => {
     ).not.toBeInTheDocument();
   });
 
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      id: userDashboard.id,
-      description: `${userDashboard.description} updated\nAnother Line`,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    id: userDashboard.id,
+    description: `${userDashboard.description} updated\nAnother Line`,
+  });
 });
 
 test("DashboardCard editable, edit description but cancel", async () => {
@@ -677,13 +662,10 @@ test("DashboardCard editable, edit description fail", async () => {
   expect(descriptionInput).toBeInTheDocument();
 
   await waitFor(() => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        id: userDashboard.id,
-        description: `${userDashboard.description} updated`,
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: userDashboard.id,
+      description: `${userDashboard.description} updated`,
+    });
   });
 
   expect(
@@ -742,13 +724,10 @@ test("DashboardCard editable, edit description fail with message", async () => {
   expect(descriptionInput).toBeInTheDocument();
 
   await waitFor(() => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        id: userDashboard.id,
-        description: `${userDashboard.description} updated`,
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: userDashboard.id,
+      description: `${userDashboard.description} updated`,
+    });
   });
 
   expect(await screen.findByText("some failure message")).toBeInTheDocument();
@@ -870,16 +849,13 @@ test("DashboardCard editable, edit thumbnail", async () => {
   await userEvent.click(updateThumbnailButton);
 
   await waitFor(async () => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        id: userDashboard.id,
-        // Uploading by hand turns off auto-capture, so the next save cannot
-        // overwrite the image just chosen.
-        autoThumbnail: false,
-        image: "data:image/png;base64,testImage",
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: userDashboard.id,
+      // Uploading by hand turns off auto-capture, so the next save cannot
+      // overwrite the image just chosen.
+      autoThumbnail: false,
+      image: "data:image/png;base64,testImage",
+    });
   });
 });
 
@@ -937,16 +913,13 @@ test("DashboardCard editable, edit thumbnail fail", async () => {
   await userEvent.click(updateThumbnailButton);
 
   await waitFor(async () => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        id: userDashboard.id,
-        // Uploading by hand turns off auto-capture, so the next save cannot
-        // overwrite the image just chosen.
-        autoThumbnail: false,
-        image: "data:image/png;base64,testImage",
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: userDashboard.id,
+      // Uploading by hand turns off auto-capture, so the next save cannot
+      // overwrite the image just chosen.
+      autoThumbnail: false,
+      image: "data:image/png;base64,testImage",
+    });
   });
 
   expect(
@@ -986,13 +959,10 @@ test("DashboardCard editable, copy", async () => {
   await userEvent.click(copyOption);
 
   await waitFor(async () => {
-    expect(mockCopyDashboard).toHaveBeenCalledWith(
-      {
-        id: userDashboard.id,
-        newName: `${userDashboard.name} - Copy`,
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockCopyDashboard).toHaveBeenCalledWith({
+      id: userDashboard.id,
+      newName: `${userDashboard.name} - Copy`,
+    });
   });
 });
 
@@ -1024,13 +994,10 @@ test("DashboardCard editable, copy fail", async () => {
   await userEvent.click(copyOption);
 
   await waitFor(async () => {
-    expect(mockCopyDashboard).toHaveBeenCalledWith(
-      {
-        id: userDashboard.id,
-        newName: `${userDashboard.name} - Copy`,
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockCopyDashboard).toHaveBeenCalledWith({
+      id: userDashboard.id,
+      newName: `${userDashboard.name} - Copy`,
+    });
   });
 
   expect(
@@ -1231,13 +1198,10 @@ test("DashboardCard editable, share", async () => {
   await userEvent.click(makePublicOption);
 
   await waitFor(async () => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        id: userDashboard.id,
-        public: true,
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: userDashboard.id,
+      public: true,
+    });
   });
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
   await waitFor(async () => {
@@ -1300,19 +1264,16 @@ test("DashboardCard editable, share and update permissions", async () => {
   await userEvent.click(saveButton);
 
   await waitFor(async () => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        id: userDashboard.id,
-        permissions: [
-          {
-            permission: "admin",
-            username: "admin",
-          },
-        ],
-        public: true,
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: userDashboard.id,
+      permissions: [
+        {
+          permission: "admin",
+          username: "admin",
+        },
+      ],
+      public: true,
+    });
   });
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
   await waitFor(async () => {
@@ -1363,13 +1324,10 @@ test("DashboardCard editable, make private", async () => {
   await userEvent.click(makePublicOption);
 
   await waitFor(async () => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        id: publicDashboard.id,
-        public: false,
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: publicDashboard.id,
+      public: false,
+    });
   });
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
   await waitFor(() => {
@@ -1411,13 +1369,10 @@ test("DashboardCard editable, share fail", async () => {
   await userEvent.click(makePublicOption);
 
   await waitFor(async () => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        id: userDashboard.id,
-        public: true,
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: userDashboard.id,
+      public: true,
+    });
   });
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
@@ -1462,13 +1417,10 @@ test("DashboardCard editable, share fail with message", async () => {
   await userEvent.click(makePublicOption);
 
   await waitFor(async () => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        id: userDashboard.id,
-        public: true,
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: userDashboard.id,
+      public: true,
+    });
   });
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
@@ -1581,12 +1533,9 @@ test("DashboardCard editable, delete and confirm", async () => {
   await userEvent.click(deleteOption);
 
   await waitFor(async () => {
-    expect(mockDeleteDashboard).toHaveBeenCalledWith(
-      {
-        id: mockedDashboard.id,
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockDeleteDashboard).toHaveBeenCalledWith({
+      id: mockedDashboard.id,
+    });
   });
 
   const dashboards = await screen.findByTestId("availableDashboards");
@@ -1645,12 +1594,9 @@ test("DashboardCard editable, delete and fail", async () => {
   await userEvent.click(deleteOption);
 
   await waitFor(async () => {
-    expect(mockDeleteDashboard).toHaveBeenCalledWith(
-      {
-        id: userDashboard.id,
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockDeleteDashboard).toHaveBeenCalledWith({
+      id: userDashboard.id,
+    });
   });
 
   expect(
@@ -1740,9 +1686,9 @@ test("DashboardCard editable, turn auto thumbnail off without choosing a file", 
 
   await waitFor(() => {
     // An exact match: no `image` key, so the saved thumbnail is untouched.
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      { id: userDashboard.id, autoThumbnail: false },
-      expect.any(String),
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: userDashboard.id,
+      autoThumbnail: false,
+    });
   });
 });

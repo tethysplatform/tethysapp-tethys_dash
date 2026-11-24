@@ -5,6 +5,8 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="theme-color" content="#c23616" />
+		<meta name="csrf-token" content="{{ csrf_token }}" />
+		<meta name="csrf-cookie-name" content="{{ csrf_cookie_name }}" />
 		<link rel="shortcut icon" href="{% if site_globals.favicon and 'http' in site_globals.favicon %}{{ site_globals.favicon }}{% elif site_globals.favicon %}{% static site_globals.favicon %}{% else %}{% static 'tethys_portal/images/default_favicon.png' %}{% endif %}" />
 		<title>{{ tethys_app.name }}</title>
 	</head>

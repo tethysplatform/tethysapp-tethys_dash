@@ -11,7 +11,11 @@ import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
 import { resolveRamp } from "components/map/colorRamps";
 import { isClassStyleMode } from "components/map/geoTIFFStyle";
 import Button from "react-bootstrap/Button";
-import { LayoutContext, AppContext } from "components/contexts/Contexts";
+import {
+  LayoutContext,
+  AppContext,
+  GridItemContext,
+} from "components/contexts/Contexts";
 import { getStyleFields } from "components/map/utilities";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
 import { getDynamicLayerSourceType } from "components/modals/MapLayer/runtimeLayerSource";
@@ -167,6 +171,8 @@ const StylePane = ({
   const [rules, setRules] = useState([]);
   const [defaultStyle, setDefaultStyle] = useState({});
   const { uuid } = useContext(LayoutContext);
+  // The Map tile the layer belongs to, which a dynamic layer's request names.
+  const { gridItemUUID } = useContext(GridItemContext) ?? {};
   const [availableFields, setAvailableFields] = useState([]);
   const { dynamicMapLayers } = useContext(AppContext);
   // A dynamic plugin layer is typed by the plugin's label, not "GeoTIFF", so
@@ -195,6 +201,7 @@ const StylePane = ({
           sourceProps,
           layerProps,
           dashboard_uuid: uuid,
+          tileUUID: gridItemUUID,
           isDynamicMapLayer: isDynamic,
         });
         setAvailableFields(fields);
@@ -207,6 +214,7 @@ const StylePane = ({
     sourceProps,
     layerProps,
     uuid,
+    gridItemUUID,
     dynamicMapLayers,
     shapefileDiscovery?.isShapefile,
     shapefileDiscovery?.fields,

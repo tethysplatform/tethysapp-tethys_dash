@@ -29,7 +29,7 @@ const mountModal = (layerInfo) => {
   const addMapLayer = jest.fn();
   render(
     <AppContext.Provider
-      value={{ csrf: "csrf", mapLayerTemplates: [], dynamicMapLayers: [] }}
+      value={{ mapLayerTemplates: [], dynamicMapLayers: [] }}
     >
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <TabContext.Provider value={{ activeTabId: "tab-1" }}>

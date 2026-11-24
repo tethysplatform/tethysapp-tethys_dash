@@ -18,6 +18,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import relationship
+import functools
 import json
 import os
 from datetime import datetime, timezone
@@ -34,8 +35,12 @@ from pathlib import Path
 import subprocess
 from tethysapp.tethysdash.utilities import sanitize_html
 from tethysapp.tethysdash.exceptions import (
-    DASHBOARD_NOT_FOUND,
+    SECRET_CHANGES_MALFORMED,
+    SECRET_SETTING_GONE,
+    DashboardNotFound,
+    DashboardUpdateRefused,
     LayerStorageQuotaExceeded,
+    SecretChangeRefused,
     UnsafePath,
 )
 from tethysapp.tethysdash.paths import (
@@ -44,6 +49,14 @@ from tethysapp.tethysdash.paths import (
     require_layer_filename,
     resolve_dashboard_folder,
 )
+from tethysapp.tethysdash.saved_settings import (
+    LIVE_CHAT,
+    SavedSettingsError,
+    blank_secret_args,
+    iter_plugin_arg_paths,
+    locate,
+)
+from tethysapp.tethysdash.tile_secrets import SecretIdentity, encrypt
 from django.contrib.auth import get_user_model
 import shutil
 import filecmp
@@ -306,6 +319,7 @@ class Dashboard(Base):
         permissions (relationship): Related dashboard permissions
         grid_items (relationship): Related grid items in the dashboard
         layer_files (relationship): Index of the dashboard's stored layer files
+        tile_secrets (relationship): Encrypted values of its tiles' secret args
     """
 
     __tablename__ = "dashboards"
@@ -343,6 +357,11 @@ class Dashboard(Base):
     )
     layer_files = relationship(
         "LayerFile",
+        back_populates="dashboard",
+        cascade="all, delete-orphan",
+    )
+    tile_secrets = relationship(
+        "TileSecret",
         back_populates="dashboard",
         cascade="all, delete-orphan",
     )
@@ -506,6 +525,62 @@ class LayerFile(Base):
     dashboard = relationship("Dashboard", back_populates="layer_files")
 
 
+class TileSecret(Base):
+    """
+    SQLAlchemy model holding the encrypted value of one secret arg of a tile or layer.
+
+    A secret never lives in a tile's ``args_string``, which every save rewrites from the
+    browser and every copy, export and import carries along. Its value is kept here,
+    keyed by its dashboard and its place in it, and encrypted together with that place
+    and its plugin source (``tile_secrets.encrypt``), so a row that ends up under
+    another dashboard, tile, arg or plugin no longer decrypts.
+
+    Attributes:
+        id (int): Primary key identifier
+        dashboard_id (int): Foreign key to the dashboard holding the tile
+        tile_uuid (str): The tile's uuid, top-level or in a Map tile's layer popup
+        layer_id (str): A dynamic layer's ``layerId`` within the tile, or "" for an
+            arg of the tile itself
+        arg_name (str): The secret arg's name
+        plugin_source (str): The plugin source the value was entered for
+        ciphertext (str): The encrypted value
+        updated_by (str): The user who last set the value
+        updated_at (datetime): When the value was last set
+        dashboard (relationship): Reference to the dashboard
+    """
+
+    __tablename__ = "tile_secrets"
+
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(
+        Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), nullable=False
+    )
+    tile_uuid = Column(String, nullable=False)
+    layer_id = Column(String, nullable=False, default="", server_default="")
+    arg_name = Column(String, nullable=False)
+    plugin_source = Column(String, nullable=False)
+    ciphertext = Column(String, nullable=False)
+    updated_by = Column(String, nullable=False)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "dashboard_id",
+            "tile_uuid",
+            "layer_id",
+            "arg_name",
+            name="_tile_secret_path",
+        ),
+    )
+
+    dashboard = relationship("Dashboard", back_populates="tile_secrets")
+
+
 class VisualizationPermission(Base):
     """
     SQLAlchemy model for visualization access permissions.
@@ -638,11 +713,33 @@ class Message(Base):
     edited = Column(Boolean, nullable=False, default=False)
 
 
-def _serialize_grid_item(griditem):
+def secret_args_lookup():
+    """
+    Return a lookup of the secret args of installed plugins, by plugin source, that
+    reads each source's declaration once. Make one per save, copy or read.
+
+    It answers as ``visualizations.get_plugin_secret_args`` does: None for a source
+    no installed plugin has. That module imports this one, so it is imported here.
+    """
+    from tethysapp.tethysdash.visualizations import get_plugin_secret_args
+
+    return functools.cache(get_plugin_secret_args)
+
+
+def _without_secrets(source, args_string, secret_args_of):
+    """A tile's args as stored, copied and served: secret args blanked at any depth."""
+    return blank_secret_args(source, args_string, secret_args_of)[0]
+
+
+def _serialize_grid_item(griditem, secret_args_of):
     """Serialize a ``GridItem`` row into a dictionary for API responses.
+
+    Secret args are served blank, at any depth: a value found in one is never
+    served (see saved_settings.blank_secret_args).
 
     Args:
         griditem (GridItem): SQLAlchemy ``GridItem`` row.
+        secret_args_of (callable): A lookup made by secret_args_lookup
 
     Returns:
         dict: Public representation matching the shape used inside tab/grid
@@ -657,9 +754,26 @@ def _serialize_grid_item(griditem):
         "w": griditem.w,
         "h": griditem.h,
         "source": griditem.source,
-        "args_string": griditem.args_string,
+        "args_string": _without_secrets(
+            griditem.source, griditem.args_string, secret_args_of
+        ),
         "metadata_string": griditem.metadata_string,
     }
+
+
+def _stored_secret_paths(dashboard):
+    """
+    The places a dashboard holds a stored secret for, as served: each a
+    ``{"tile", "layer", "arg"}``, with ``layer`` "" for an arg of the tile itself.
+    Never the value.
+    """
+    return [
+        {"tile": row.tile_uuid, "layer": row.layer_id, "arg": row.arg_name}
+        for row in sorted(
+            dashboard.tile_secrets,
+            key=lambda row: (row.tile_uuid, row.layer_id, row.arg_name),
+        )
+    ]
 
 
 def _sanitize_text_args_string(args_string):
@@ -736,6 +850,9 @@ def add_new_dashboard(
         session.commit()
         session.refresh(new_dashboard)
         new_dashboard_id = new_dashboard.id
+        # A secret's value is never stored in args, so one an imported file carries
+        # in a secret arg is blanked.
+        secret_args_of = secret_args_lookup()
 
         # Add default admin permission for owner
         print("--> Adding initial dashboard permissions")
@@ -765,7 +882,9 @@ def add_new_dashboard(
                         grid_item_w = int(grid_item["w"])
                         grid_item_h = int(grid_item["h"])
                         grid_item_source = grid_item["source"]
-                        grid_item_args_string = grid_item["args_string"]
+                        grid_item_args_string = _without_secrets(
+                            grid_item_source, grid_item["args_string"], secret_args_of
+                        )
                         grid_item_metadata_string = grid_item["metadata_string"]
                         grid_item_uuid = str(uuid4())
                         if grid_item_source == "Text":
@@ -799,7 +918,9 @@ def add_new_dashboard(
                     grid_item_w = int(grid_item["w"])
                     grid_item_h = int(grid_item["h"])
                     grid_item_source = grid_item["source"]
-                    grid_item_args_string = grid_item["args_string"]
+                    grid_item_args_string = _without_secrets(
+                        grid_item_source, grid_item["args_string"], secret_args_of
+                    )
                     grid_item_metadata_string = grid_item["metadata_string"]
                     grid_item_uuid = str(uuid4())
                     if grid_item_source == "Text":
@@ -948,7 +1069,8 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
     Duplicates a dashboard with all its grid items, creating a new dashboard
     owned by the specified user. Only grants admin permission to the new owner,
     and the copy starts private whatever the original's setting: publishing it
-    is the new owner's decision.
+    is the new owner's decision. No stored secret is copied, so the copy's secret
+    args are empty until its owner enters them.
 
     Args:
         user: User object who will own the copied dashboard
@@ -1018,7 +1140,9 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             session.flush()  # Get new tab ID
             tab_id_mapping[tab.id] = new_tab.id
 
-        # Copy GridItems and link them to appropriate tabs.
+        # Copy GridItems and link them to appropriate tabs. Their stored secrets are
+        # not copied, and a value found in a secret arg is blanked.
+        secret_args_of = secret_args_lookup()
         new_grid_items = []
         index = 0
         for grid_item in original_dashboard.grid_items:
@@ -1032,7 +1156,9 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
                 w=grid_item.w,
                 h=grid_item.h,
                 source=grid_item.source,
-                args_string=grid_item.args_string,
+                args_string=_without_secrets(
+                    grid_item.source, grid_item.args_string, secret_args_of
+                ),
                 metadata_string=grid_item.metadata_string,
                 dashboard_id=new_dashboard.id,
                 tab_id=new_tab_id,
@@ -1128,6 +1254,12 @@ def update_named_dashboard(user, id, dashboard_updates):
     allows most updates, but admin permission is required for name changes,
     public status changes, and permission modifications.
 
+    A save of the dashboard's ``tabs`` also saves its secrets, in the same
+    transaction: a value in a secret arg of the tabs is blanked rather than stored,
+    the stored secrets the saved tiles no longer take are deleted, and then the
+    ``secretChanges`` it carries are applied (see _save_tile_secrets). A save
+    without ``tabs`` leaves the stored secrets alone, and ignores any changes.
+
     Args:
         user: User object attempting to update the dashboard
         id (int): ID of the dashboard to update
@@ -1137,8 +1269,12 @@ def update_named_dashboard(user, id, dashboard_updates):
         dict: Updated dashboard data in dictionary format
 
     Raises:
-        Exception: If dashboard doesn't exist, user lacks permission,
-                  or update fails
+        DashboardNotFound: No dashboard has the id, or the user may not view it.
+        DashboardUpdateRefused: The user lacks the permission a change takes, or the
+            permissions name a user or group that does not exist. Nothing is saved.
+        SecretChangeRefused: A secret change is malformed, or sets a secret for a
+            place the saved tabs do not have as a secret arg. Nothing is saved.
+        Exception: The update fails
     """
     # Get connection/session to database
     from tethysapp.tethysdash.app import App
@@ -1152,9 +1288,8 @@ def update_named_dashboard(user, id, dashboard_updates):
             raise _dashboard_not_found("update", id, user)
         user_permission = get_dashboard_user_permission(session, db_dashboard, user)
 
-        # Check if user has editor or admin permission
-        if user_permission != "editor" and user_permission != "admin":
-            raise Exception(
+        if not permission_may_edit(user_permission):
+            raise DashboardUpdateRefused(
                 "User does not have admin or editor permissions to update the dashboard."  # noqa: E501
             )
 
@@ -1164,7 +1299,7 @@ def update_named_dashboard(user, id, dashboard_updates):
         if updated_name != db_dashboard.name:
             # Check if user has admin permission
             if user_permission != "admin":
-                raise Exception(
+                raise DashboardUpdateRefused(
                     "User does not have admin permission to change the name of the dashboard."  # noqa: E501
                 )
             db_dashboard.name = dashboard_updates["name"]
@@ -1178,7 +1313,7 @@ def update_named_dashboard(user, id, dashboard_updates):
         if updated_public != db_dashboard.public:
             # Check if user has admin permission
             if user_permission != "admin":
-                raise Exception(
+                raise DashboardUpdateRefused(
                     "User does not have admin permission to change the public status of the dashboard."  # noqa: E501
                 )
             db_dashboard.public = dashboard_updates["public"]
@@ -1197,6 +1332,7 @@ def update_named_dashboard(user, id, dashboard_updates):
             )
 
         if "tabs" in dashboard_updates:
+            secret_args_of = secret_args_lookup()
             updated_tabs = dashboard_updates["tabs"]
             # Build a mapping of existing tabs by id
             existing_tabs_by_id = {tab.id: tab for tab in db_dashboard.tabs}
@@ -1249,7 +1385,9 @@ def update_named_dashboard(user, id, dashboard_updates):
                 for grid_item_order, grid_item in enumerate(tab_grid_items):
                     grid_item_id = grid_item.get("id")
                     grid_item_source = grid_item["source"]
-                    grid_item_args_string = grid_item["args_string"]
+                    grid_item_args_string = _without_secrets(
+                        grid_item_source, grid_item["args_string"], secret_args_of
+                    )
 
                     # Sanitize text content
                     if grid_item_source == "Text":
@@ -1261,8 +1399,8 @@ def update_named_dashboard(user, id, dashboard_updates):
                         db_grid_item = existing_grid_items_by_id[grid_item_id]
                         # If changing from 'Live Chat' to something else, delete associated messages  # noqa: E501
                         if (
-                            db_grid_item.source == "Live Chat"
-                            and grid_item_source != "Live Chat"
+                            db_grid_item.source == LIVE_CHAT
+                            and grid_item_source != LIVE_CHAT
                         ):
                             session.query(Message).filter(
                                 Message.request_id == db_grid_item.uuid
@@ -1297,6 +1435,14 @@ def update_named_dashboard(user, id, dashboard_updates):
 
                     grid_item_i += 1
 
+            _save_tile_secrets(
+                session,
+                db_dashboard,
+                user,
+                dashboard_updates.get("secretChanges"),
+                secret_args_of,
+            )
+
         db_dashboard.last_updated = datetime.now(timezone.utc)
 
         if "image" in dashboard_updates:
@@ -1313,6 +1459,186 @@ def update_named_dashboard(user, id, dashboard_updates):
         session.close()
 
     return parsed_dashboard
+
+
+def _read_secret_changes(changes):
+    """
+    Read a save's secret changes, each as ``(tile, layer, arg, value)``.
+
+    Args:
+        changes: The save's ``secretChanges``: a list of ``{"tile", "layer", "arg",
+            "value"}``, or None for none. ``layer`` is a dynamic layer's ``layerId``,
+            or "", null or absent for an arg of the tile itself. ``value`` is the
+            secret to set, a non-empty string, or null to clear it.
+
+    Returns:
+        list: The changes in order, ``value`` None for a clear
+
+    Raises:
+        SecretChangeRefused: The changes are not in that form.
+    """
+    if changes is None:
+        return []
+    if not isinstance(changes, list):
+        raise SecretChangeRefused(SECRET_CHANGES_MALFORMED)
+    read = []
+    for change in changes:
+        if not (
+            isinstance(change, dict)
+            and "value" in change
+            and _is_name(change.get("tile"))
+            and _is_name(change.get("arg"))
+            and isinstance(change.get("layer") or "", str)
+            and (change["value"] is None or _is_name(change["value"]))
+        ):
+            raise SecretChangeRefused(SECRET_CHANGES_MALFORMED)
+        read.append(
+            (change["tile"], change.get("layer") or "", change["arg"], change["value"])
+        )
+    return read
+
+
+def _is_name(value):
+    return isinstance(value, str) and value != ""
+
+
+def _secret_identity(dashboard, grid_items, tile, layer, arg, secret_args_of):
+    """
+    The identity a secret set for an arg of a saved tile or layer is stored under.
+
+    The tile and layer are found as a data request finds them (saved_settings.locate),
+    so the identity carries the saved tile's own uuid and the plugin source it saves.
+
+    Raises:
+        SecretChangeRefused: No one saved tile, or dynamic layer in it, has the uuid
+            and layer id; its args have no such arg; or its plugin is not installed or
+            does not declare the arg secret.
+    """
+    try:
+        saved = locate(grid_items, tile, layer)
+    except SavedSettingsError:
+        raise SecretChangeRefused(SECRET_SETTING_GONE) from None
+    secret_names = (
+        secret_args_of(saved.source) if isinstance(saved.source, str) else None
+    )
+    if arg not in saved.args or arg not in (secret_names or ()):
+        raise SecretChangeRefused(SECRET_SETTING_GONE)
+    tile_uuid = saved.tile.uuid if layer else saved.uuid
+    return SecretIdentity(dashboard.uuid, tile_uuid, layer, arg, saved.source)
+
+
+def _row_identity(dashboard, row):
+    return SecretIdentity(
+        dashboard.uuid, row.tile_uuid, row.layer_id, row.arg_name, row.plugin_source
+    )
+
+
+def _sweep_tile_secrets(session, dashboard, grid_items, secret_args_of):
+    """
+    Delete the stored secrets a dashboard's saved tiles no longer take, and return
+    the rest.
+
+    A stored secret is kept while a saved tile, or a dynamic layer in one, has its
+    tile uuid and layer id, saves the plugin source it was entered for, and has the
+    arg among its args, and while that plugin declares the arg secret. Nothing is
+    known of the args of a plugin that is not installed, so its secrets are kept as
+    long as the rest holds. So removing a tile or layer, or changing its plugin,
+    removes its secrets, and moving a tile between tabs keeps them.
+    """
+    paths = {}
+    for path in iter_plugin_arg_paths(grid_items):
+        paths.setdefault((path.tile_uuid, path.layer_id), []).append(path)
+
+    def still_taken(row):
+        for path in paths.get((row.tile_uuid, row.layer_id), ()):
+            if path.source == row.plugin_source and row.arg_name in path.args:
+                secret_names = secret_args_of(path.source)
+                if secret_names is None or row.arg_name in secret_names:
+                    return True
+        return False
+
+    kept = []
+    for row in dashboard.tile_secrets:
+        if still_taken(row):
+            kept.append(row)
+            continue
+        print(
+            f"Removing the stored secret for {_row_identity(dashboard, row)}, which "
+            "the saved dashboard no longer takes."
+        )
+        session.delete(row)
+    return kept
+
+
+def _save_tile_secrets(session, dashboard, user, changes, secret_args_of):
+    """
+    Bring a dashboard's stored secrets in line with its tabs as just saved, then
+    apply the save's secret changes. Runs inside the save's transaction, before its
+    commit, so a refused change leaves everything as it was.
+
+    First every stored secret the saved tiles no longer take is deleted (see
+    _sweep_tile_secrets). Then the changes are applied, the last change to a place
+    counting. A set is encrypted with its identity and stored, replacing any value
+    stored for the place, as set by the user. A clear deletes the place's stored
+    secret, if it has one: a clear for a tile or layer gone with this save is simply
+    done already. A save without changes keeps every secret still taken, so one
+    editor's save never clears another's.
+
+    Args:
+        session: The save's session
+        dashboard (Dashboard): The dashboard being saved
+        user: The user saving it
+        changes: The save's ``secretChanges`` (see _read_secret_changes)
+        secret_args_of (callable): A lookup made by secret_args_lookup
+
+    Raises:
+        SecretChangeRefused: A change is malformed, or sets a secret for a place
+            that the saved tabs do not have as a secret arg (see _secret_identity).
+    """
+    changes = _read_secret_changes(changes)
+    session.flush()
+    if not changes and not dashboard.tile_secrets:
+        return
+    grid_items = (
+        session.query(GridItem).filter(GridItem.dashboard_id == dashboard.id).all()
+    )
+    rows = {
+        (row.tile_uuid.lower(), row.layer_id, row.arg_name): row
+        for row in _sweep_tile_secrets(session, dashboard, grid_items, secret_args_of)
+    }
+    # Every set is checked before anything is encrypted.
+    final = {}
+    for tile, layer, arg, value in changes:
+        identity = (
+            None
+            if value is None
+            else _secret_identity(
+                dashboard, grid_items, tile, layer, arg, secret_args_of
+            )
+        )
+        final[(tile.lower(), layer, arg)] = (identity, value)
+    # A row swept for a place is gone before a set stores a new one there.
+    session.flush()
+    for key, (identity, value) in final.items():
+        row = rows.get(key)
+        if identity is None:
+            if row is not None:
+                session.delete(row)
+        elif row is None:
+            session.add(
+                TileSecret(
+                    dashboard_id=dashboard.id,
+                    tile_uuid=identity.tile,
+                    layer_id=identity.layer,
+                    arg_name=identity.arg,
+                    plugin_source=identity.source,
+                    ciphertext=encrypt(identity, value),
+                    updated_by=stored_identity(user),
+                )
+            )
+        else:
+            row.ciphertext = encrypt(identity, value)
+            row.updated_by = stored_identity(user)
 
 
 def stored_identity(user):
@@ -1396,6 +1722,24 @@ def user_may_view(session, dashboard, user):
     return get_dashboard_user_permission(session, dashboard, user) is not None
 
 
+def permission_may_edit(permission):
+    """Whether a dashboard permission level may change the dashboard's content.
+
+    Editor and admin may; viewer and no permission at all may not. This is the one
+    rule for content edits: saving a dashboard, uploading its layer files, and running
+    a data request's args as sent rather than from the saved settings. Renaming the
+    dashboard, making it public or private and changing its permissions take admin on
+    top of it.
+
+    Args:
+        permission (str or None): A level as get_dashboard_user_permission reports it
+
+    Returns:
+        bool: True for editor or admin
+    """
+    return permission in ("editor", "admin")
+
+
 def _dashboard_not_found(action, id, user):
     """The exception for a dashboard that is missing or that the user may not view.
 
@@ -1404,7 +1748,71 @@ def _dashboard_not_found(action, id, user):
     """
     who = stored_identity(user) or "a signed-out user"
     print(f"Refused to {action} dashboard {id} for {who}: missing or not viewable")
-    return Exception(DASHBOARD_NOT_FOUND)
+    return DashboardNotFound()
+
+
+def _named_dashboard(session, dashboard_uuid, user, action):
+    """The canonical form of a dashboard uuid a request names, and the dashboard
+    with it, or None.
+
+    Raises:
+        DashboardNotFound: The uuid is malformed.
+    """
+    try:
+        dashboard_uuid = canonical_dashboard_uuid(dashboard_uuid)
+    except ValueError:
+        raise _dashboard_not_found(action, "named by a malformed uuid", user) from None
+    dashboard = (
+        session.query(Dashboard).filter(Dashboard.uuid == dashboard_uuid).first()
+    )
+    return dashboard_uuid, dashboard
+
+
+def find_viewable_dashboard(session, dashboard_uuid, user, action):
+    """
+    Return the dashboard with the given uuid, if the user may view it.
+
+    Args:
+        session: SQLAlchemy database session the dashboard is read in
+        dashboard_uuid: The dashboard's uuid as a request names it, in any form UUID()
+            accepts
+        user: User object, authenticated or anonymous
+        action (str): What the refusal stops, for the log line, as in "run a tile of"
+
+    Returns:
+        Dashboard: The dashboard, bound to ``session``
+
+    Raises:
+        DashboardNotFound: The uuid is malformed, no dashboard has it, or the user may
+            not view it, all answered alike (see user_may_view).
+    """
+    dashboard_uuid, dashboard = _named_dashboard(session, dashboard_uuid, user, action)
+    if not dashboard or not user_may_view(session, dashboard, user):
+        raise _dashboard_not_found(action, dashboard_uuid, user)
+    return dashboard
+
+
+def find_viewable_dashboard_and_permission(session, dashboard_uuid, user, action):
+    """
+    Return the dashboard find_viewable_dashboard returns, and the user's permission
+    on it (see get_dashboard_user_permission), read once for both.
+
+    It refuses as find_viewable_dashboard does: user_may_view's rule, with the
+    permission it would read.
+
+    Returns:
+        tuple: The dashboard, bound to ``session``, and the permission, or None
+
+    Raises:
+        DashboardNotFound: As find_viewable_dashboard.
+    """
+    dashboard_uuid, dashboard = _named_dashboard(session, dashboard_uuid, user, action)
+    permission = (
+        get_dashboard_user_permission(session, dashboard, user) if dashboard else None
+    )
+    if not dashboard or not (dashboard.public or permission is not None):
+        raise _dashboard_not_found(action, dashboard_uuid, user)
+    return dashboard, permission
 
 
 def _check_dashboard_by_uuid(dashboard_uuid, check):
@@ -1455,7 +1863,8 @@ def can_edit_dashboard(user, dashboard_uuid):
     """
     Whether a user may change the content of the dashboard with the given uuid.
 
-    Takes editor or admin, the level update_named_dashboard requires for content.
+    Takes editor or admin, the level update_named_dashboard requires for content
+    (see permission_may_edit).
 
     Args:
         user: User object, authenticated or anonymous
@@ -1467,10 +1876,9 @@ def can_edit_dashboard(user, dashboard_uuid):
     """
     return _check_dashboard_by_uuid(
         dashboard_uuid,
-        lambda session, dashboard: get_dashboard_user_permission(
-            session, dashboard, user
-        )
-        in ("editor", "admin"),
+        lambda session, dashboard: permission_may_edit(
+            get_dashboard_user_permission(session, dashboard, user)
+        ),
     )
 
 
@@ -1706,14 +2114,14 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
                                    username/group and permission level
 
     Raises:
-        Exception: If user lacks admin permission, or if referenced users
-                  or groups don't exist
+        DashboardUpdateRefused: If user lacks admin permission, or if referenced
+            users or groups don't exist
     """
 
     # Check if user has admin permission
     user_permission = get_dashboard_user_permission(session, db_dashboard, user)
     if user_permission != "admin":
-        raise Exception(
+        raise DashboardUpdateRefused(
             "User does not have admin permission to change the permissions of the dashboard."  # noqa: E501
         )
 
@@ -1753,15 +2161,15 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
             updated_group_lookup[p["group"]] = p["permission"]
 
     if nonexistent_users and nonexistent_groups:
-        raise Exception(
+        raise DashboardUpdateRefused(
             f"The following users do not exist: {', '.join(nonexistent_users)}; The following groups do not exist: {', '.join(nonexistent_groups)}"  # noqa: E501
         )
     elif nonexistent_users:
-        raise Exception(
+        raise DashboardUpdateRefused(
             f"The following users do not exist: {', '.join(nonexistent_users)}"
         )
     elif nonexistent_groups:
-        raise Exception(
+        raise DashboardUpdateRefused(
             f"The following groups do not exist: {', '.join(nonexistent_groups)}"
         )
 
@@ -2147,11 +2555,14 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
 
     Returns:
         list: List of dashboard dictionaries containing metadata,
-              permissions, and optionally grid items
+              permissions, and optionally grid items. In dashboard view each
+              also lists, as ``storedSecrets``, the places it holds a stored
+              secret for; secret args themselves are always served blank.
     """
     dashboard_list = []
     # One listing for the whole page; a card with no thumbnail renders without one.
     images = thumbnail_urls([dashboard.uuid for dashboard in dashboards])
+    secret_args_of = secret_args_lookup()
 
     for dashboard in dashboards:
         dashboard_image = _versioned(images[dashboard.uuid], dashboard.last_updated)
@@ -2196,7 +2607,7 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
             for tab in dashboard.tabs:
                 griditems = []
                 for griditem in tab.grid_items:
-                    griditem_data = _serialize_grid_item(griditem)
+                    griditem_data = _serialize_grid_item(griditem, secret_args_of)
                     griditems.append(griditem_data)
 
                 tab_data = {
@@ -2207,6 +2618,7 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
                 tabs.append(tab_data)
 
             dashboard_dict["tabs"] = tabs
+            dashboard_dict["storedSecrets"] = _stored_secret_paths(dashboard)
 
         dashboard_list.append(dashboard_dict)
 
@@ -2558,7 +2970,7 @@ def check_for_liveChat(grid_item_uuid):
         grid_item = (
             session.query(GridItem).filter(GridItem.uuid == grid_item_uuid).first()
         )
-        if grid_item and grid_item.source == "Live Chat":
+        if grid_item and grid_item.source == LIVE_CHAT:
             return True
         return False
     finally:

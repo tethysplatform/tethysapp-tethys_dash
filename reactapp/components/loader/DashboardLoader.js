@@ -22,7 +22,13 @@ import {
 } from "components/contexts/Contexts";
 import ViewGroupProvider from "components/contexts/ViewGroupContext";
 import LinkedExtentProvider from "components/contexts/LinkedExtentContext";
-import { toNumberOrEmpty } from "components/visualizations/utilities";
+import {
+  toNumberOrEmpty,
+  secretArgsBySource,
+  secretPlaceKey,
+  normalizeTileUuid,
+} from "components/visualizations/utilities";
+import { readArgsValue } from "components/dashboard/importIdentity";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
 import { preloadPluginVariableInputs } from "components/loader/variableInputPreload";
@@ -159,6 +165,134 @@ function unionOfKeys(keysByTab) {
   return keys;
 }
 
+function readArgs(raw) {
+  const args = readArgsValue(raw)?.args;
+  return args && !Array.isArray(args) ? args : {};
+}
+
+/** `map` less the entries `shouldDrop(key, value)` picks; `map` if none. */
+function omitEntries(map, shouldDrop) {
+  const kept = Object.fromEntries(
+    Object.entries(map).filter(([key, value]) => !shouldDrop(key, value)),
+  );
+  return Object.keys(kept).length === Object.keys(map).length ? map : kept;
+}
+
+/**
+ * Every place grid items hold a plugin's args, as `{tile, layer, source,
+ * args}`: each tile, top-level or in a layer popup at any depth, and each
+ * dynamic layer of a Map tile (`layer` its `layerId`, "" for a tile). The
+ * server finds the places a secret can be set the same way
+ * (`iter_plugin_arg_paths` in saved_settings.py).
+ */
+function collectArgPlaces(gridItems, places = []) {
+  for (const item of Array.isArray(gridItems) ? gridItems : []) {
+    if (!item || typeof item !== "object") continue;
+    const args = readArgs(item.args_string);
+    const tile = typeof item.uuid === "string" && item.uuid ? item.uuid : null;
+    if (tile) places.push({ tile, layer: "", source: item.source, args });
+    if (item.source !== "Map") continue;
+    for (const layer of Array.isArray(args.layers) ? args.layers : []) {
+      const props = layer?.configuration?.props;
+      const pluginSource = props?.pluginSource;
+      if (
+        tile &&
+        pluginSource &&
+        typeof pluginSource === "object" &&
+        typeof props.layerId === "string" &&
+        props.layerId
+      ) {
+        places.push({
+          tile,
+          layer: props.layerId,
+          source: pluginSource.source,
+          args: readArgs(pluginSource.args),
+        });
+      }
+      collectArgPlaces(layer?.popupConfig?.gridItems, places);
+    }
+  }
+  return places;
+}
+
+/** The places tabs hold plugin args, grouped by tile and layer. */
+function argPlacesByKey(tabs) {
+  const byKey = new Map();
+  for (const tab of Array.isArray(tabs) ? tabs : []) {
+    for (const place of collectArgPlaces(tab?.gridItems)) {
+      const key = secretPlaceKey({ ...place, arg: "" });
+      byKey.set(key, [...(byKey.get(key) ?? []), place]);
+    }
+  }
+  return byKey;
+}
+
+/** The one place tabs hold a pending secret's arg, or null for none or many. */
+function placeOf(placesByKey, { tile, layer }) {
+  const matches = placesByKey.get(secretPlaceKey({ tile, layer, arg: "" }));
+  return matches?.length === 1 ? matches[0] : null;
+}
+
+/**
+ * The secret changes a save of `tabs` carries: one `{tile, layer, arg,
+ * value}` for each pending entry still pointing at a secret arg of the plugin
+ * it was entered for, `value` the secret to set or null to clear it.
+ *
+ * The rest is stale and dropped: a tile or layer deleted since, or one whose
+ * plugin changed (the save sweeps the old plugin's stored secret anyway), an
+ * arg no longer in its args, or one the plugin no longer declares secret. The
+ * server refuses a whole save that sets a secret anywhere else.
+ *
+ * @param {object} pendingSecrets The pending map: secretPlaceKey -> `{tile,
+ *   layer, arg, source, value}`.
+ * @param {Array} tabs The tabs being saved.
+ * @param {Map} secretArgsOf Plugin source -> its secret arg names.
+ * @returns {Array} The changes, in the pending map's order.
+ */
+export function secretChangesToSave(pendingSecrets, tabs, secretArgsOf) {
+  const entries = Object.values(pendingSecrets ?? {});
+  if (entries.length === 0) return [];
+  const placesByKey = argPlacesByKey(tabs);
+  const changes = [];
+  for (const entry of entries) {
+    const place = placeOf(placesByKey, entry);
+    if (
+      place &&
+      place.source === entry.source &&
+      Object.prototype.hasOwnProperty.call(place.args, entry.arg) &&
+      secretArgsOf.get(place.source)?.has(entry.arg)
+    ) {
+      changes.push({
+        tile: entry.tile,
+        layer: entry.layer || "",
+        arg: entry.arg,
+        value: entry.value,
+      });
+    }
+  }
+  return changes;
+}
+
+/**
+ * What the dashboard knows about its stored secrets: the server's list of the
+ * places holding one, and, for each, the plugin source its tile or layer was
+ * saved with. A secret is stored for that plugin only, so an editor that has
+ * switched the plugin since must not report it as set.
+ */
+function readSecretStatus(storedSecrets, tabs) {
+  const stored = Array.isArray(storedSecrets) ? storedSecrets : [];
+  const sources = new Map();
+  if (stored.length === 0) return { stored, sources };
+  const placesByKey = argPlacesByKey(tabs);
+  for (const path of stored) {
+    const place = placeOf(placesByKey, path);
+    if (place) sources.set(secretPlaceKey(path), place.source);
+  }
+  return { stored, sources };
+}
+
+const NO_SECRET_STATUS = readSecretStatus([], []);
+
 const DashboardLoader = ({
   children,
   id,
@@ -187,7 +321,21 @@ const DashboardLoader = ({
   // none is running: { completed, total }.
   const [variableInputPreload, setVariableInputPreload] = useState(null);
   const { updateDashboard } = useContext(AvailableDashboardsContext);
-  const { visualizations } = useContext(AppContext) ?? {};
+  const { visualizations, dynamicMapLayers } = useContext(AppContext) ?? {};
+  // Which places hold a stored secret, as the server last said (see
+  // readSecretStatus). Never a value: the server serves none.
+  const [secretStatus, setSecretStatus] = useState(NO_SECRET_STATUS);
+  // Secrets an editor has entered or cleared since the last save:
+  // secretPlaceKey -> {tile, layer, arg, source, value}, `value` the secret or
+  // null to clear it. Never in the tiles' args, so nothing that reads the tabs
+  // -- a preview, an export, the save's own tabs -- can carry one. They go
+  // out only with a save of the tabs. Held in a ref as well as in state: the
+  // memoized save reads the ref, so it always sends the latest entries.
+  const [pendingSecrets, setPendingSecretsState] = useState({});
+  const pendingSecretsRef = useRef({});
+  // The entries a save of the tabs has read: sent, or dropped as stale. An
+  // editor closed without saving puts back what it opened with, less these.
+  const savedSecretEntries = useRef(new WeakSet());
   const originalTabs = useRef({});
   // tab id -> the variable input keys that tab's built-in grid items own.
   const ownedVariableInputKeys = useRef(new Map());
@@ -218,6 +366,9 @@ const DashboardLoader = ({
             { replacesAllTabs: true },
           );
           originalTabs.current = dashboardTabs;
+          setSecretStatus(
+            readSecretStatus(response.dashboard.storedSecrets, dashboardTabs),
+          );
           setNotes(response.dashboard.notes);
           setTabs(dashboardTabs);
           setActiveTabId(dashboardTabs[0].id);
@@ -234,12 +385,15 @@ const DashboardLoader = ({
           let preloaded = { values: {}, dateFormats: {}, owners: {} };
           try {
             preloaded = await preloadPluginVariableInputs({
+              dashboardUUID: uuid,
               tabs: dashboardTabs,
               visualizations,
               variableInputValues: applyVariableInputSeeds({}, seeds),
               variableInputDateFormats: dateFormats,
               onProgress: setVariableInputPreload,
               isAbandoned: () => abandoned,
+              // Every arg for a caller who may edit, as the tiles send them.
+              allArgs: editable,
             });
           } catch (error) {
             // Fall through with nothing preloaded.
@@ -428,21 +582,112 @@ const DashboardLoader = ({
     [variableInputValues],
   );
 
+  const updatePendingSecrets = useCallback((update) => {
+    const next = update(pendingSecretsRef.current);
+    if (next === pendingSecretsRef.current) return;
+    pendingSecretsRef.current = next;
+    setPendingSecretsState(next);
+  }, []);
+
+  const setPendingSecret = useCallback(
+    ({ tile, layer = "", arg, source, value }) => {
+      updatePendingSecrets((previous) => ({
+        ...previous,
+        [secretPlaceKey({ tile, layer, arg })]: {
+          tile,
+          layer: layer || "",
+          arg,
+          source,
+          value,
+        },
+      }));
+    },
+    [updatePendingSecrets],
+  );
+
+  // Discards the pending entries of a tile or layer: of one arg, or of every
+  // arg when none is named. Given `keepSource`, an entry entered for that
+  // plugin is kept, so an editor's save drops only those for another plugin.
+  const discardPendingSecrets = useCallback(
+    ({ tile, layer = "", arg, keepSource }) => {
+      const wantedTile = normalizeTileUuid(tile);
+      updatePendingSecrets((previous) =>
+        omitEntries(
+          previous,
+          (key, entry) =>
+            String(entry.tile).toLowerCase() === wantedTile &&
+            entry.layer === (layer || "") &&
+            (arg === undefined || entry.arg === arg) &&
+            (keepSource === undefined || entry.source !== keepSource),
+        ),
+      );
+    },
+    [updatePendingSecrets],
+  );
+
+  // Puts the pending entries back as they were when an editor opened:
+  // `snapshot` is the pending map then. Every entry entered or cleared since
+  // goes, and every one discarded since comes back, but for one a save of the
+  // tabs has read since, which is done with.
+  const restorePendingSecrets = useCallback(
+    (snapshot) => {
+      updatePendingSecrets(() =>
+        omitEntries(snapshot ?? {}, (key, entry) =>
+          savedSecretEntries.current.has(entry),
+        ),
+      );
+    },
+    [updatePendingSecrets],
+  );
+
+  // A secret stored for the plugin its tile or layer was saved with does not
+  // run another, and the next save sweeps it.
+  const isSecretStored = useCallback(
+    ({ tile, layer = "", arg, source }) => {
+      const savedSource = secretStatus.sources.get(
+        secretPlaceKey({ tile, layer, arg }),
+      );
+      return savedSource !== undefined && savedSource === source;
+    },
+    [secretStatus],
+  );
+
+  const secretArgsOf = useMemo(
+    () => secretArgsBySource(visualizations, dynamicMapLayers),
+    [visualizations, dynamicMapLayers],
+  );
+
   const resetTabs = useCallback(() => {
     setTabs(originalTabs.current);
     setActiveTabId(originalTabs.current[0].id);
     updateVariableInputValuesWithGridItems(originalTabs.current, {
       replacesAllTabs: true,
     });
+    // Cancelling the edit cancels the secrets entered in it.
+    updatePendingSecrets(() => ({}));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [originalTabs, variableInputValues]);
 
   const saveLayoutContext = useCallback(
     async (newProperties) => {
-      const apiResponse = await updateDashboard({ id, newProperties });
+      // Pending secrets ride only a save of the tabs, the one save the server
+      // reads them with. Every other save -- a thumbnail, the dashboard's
+      // settings -- neither sends nor clears them.
+      const savesTabs = "tabs" in newProperties;
+      const pendingSent = pendingSecretsRef.current;
+      const secretChanges = savesTabs
+        ? secretChangesToSave(pendingSent, newProperties.tabs, secretArgsOf)
+        : [];
+      const apiResponse = await updateDashboard({
+        id,
+        newProperties:
+          secretChanges.length > 0
+            ? { ...newProperties, secretChanges }
+            : newProperties,
+      });
       if (apiResponse["success"]) {
         const updatedDashboard = apiResponse.updated_dashboard;
-        if ("tabs" in newProperties) {
+        if (savesTabs) {
           const originalActiveTabIndex = tabs.findIndex(
             (tab) => tab.id === activeTabId,
           );
@@ -457,11 +702,32 @@ const DashboardLoader = ({
           ownedVariableInputKeys.current = keysByTab;
           gridItemUUIDsByTab.current = uuidsByTab;
           setActiveTabId(updatedDashboard.tabs[originalActiveTabIndex].id);
+          setSecretStatus(
+            readSecretStatus(
+              updatedDashboard.storedSecrets,
+              updatedDashboard.tabs,
+            ),
+          );
+          // Every entry this save read is done with: sent, or dropped as
+          // stale. One entered while the save was out is kept for the next.
+          for (const entry of Object.values(pendingSent)) {
+            savedSecretEntries.current.add(entry);
+          }
+          updatePendingSecrets((current) =>
+            omitEntries(current, (key, entry) => pendingSent[key] === entry),
+          );
         }
       }
       return apiResponse;
     },
-    [updateDashboard, id, tabs, activeTabId],
+    [
+      updateDashboard,
+      id,
+      tabs,
+      activeTabId,
+      secretArgsOf,
+      updatePendingSecrets,
+    ],
   );
 
   const addTab = useCallback(() => {
@@ -583,6 +849,13 @@ const DashboardLoader = ({
       autoThumbnail,
       description,
       owner,
+      // The places holding a stored secret, `{tile, layer, arg}` each.
+      storedSecrets: secretStatus.stored,
+      isSecretStored,
+      pendingSecrets,
+      setPendingSecret,
+      discardPendingSecrets,
+      restorePendingSecrets,
     }),
     [
       saveLayoutContext,
@@ -598,6 +871,12 @@ const DashboardLoader = ({
       autoThumbnail,
       description,
       owner,
+      secretStatus,
+      isSecretStored,
+      pendingSecrets,
+      setPendingSecret,
+      discardPendingSecrets,
+      restorePendingSecrets,
     ],
   );
   const editingContextValue = useMemo(

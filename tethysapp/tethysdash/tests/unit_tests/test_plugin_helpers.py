@@ -4,14 +4,21 @@ from tethysapp.tethysdash.plugin_helpers import (
     send_websocket_message,
     TethysDashPlugin,
     DATE_PRESET_SENTINELS,
+    SECRET_ARG_MASK,
     geotiff_source,
+    run_secret_values,
+    run_secrets,
+    secret_arg_names,
     validate_layer_source_description,
 )
+from tethysapp.tethysdash.tile_secrets import REDACTED, SecretValue
 import requests
 import pytest
 import re
+import threading
 from pathlib import Path
 from datetime import datetime
+from urllib.parse import quote
 
 
 def test_layer_configuration_builder_ESRI_map(mocker):
@@ -1087,7 +1094,7 @@ def test_plugin_send_update(monkeypatch):
     plugin.send_update("msg", percentage_complete=42)
     assert called["args"] == ("reqid", "msg", 42)
     # layer_id defaults to None (no pending layer context for a non-runtime plugin)
-    assert called["kwargs"] == {"layer_id": None}
+    assert called["kwargs"] == {"layer_id": None, "secret_values": ()}
 
 
 def test_plugin_kwargs_are_set():
@@ -1128,6 +1135,70 @@ def test_received_args_reflects_parsed_dates():
     assert plugin.received_args["fooDate"] == datetime(2023, 1, 1, 0, 0)
     assert plugin.get_arg("fooDate") == datetime(2023, 1, 1, 0, 0)
     assert plugin.received_args["foo"] == 1
+
+
+class SecretPlugin(TethysDashPlugin):
+    name = "secret"
+    group = "TestGroup"
+    label = "Secret Plugin"
+    type = "table"
+    args = {"api_key": "secret", "token": "secret", "site": "text", "when": "date"}
+
+    def run(self):
+        return "ran"
+
+
+def test_secret_arg_names_reads_a_declaration():
+    assert secret_arg_names(SecretPlugin.args) == {"api_key", "token"}
+    assert secret_arg_names({"site": "text", "loc": [{"label": "secret"}]}) == set()
+    assert secret_arg_names(None) == frozenset()
+    assert secret_arg_names(["api_key"]) == frozenset()
+
+
+def test_secret_arg_reaches_the_plugin_as_a_plain_string():
+    # A date-like value is not parsed: a secret is whatever string was entered.
+    plugin = SecretPlugin(api_key="2023-01-01", site="A", when="2023-01-01")
+
+    assert plugin.secret_arg_names == {"api_key", "token"}
+    assert plugin.api_key == "2023-01-01"
+    assert plugin.received_args["api_key"] == "2023-01-01"
+    assert plugin.get_arg("api_key") == "2023-01-01"
+    assert plugin.when == datetime(2023, 1, 1, 0, 0)
+
+
+def test_plugin_without_secret_args_records_none():
+    assert MinimalPlugin(foo=1).secret_arg_names == frozenset()
+    assert MinimalPlugin(foo=1).secret_values() == ()
+
+
+def test_secret_values_holds_what_each_secret_arg_was_given_and_holds_now():
+    plugin = SecretPlugin(api_key="given-key", token="", site="given-key")
+    assert plugin.secret_values() == ("given-key",)
+
+    plugin.api_key = "replaced-key"
+    plugin.token = None
+    assert plugin.secret_values() == ("given-key", "replaced-key")
+
+
+def test_secret_values_skips_secret_args_not_given():
+    assert SecretPlugin(site="A").secret_values() == ()
+
+
+def test_plugin_description_masks_secret_args():
+    plugin = SecretPlugin(api_key="hunter2-key", site="A")
+
+    for description in (repr(plugin), plugin.yaml()):
+        assert "hunter2-key" not in description
+        assert SECRET_ARG_MASK in description
+        assert "site: A" in description
+    # The plugin itself still holds the value it was created with.
+    assert plugin._captured_init_kwargs["api_key"] == "hunter2-key"
+
+
+def test_plugin_description_without_secret_args_is_intakes():
+    plugin = MinimalPlugin(foo="visible")
+    assert "foo: visible" in repr(plugin)
+    assert SECRET_ARG_MASK not in repr(plugin)
 
 
 def test_sub_args_returns_immediate_children_only():
@@ -1959,3 +2030,154 @@ def test_echo_raster_fixture_scaffold_round_trips():
             "style": {"rampName": "viridis"},
         }
     }
+
+
+# --- Secrets kept out of progress messages ------------------------------------
+
+RUN_SECRET = "s3cr3t k3y/+="
+
+
+@pytest.fixture
+def sent_messages(mocker):
+    """Capture what send_websocket_message hands the channel layer, from any thread."""
+    sent = []
+    channel_layer = mocker.MagicMock()
+    channel_layer.group_send.side_effect = lambda group, event: sent.append(
+        event["message"]["message"]
+    )
+    mocker.patch("channels.layers.get_channel_layer", return_value=channel_layer)
+    mocker.patch("asgiref.sync.async_to_sync", lambda fn: fn)
+    return sent
+
+
+def test_send_websocket_message_scrubs_the_runs_secrets_in_every_form(sent_messages):
+    text = f"Signing in with {RUN_SECRET} at ?key={quote(RUN_SECRET, safe='')}"
+
+    secret = SecretValue(RUN_SECRET)
+
+    with run_secrets([secret]):
+        assert run_secret_values() == (secret,)
+        send_websocket_message("req-1", text)
+    send_websocket_message("req-1", text)
+
+    assert sent_messages == [
+        f"Signing in with {REDACTED} at ?key={REDACTED}",
+        # The run is over, so its values are no longer known here.
+        text,
+    ]
+
+
+def test_send_websocket_message_scrubs_the_values_it_is_given(sent_messages):
+    send_websocket_message(
+        "req-1", f"Signing in with {RUN_SECRET}", secret_values=(RUN_SECRET,)
+    )
+
+    assert sent_messages == [f"Signing in with {REDACTED}"]
+
+
+def test_send_websocket_message_masks_a_url_password_outside_any_run(sent_messages):
+    send_websocket_message("req-1", "Reading postgres://bob:hunter2@db/water")
+
+    assert sent_messages == [f"Reading postgres://bob:{REDACTED}@db/water"]
+
+
+def test_send_websocket_message_replaces_a_message_of_another_type_holding_a_secret(
+    sent_messages,
+):
+    with run_secrets([RUN_SECRET]):
+        send_websocket_message("req-1", {"key": RUN_SECRET})
+        send_websocket_message("req-1", {"step": 2})
+        send_websocket_message("req-1", None)
+
+    assert sent_messages == [REDACTED, {"step": 2}, None]
+
+
+def test_send_websocket_message_scrubs_its_failure_log(mocker, capsys):
+    mocker.patch("channels.layers.get_channel_layer", return_value=mocker.Mock())
+    mocker.patch(
+        "asgiref.sync.async_to_sync",
+        side_effect=Exception(f"cannot send {RUN_SECRET}"),
+    )
+
+    with run_secrets([RUN_SECRET]):
+        send_websocket_message("req-1", "progress")
+
+    out = capsys.readouterr().out
+    assert f"WebSocket message send failed: cannot send {REDACTED}" in out
+    assert RUN_SECRET not in out
+
+
+def test_run_secrets_are_cleared_when_the_run_fails():
+    with pytest.raises(RuntimeError):
+        with run_secrets([RUN_SECRET]):
+            raise RuntimeError("the plugin failed")
+
+    assert run_secret_values() == ()
+
+
+def test_concurrent_runs_scrub_only_with_their_own_secrets(sent_messages):
+    """Two runs answered at once, on two threads, each see only their own run's
+    values: neither scrubs the other's secret, so neither run's values leak into
+    the other's context."""
+    secrets = {"run-a": "alpha-s3cr3t", "run-b": "bravo-s3cr3t"}
+    both = " and ".join(secrets.values())
+    both_inside = threading.Barrier(2)
+    failures = []
+
+    def run(name):
+        try:
+            with run_secrets([SecretValue(secrets[name])]):
+                # Both runs are inside their blocks before either sends.
+                both_inside.wait(timeout=5)
+                send_websocket_message(name, f"{name}: {both}")
+                both_inside.wait(timeout=5)
+        except Exception as error:  # pragma: no cover - reported below
+            failures.append(error)
+
+    threads = [threading.Thread(target=run, args=(name,)) for name in secrets]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert failures == []
+    assert sorted(sent_messages) == [
+        f"run-a: {REDACTED} and bravo-s3cr3t",
+        f"run-b: alpha-s3cr3t and {REDACTED}",
+    ]
+
+
+def test_send_update_scrubs_the_plugins_secrets_from_its_own_thread(sent_messages):
+    """A thread a plugin starts sees none of the run's values, so send_update
+    scrubs with the values the plugin carries. A helper sending without the
+    plugin there gets only the URL-password backstop."""
+    plugin = SecretPlugin(api_key=RUN_SECRET, site="A")
+    plugin.request_id = "req-1"
+
+    in_url = quote(RUN_SECRET, safe="")
+
+    def worker():
+        plugin.send_update(f"Signing in with {RUN_SECRET}")
+        send_websocket_message("req-1", f"Bare {RUN_SECRET} at https://bob:{in_url}@h/")
+
+    with run_secrets([RUN_SECRET]):
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join(timeout=10)
+
+    assert sent_messages == [
+        f"Signing in with {REDACTED}",
+        f"Bare {RUN_SECRET} at https://bob:{REDACTED}@h/",
+    ]
+
+
+def test_send_update_before_init_is_scrubbed_by_the_run(sent_messages):
+    class EarlyPlugin(SecretPlugin):
+        def __init__(self, **kwargs):
+            self.send_update(f"Connecting with {kwargs['api_key']}")
+            super().__init__(**kwargs)
+
+    with run_secrets([RUN_SECRET]):
+        EarlyPlugin(api_key=RUN_SECRET, site="A")
+
+    assert sent_messages == [f"Connecting with {REDACTED}"]

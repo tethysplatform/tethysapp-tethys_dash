@@ -13,6 +13,7 @@ import { mockedDashboards, userDashboard } from "__tests__/utilities/constants";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { baseMapLayers } from "components/visualizations/utilities";
+import * as utils from "components/visualizations/utilities";
 import ErrorBoundary from "components/error/ErrorBoundary";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
 import { ModalPriorityProvider } from "components/contexts/ModalPriorityContext";
@@ -25,7 +26,6 @@ const TestingComponent = () => {
   const {
     tethysApp,
     user,
-    csrf,
     routes,
     visualizations,
     visualizationArgs,
@@ -39,7 +39,6 @@ const TestingComponent = () => {
     <>
       <p data-testid="tethysApp">{JSON.stringify(tethysApp)}</p>
       <p data-testid="user">{JSON.stringify(user)}</p>
-      <p data-testid="csrf">{csrf}</p>
       <p data-testid="routes">
         {JSON.stringify(routes.map((route) => route.key))}
       </p>
@@ -138,10 +137,6 @@ test("AppLoader", async () => {
       isAuthenticated: true,
       isStaff: true,
     }),
-  );
-
-  expect(await screen.findByTestId("csrf")).toHaveTextContent(
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 
   expect(await screen.findByTestId("routes")).toHaveTextContent(
@@ -317,6 +312,51 @@ test("AppLoader, load session error", async () => {
     await screen.findByText("AxiosError: Request failed with status code 500"),
   ).toBeInTheDocument();
 });
+
+// The CSRF token comes from the app shell for every visitor, so loading the app
+// never asks the portal's deprecated endpoint for one.
+test.each([
+  ["signed in", false, "admin"],
+  ["signed out", true, null],
+])(
+  "AppLoader never requests a CSRF token, %s",
+  async (_, signedOut, username) => {
+    if (signedOut) {
+      server.use(
+        rest.get("http://api.test/api/session/", (req, res, ctx) =>
+          res(ctx.status(401)),
+        ),
+      );
+    }
+    const requested = [];
+    const recordRequest = (req) => requested.push(req.url.pathname);
+    server.events.on("request:start", recordRequest);
+    let loadedContext;
+    const ContextReader = () => {
+      loadedContext = useContext(AppContext);
+      return <p data-testid="loaded">loaded</p>;
+    };
+
+    try {
+      render(
+        <ModalPriorityProvider>
+          <Loader>
+            <ContextReader />
+          </Loader>
+        </ModalPriorityProvider>,
+      );
+      expect(await screen.findByTestId("loaded")).toBeInTheDocument();
+    } finally {
+      server.events.removeListener("request:start", recordRequest);
+    }
+
+    expect(requested).toContain("/api/session/");
+    expect(requested).toContain("/apps/tethysdash/dashboards/list/");
+    expect(requested).not.toContain("/api/csrf/");
+    expect(loadedContext).not.toHaveProperty("csrf");
+    expect(loadedContext.user.username).toBe(username);
+  },
+);
 
 test("AppLoader, load visualization error", async () => {
   server.use(
@@ -511,8 +551,6 @@ test("AppLoader carries each dynamic map layer plugin's source type, defaulting 
 // uuid the server minted, then saves its tabs; a failure after the create takes
 // the new dashboard back down.
 describe("importDashboard", () => {
-  const csrf =
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy";
   const created = { id: 77, uuid: "minted-uuid", name: "Imported" };
 
   // A map whose layer style is inline, so importing it uploads one file.
@@ -611,10 +649,10 @@ describe("importDashboard", () => {
     });
 
     // Metadata only: no uuid, no grid items, no tabs.
-    expect(addDashboard).toHaveBeenCalledWith(
-      { name: "Imported", description: "described" },
-      csrf,
-    );
+    expect(addDashboard).toHaveBeenCalledWith({
+      name: "Imported",
+      description: "described",
+    });
     expect(addDashboard.mock.calls[0][0]).not.toHaveProperty("uuid");
     expect(uploadJSON).toHaveBeenCalledTimes(1);
     expect(uploadJSON.mock.calls[0][0].dashboard_uuid).toBe("minted-uuid");
@@ -702,7 +740,7 @@ describe("importDashboard", () => {
     });
 
     expect(result).toEqual({ success: false, message: "upload failed" });
-    expect(deleteDashboard).toHaveBeenCalledWith({ id: 77 }, csrf);
+    expect(deleteDashboard).toHaveBeenCalledWith({ id: 77 });
     expect(updateDashboard).not.toHaveBeenCalled();
     expect(names).toEqual(listedNames);
   });
@@ -719,7 +757,7 @@ describe("importDashboard", () => {
     });
 
     expect(result).toEqual({ success: false, message: "save failed" });
-    expect(deleteDashboard).toHaveBeenCalledWith({ id: 77 }, csrf);
+    expect(deleteDashboard).toHaveBeenCalledWith({ id: 77 });
     expect(names).toEqual(listedNames);
   });
 
@@ -735,7 +773,7 @@ describe("importDashboard", () => {
       success: false,
       message: "Import failed: network down",
     });
-    expect(deleteDashboard).toHaveBeenCalledWith({ id: 77 }, csrf);
+    expect(deleteDashboard).toHaveBeenCalledWith({ id: 77 });
     expect(names).toEqual(listedNames);
   });
 
@@ -813,5 +851,212 @@ describe("importDashboard", () => {
       message: "Dashboards must include a name",
     });
     expect(addDashboard).not.toHaveBeenCalled();
+  });
+});
+
+// A secret is stored encrypted on the server for one tile or layer of one
+// dashboard, never in args, so none may ride an import or an export, and an
+// author cannot make a variable input out of one.
+describe("secret args", () => {
+  const SECRET = "fixture-s3cret-value";
+  const secretPlugin = {
+    source: "secret_plugin",
+    value: "Secret Plugin",
+    label: "Secret Plugin",
+    args: { station: "text", api_key: "secret" },
+    type: "text",
+    tags: [],
+    description: "",
+  };
+  const secretLayerPlugin = {
+    source: "secret_layer",
+    value: "Secret Layer",
+    label: "Secret Layer",
+    args: { token: "secret" },
+    type: "map_layer",
+    dynamic_map_layer: true,
+    dynamic_map_layer_source: "GeoJSON",
+    tags: [],
+    description: "",
+  };
+  const created = { id: 77, uuid: "minted-uuid", name: "Imported" };
+
+  const secretTile = (apiKey, extra = {}) => ({
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 10,
+    h: 10,
+    source: "secret_plugin",
+    args_string: { station: "A", api_key: apiKey },
+    metadata_string: { refreshRate: 0 },
+    ...extra,
+  });
+
+  const secretLayerMap = (token, extra = {}) => ({
+    i: "2",
+    x: 0,
+    y: 0,
+    w: 10,
+    h: 10,
+    source: "Map",
+    args_string: {
+      layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "Gages",
+              layerId: "layer-1",
+              pluginSource: { source: "secret_layer", args: { token } },
+              source: { type: "GeoJSON", props: {} },
+            },
+          },
+        },
+      ],
+    },
+    metadata_string: { refreshRate: 0 },
+    ...extra,
+  });
+
+  beforeEach(() => {
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/list/",
+        (req, res, ctx) =>
+          res(
+            ctx.status(200),
+            ctx.json({
+              visualizations: [
+                { label: "Secret Group", options: [secretPlugin] },
+                { label: "Map Layers", options: [secretLayerPlugin] },
+              ],
+            }),
+            ctx.set("Content-Type", "application/json"),
+          ),
+      ),
+    );
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  const Calling = ({ call }) => {
+    const dashboardsContext = useContext(AvailableDashboardsContext);
+    const [result, setResult] = useState(null);
+    return (
+      <>
+        <button onClick={async () => setResult(await call(dashboardsContext))}>
+          run
+        </button>
+        <p data-testid="callResult">{JSON.stringify(result)}</p>
+      </>
+    );
+  };
+  Calling.propTypes = { call: PropTypes.func.isRequired };
+
+  const run = async (call) => {
+    render(
+      <ModalPriorityProvider>
+        <Loader>
+          <Calling call={call} />
+        </Loader>
+      </ModalPriorityProvider>,
+    );
+    await userEvent.click(await screen.findByText("run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("callResult").textContent).not.toBe("null"),
+    );
+  };
+
+  test("an import blanks a hand-written file's secret values before the save", async () => {
+    jest
+      .spyOn(appAPI, "addDashboard")
+      .mockResolvedValue({ success: true, new_dashboard: created });
+    const updateDashboard = jest
+      .spyOn(appAPI, "updateDashboard")
+      .mockResolvedValue({ success: true, updated_dashboard: created });
+
+    await run(({ importDashboard }) =>
+      importDashboard({
+        name: "Imported",
+        tabs: [
+          {
+            name: "Main",
+            gridItems: [secretTile(SECRET), secretLayerMap(SECRET)],
+          },
+        ],
+      }),
+    );
+
+    const { tabs } = updateDashboard.mock.calls[0][0];
+    const [tile, map] = tabs[0].gridItems;
+    expect(JSON.parse(tile.args_string)).toEqual({ station: "A", api_key: "" });
+    expect(
+      JSON.parse(map.args_string).layers[0].configuration.props.pluginSource
+        .args,
+    ).toEqual({ token: "" });
+    expect(JSON.stringify(updateDashboard.mock.calls)).not.toContain(SECRET);
+  });
+
+  test("a dashboard export holds blank secret args and no storedSecrets", async () => {
+    const stringified = (gridItem) => ({
+      ...gridItem,
+      args_string: JSON.stringify(gridItem.args_string),
+      metadata_string: JSON.stringify(gridItem.metadata_string),
+    });
+    // As the server serves it: secret args blank, and the places that hold a
+    // stored secret listed beside the tabs.
+    jest.spyOn(appAPI, "getDashboard").mockResolvedValue({
+      success: true,
+      dashboard: {
+        id: 5,
+        uuid: "dashboard-uuid",
+        name: "Secrets",
+        storedSecrets: [
+          { tile: "tile-uuid", layer: "", arg: "api_key" },
+          { tile: "map-uuid", layer: "layer-1", arg: "token" },
+        ],
+        tabs: [
+          {
+            id: 1,
+            name: "Main",
+            gridItems: [
+              stringified(secretTile("", { id: 1, uuid: "tile-uuid" })),
+              stringified(secretLayerMap("", { id: 2, uuid: "map-uuid" })),
+            ],
+          },
+        ],
+      },
+    });
+    const download = jest
+      .spyOn(utils, "downloadJSONFile")
+      .mockImplementation(jest.fn());
+
+    await run(({ exportDashboard }) => exportDashboard(5));
+
+    expect(download).toHaveBeenCalledTimes(1);
+    const [file, filename] = download.mock.calls[0];
+    expect(filename).toBe("Secrets.json");
+    expect(file).not.toHaveProperty("storedSecrets");
+    const [tile, map] = file.tabs[0].gridItems;
+    expect(tile.args_string).toEqual({ station: "A", api_key: "" });
+    expect(
+      map.args_string.layers[0].configuration.props.pluginSource.args,
+    ).toEqual({ token: "" });
+  });
+
+  test("a secret arg is not offered as an existing visualization input", async () => {
+    render(
+      <ModalPriorityProvider>
+        <Loader>
+          <TestingComponent />
+        </Loader>
+      </ModalPriorityProvider>,
+    );
+
+    const labels = JSON.parse(
+      (await screen.findByTestId("visualizationArgs")).textContent,
+    ).map((arg) => arg.label);
+    expect(labels).toContain("Secret Group: Secret Plugin - Station");
+    expect(labels).not.toContain("Secret Group: Secret Plugin - Api Key");
   });
 });

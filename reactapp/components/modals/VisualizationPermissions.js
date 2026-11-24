@@ -49,7 +49,7 @@ const AccordionHeaderContent = styled.div`
 
 function VisualizationPermissionsModal({ showModal, setShowModal }) {
   const { permissionGroups } = useContext(PermissionGroupContext);
-  const { user, csrf } = useContext(AppContext);
+  const { user } = useContext(AppContext);
   const [visualizationPermissions, setVisualizationPermissions] = useState({});
   const [nameInput, setNameInput] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -165,10 +165,9 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
     setErrorMessage("");
 
     try {
-      const apiResponse = await appAPI.updateVisualizationPermissions(
-        { permissions: visualizationPermissions },
-        csrf,
-      );
+      const apiResponse = await appAPI.updateVisualizationPermissions({
+        permissions: visualizationPermissions,
+      });
 
       if (apiResponse.success) {
         setSuccessMessage("Successfully updated visualization permissions");

@@ -1,6 +1,6 @@
 import { applyRenderAsImage } from "components/modals/MapLayer/MapLayer";
 import PropTypes from "prop-types";
-import { useRef } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import {
   act,
   render,
@@ -21,9 +21,12 @@ import MapLayerModal, {
 } from "components/modals/MapLayer/MapLayer";
 import {
   AppContext,
+  AvailableDashboardsContext,
+  GridItemContext,
   LayoutContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
+import DashboardLoader from "components/loader/DashboardLoader";
 import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
@@ -37,8 +40,9 @@ import {
 } from "components/map/popupAttributes";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
-import { fullMapLayer } from "__tests__/utilities/constants";
+import { fullMapLayer, userDashboard } from "__tests__/utilities/constants";
 import { rehydratePluginSourceProps } from "components/inputs/custom/AddMapLayer";
+import { ARGS_SETTLE_MS } from "components/modals/utilities";
 
 // A raster's ramp settings are the layer's saved style (`configuration.style`),
 // not part of its source. The fixtures below describe a layer as one flat
@@ -92,9 +96,7 @@ global.crypto = {
 
 // Helper component for extent draw tests — wraps MapLayerModal with MapContext
 const ExtentTestComponent = ({ layerInfo, visualizationRefOverride }) => {
-  const csrf = "asdasdasdasd";
   const appContext = {
-    csrf,
     mapLayerTemplates: [],
     dynamicMapLayers: [],
     sessionNonce: "test-nonce",
@@ -152,8 +154,9 @@ const TestingComponent = ({
   addMapLayer,
   layerInfo,
   dynamicMapLayers = [],
+  // The Map tile the editor was opened from, when a test needs one.
+  gridItemUUID,
 }) => {
-  const csrf = "asdasdasdasd";
   const mapLayerTemplates = [
     {
       source: "template_map_layer_example",
@@ -166,7 +169,6 @@ const TestingComponent = ({
     },
   ];
   const appContext = {
-    csrf,
     mapLayerTemplates,
     dynamicMapLayers,
   };
@@ -178,12 +180,16 @@ const TestingComponent = ({
           <VariableInputsContext.Provider
             value={{ variableInputValues: {}, variableInputDateFormats: {} }}
           >
-            <MapLayerModal
-              showModal={showModal}
-              handleModalClose={handleModalClose}
-              addMapLayer={addMapLayer}
-              layerInfo={layerInfo}
-            />
+            <GridItemContext.Provider
+              value={gridItemUUID ? { gridItemUUID } : undefined}
+            >
+              <MapLayerModal
+                showModal={showModal}
+                handleModalClose={handleModalClose}
+                addMapLayer={addMapLayer}
+                layerInfo={layerInfo}
+              />
+            </GridItemContext.Provider>
           </VariableInputsContext.Provider>
         </LayoutContext.Provider>
       </AppContext.Provider>
@@ -193,7 +199,7 @@ const TestingComponent = ({
 
 test("MapLayerModal layer template full map layer", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -283,9 +289,147 @@ test("MapLayerModal layer template full map layer", async () => {
   });
 });
 
+describe("the editor's plugin requests", () => {
+  const DATA_URL = "http://api.test/apps/tethysdash/visualizations/get/";
+  const dynamicPlugins = [
+    {
+      label: "Dynamic Map Layers",
+      options: [
+        {
+          source: "custom_layer_test",
+          value: "Stream Gauges (Dynamic)",
+          label: "Stream Gauges (Dynamic)",
+          args: {},
+          type: "map_layer",
+          dynamic_map_layer: true,
+        },
+      ],
+    },
+  ];
+
+  // Answers every data request with `data` and keeps each body it was sent.
+  const captureDataRequests = (data) => {
+    const bodies = [];
+    server.use(
+      rest.post(DATA_URL, async (req, res, ctx) => {
+        bodies.push(await req.json());
+        return res(ctx.status(200), ctx.json({ success: true, data }));
+      }),
+    );
+    return bodies;
+  };
+
+  test("the layer template request names the dashboard, the map tile and the layer being edited", async () => {
+    const bodies = captureDataRequests(fullMapLayer);
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={jest.fn()}
+        layerInfo={{ layerProps: { name: "Saved", layerId: "layer-9" } }}
+        gridItemUUID="map-tile-uuid"
+      />,
+    );
+
+    selectEvent.openMenu(await screen.findByLabelText("Layer Templates Input"));
+    fireEvent.click(await screen.findByText("Map Layer Template Example"));
+
+    await waitFor(() =>
+      expect(bodies).toContainEqual({
+        dashboard: "123",
+        tile: "map-tile-uuid",
+        layer: "layer-9",
+        source: "template_map_layer_example",
+        args: {},
+        allArgs: true,
+      }),
+    );
+  });
+
+  test("Fetch defaults on a layer not saved yet names the dashboard and the map tile only", async () => {
+    const bodies = captureDataRequests({
+      configuration: { props: { name: "Scaffold Name" } },
+    });
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={jest.fn()}
+        layerInfo={{
+          layerProps: {},
+          sourceProps: {
+            type: "Stream Gauges (Dynamic)",
+            source: "custom_layer_test",
+            args: {},
+            props: {},
+          },
+        }}
+        dynamicMapLayers={dynamicPlugins}
+        gridItemUUID="map-tile-uuid"
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Fetch plugin defaults"));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name Input").value).toBe("Scaffold Name"),
+    );
+    // Every request the editor made, Fetch defaults' among them, each
+    // carrying every arg: the layer editor is an editor's.
+    expect(bodies).toContainEqual({
+      dashboard: "123",
+      tile: "map-tile-uuid",
+      source: "custom_layer_test",
+      args: {},
+      allArgs: true,
+    });
+    for (const body of bodies) {
+      expect(body).toMatchObject({ dashboard: "123", tile: "map-tile-uuid" });
+      expect(body).not.toHaveProperty("layer");
+    }
+  });
+
+  test("Fetch defaults on a saved layer names it", async () => {
+    const bodies = captureDataRequests({
+      configuration: { props: { name: "Scaffold Name" } },
+    });
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={jest.fn()}
+        layerInfo={{
+          layerProps: { name: "Saved", layerId: "layer-9" },
+          sourceProps: {
+            type: "Stream Gauges (Dynamic)",
+            source: "custom_layer_test",
+            args: {},
+            props: {},
+          },
+        }}
+        dynamicMapLayers={dynamicPlugins}
+        gridItemUUID="map-tile-uuid"
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Fetch plugin defaults"));
+
+    await waitFor(() =>
+      expect(bodies).toContainEqual({
+        dashboard: "123",
+        tile: "map-tile-uuid",
+        layer: "layer-9",
+        source: "custom_layer_test",
+        args: {},
+        allArgs: true,
+      }),
+    );
+  });
+});
+
 test("MapLayerModal layer template partial map layer", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -366,7 +510,7 @@ test("MapLayerModal layer template partial map layer", async () => {
 
 test("MapLayerModal layer template error response", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -407,7 +551,7 @@ test("MapLayerModal layer template error response", async () => {
 
 test("MapLayerModal layer template error response, custom error", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -2778,7 +2922,7 @@ describe("MapLayerModal plugin layer", () => {
     };
 
     server.use(
-      rest.get(
+      rest.post(
         "http://api.test/apps/tethysdash/visualizations/get/",
         (req, res, ctx) => {
           return res(
@@ -2907,7 +3051,7 @@ describe("MapLayerModal plugin layer", () => {
     // saved order has to match it rather than reset to source order.
     const addMapLayer = jest.fn();
     server.use(
-      rest.get(
+      rest.post(
         "http://api.test/apps/tethysdash/visualizations/get/",
         (req, res, ctx) =>
           res(
@@ -2975,7 +3119,7 @@ describe("MapLayerModal plugin layer", () => {
   test("fetchPluginDefaults loads the scaffold's hover list", async () => {
     const addMapLayer = jest.fn();
     server.use(
-      rest.get(
+      rest.post(
         "http://api.test/apps/tethysdash/visualizations/get/",
         (req, res, ctx) =>
           res(
@@ -3055,7 +3199,7 @@ describe("MapLayerModal plugin layer", () => {
     };
 
     server.use(
-      rest.get(
+      rest.post(
         "http://api.test/apps/tethysdash/visualizations/get/",
         (req, res, ctx) => {
           return res(
@@ -3162,7 +3306,7 @@ describe("MapLayerModal plugin layer", () => {
     };
 
     server.use(
-      rest.get(
+      rest.post(
         "http://api.test/apps/tethysdash/visualizations/get/",
         (req, res, ctx) => {
           return res(
@@ -3232,7 +3376,7 @@ describe("MapLayerModal plugin layer", () => {
     };
 
     server.use(
-      rest.get(
+      rest.post(
         "http://api.test/apps/tethysdash/visualizations/get/",
         (req, res, ctx) => {
           return res(
@@ -3427,7 +3571,7 @@ describe("MapLayerModal plugin layer", () => {
     };
 
     server.use(
-      rest.get(
+      rest.post(
         "http://api.test/apps/tethysdash/visualizations/get/",
         (req, res, ctx) => {
           return res(
@@ -3957,7 +4101,7 @@ describe("MapLayerModal Show on Click and Show on Hover", () => {
   // popup settings.
   const loadTemplate = async (popupSettings) => {
     server.use(
-      rest.get(
+      rest.post(
         "http://api.test/apps/tethysdash/visualizations/get/",
         (req, res, ctx) =>
           res(
@@ -4508,6 +4652,7 @@ TestingComponent.propTypes = {
   mapLayers: PropTypes.array,
   existingLayerOriginalName: PropTypes.object,
   dynamicMapLayers: PropTypes.array,
+  gridItemUUID: PropTypes.string,
 };
 
 ExtentTestComponent.propTypes = {
@@ -4748,14 +4893,14 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
 
   const serveScaffolds = (scaffolds) =>
     server.use(
-      rest.get(
+      rest.post(
         "http://api.test/apps/tethysdash/visualizations/get/",
-        (req, res, ctx) =>
+        async (req, res, ctx) =>
           res(
             ctx.status(200),
             ctx.json({
               success: true,
-              data: scaffolds[req.url.searchParams.get("source")],
+              data: scaffolds[(await req.json()).source],
             }),
             ctx.set("Content-Type", "application/json"),
           ),
@@ -5031,10 +5176,10 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
       releaseEcho = resolve;
     });
     server.use(
-      rest.get(
+      rest.post(
         "http://api.test/apps/tethysdash/visualizations/get/",
         async (req, res, ctx) => {
-          const source = req.url.searchParams.get("source");
+          const { source } = await req.json();
           if (source === "echo_runtime_raster") await echoHeld;
           return res(
             ctx.status(200),
@@ -5223,5 +5368,586 @@ describe("buildRasterStyleSettings", () => {
     ],
   ])("saves no settings for %s", (_label, rasterStyle) => {
     expect(buildRasterStyleSettings(rasterStyle)).toEqual({});
+  });
+});
+
+describe("a dynamic layer's secret arg", () => {
+  const DATA_URL = "http://api.test/apps/tethysdash/visualizations/get/";
+  const SECRET = "typed-layer-s3cret";
+  const dynamicMapLayers = [
+    {
+      label: "Dynamic Map Layers",
+      options: [
+        {
+          source: "secret_layer",
+          value: "Secret Layer",
+          label: "Secret Layer",
+          args: { station: "text", token: "secret" },
+          type: "map_layer",
+          dynamic_map_layer: true,
+        },
+        {
+          source: "plain_layer",
+          value: "Plain Layer",
+          label: "Plain Layer",
+          args: {},
+          type: "map_layer",
+          dynamic_map_layer: true,
+        },
+      ],
+    },
+  ];
+  const savedLayerPath = {
+    tile: "map-tile-uuid",
+    layer: "layer-9",
+    arg: "token",
+  };
+  const dashboardWith = (storedSecrets) => ({
+    ...userDashboard,
+    tabs: [
+      {
+        id: 1,
+        name: "Tab 1",
+        gridItems: [
+          {
+            id: 1,
+            uuid: "map-tile-uuid",
+            i: "1",
+            x: 0,
+            y: 0,
+            w: 20,
+            h: 20,
+            source: "Map",
+            args_string: JSON.stringify({
+              layers: [
+                {
+                  configuration: {
+                    type: "VectorLayer",
+                    props: {
+                      name: "Live",
+                      layerId: "layer-9",
+                      pluginSource: {
+                        source: "secret_layer",
+                        args: { station: "A", token: "" },
+                      },
+                    },
+                  },
+                },
+              ],
+            }),
+            metadata_string: "{}",
+          },
+        ],
+      },
+    ],
+    storedSecrets,
+  });
+  const secretLayerSource = {
+    type: "Secret Layer",
+    source: "secret_layer",
+    args: { station: "A" },
+    props: {},
+  };
+
+  // What is pending, as [tile, layer, arg, set or clear]; never the value.
+  const Pending = () => {
+    const { pendingSecrets } = useContext(LayoutContext);
+    return (
+      <p data-testid="pending">
+        {JSON.stringify(
+          Object.values(pendingSecrets).map((entry) => [
+            entry.tile,
+            entry.layer,
+            entry.arg,
+            entry.value === null ? "clear" : "set",
+          ]),
+        )}
+      </p>
+    );
+  };
+  const pending = () => JSON.parse(screen.getByTestId("pending").textContent);
+
+  // Opens the editor once the entries in `pendingAtOpen` are pending, as a
+  // secret entered and kept in an earlier session of the editor is.
+  const OpenWithPending = ({ pendingAtOpen, children }) => {
+    const { setPendingSecret } = useContext(LayoutContext);
+    const [open, setOpen] = useState(false);
+    useEffect(() => {
+      pendingAtOpen.forEach(setPendingSecret);
+      setOpen(true);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    return open ? children : null;
+  };
+  OpenWithPending.propTypes = {
+    pendingAtOpen: PropTypes.array,
+    children: PropTypes.node,
+  };
+
+  const renderEditor = async ({
+    layerInfo,
+    storedSecrets = [],
+    pendingAtOpen = [],
+  }) => {
+    const dashboard = dashboardWith(storedSecrets);
+    const bodies = [];
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/dashboards/get/",
+        (req, res, ctx) =>
+          res(ctx.status(200), ctx.json({ success: true, dashboard })),
+      ),
+      rest.post(DATA_URL, async (req, res, ctx) => {
+        bodies.push(await req.json());
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: { configuration: { props: { name: "Live" } } },
+          }),
+        );
+      }),
+    );
+    mockedGetLayerAttributes.mockResolvedValue({});
+    const addMapLayer = jest.fn();
+    const handleModalClose = jest.fn();
+    render(
+      <AppContext.Provider value={{ mapLayerTemplates: [], dynamicMapLayers }}>
+        <AvailableDashboardsContext.Provider
+          value={{ updateDashboard: jest.fn() }}
+        >
+          <DashboardLoader {...dashboard}>
+            <GridItemContext.Provider value={{ gridItemUUID: "map-tile-uuid" }}>
+              <OpenWithPending pendingAtOpen={pendingAtOpen}>
+                <MapLayerModal
+                  showModal={true}
+                  handleModalClose={handleModalClose}
+                  addMapLayer={addMapLayer}
+                  layerInfo={layerInfo}
+                />
+              </OpenWithPending>
+            </GridItemContext.Provider>
+            <Pending />
+          </DashboardLoader>
+        </AvailableDashboardsContext.Provider>
+      </AppContext.Provider>,
+    );
+    await screen.findByTestId("pending");
+    return { bodies, addMapLayer, handleModalClose };
+  };
+
+  const enterSecret = async () => {
+    const field = await screen.findByLabelText("Token Input");
+    fireEvent.change(field, { target: { value: SECRET } });
+    fireEvent.blur(field);
+  };
+
+  test("a new layer's secret is previewed, kept out of its args, and pending under the layerId it is saved with", async () => {
+    const { bodies, addMapLayer } = await renderEditor({
+      layerInfo: {
+        layerProps: { name: "Live" },
+        sourceProps: secretLayerSource,
+      },
+    });
+    expect(
+      await screen.findByText(/This layer needs a secret/),
+    ).toBeInTheDocument();
+
+    await enterSecret();
+    expect(pending()).toEqual([
+      ["map-tile-uuid", expect.anything(), "token", "set"],
+    ]);
+    const [[, pendingLayerId]] = pending();
+
+    fireEvent.click(screen.getByLabelText("Fetch plugin defaults"));
+    await waitFor(() =>
+      expect(bodies.at(-1)).toEqual({
+        dashboard: "user-uuid",
+        tile: "map-tile-uuid",
+        source: "secret_layer",
+        args: { station: "A", token: SECRET },
+        allArgs: true,
+      }),
+    );
+
+    // Field discovery runs with it too.
+    fireEvent.click(screen.getByText("Attributes/Table Popup"));
+    await waitFor(() =>
+      expect(mockedGetLayerAttributes).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          sourceProps: expect.objectContaining({
+            args: { station: "A", token: SECRET },
+          }),
+        }),
+      ),
+    );
+
+    fireEvent.click(screen.getByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+    const saved = addMapLayer.mock.calls[0][0];
+    expect(saved.configuration.props.layerId).toBe(pendingLayerId);
+    expect(saved.configuration.props.pluginSource).toEqual({
+      source: "secret_layer",
+      args: { station: "A", token: "" },
+    });
+    expect(JSON.stringify(saved)).not.toContain(SECRET);
+    // Saving the layer keeps it pending until the dashboard is saved.
+    expect(pending()).toEqual([
+      ["map-tile-uuid", pendingLayerId, "token", "set"],
+    ]);
+  });
+
+  test("a saved layer's stored secret shows as set, and Clear makes it a pending clear", async () => {
+    await renderEditor({
+      layerInfo: {
+        layerProps: { name: "Live", layerId: "layer-9" },
+        sourceProps: {
+          ...secretLayerSource,
+          args: { station: "A", token: "" },
+        },
+      },
+      storedSecrets: [savedLayerPath],
+    });
+
+    expect(await screen.findByText("Secret set")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Clear Token"));
+
+    expect(
+      screen.getByText("The secret is cleared when you save the dashboard."),
+    ).toBeInTheDocument();
+    expect(pending()).toEqual([["map-tile-uuid", "layer-9", "token", "clear"]]);
+  });
+
+  const savedLayer = {
+    layerProps: { name: "Live", layerId: "layer-9" },
+    sourceProps: secretLayerSource,
+  };
+  const keptSecret = {
+    ...savedLayerPath,
+    source: "secret_layer",
+    value: SECRET,
+  };
+
+  const switchToPlainLayer = async () => {
+    selectEvent.openMenu(screen.getByLabelText("Source Type Input"));
+    fireEvent.click(await screen.findByText("Plain Layer"));
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Token Input")).not.toBeInTheDocument(),
+    );
+  };
+
+  test("closing the editor without saving discards the secret entered in it", async () => {
+    const { handleModalClose } = await renderEditor({ layerInfo: savedLayer });
+    await enterSecret();
+    expect(pending()).toEqual([["map-tile-uuid", "layer-9", "token", "set"]]);
+
+    fireEvent.click(screen.getByLabelText("Close Layer Modal Button"));
+
+    expect(handleModalClose).toHaveBeenCalledTimes(1);
+    expect(pending()).toEqual([]);
+  });
+
+  test("closing the editor without saving brings back a secret its Undo discarded", async () => {
+    await renderEditor({ layerInfo: savedLayer, pendingAtOpen: [keptSecret] });
+    expect(
+      await screen.findByText(
+        "New secret entered. It is saved when you save the dashboard.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Undo Token"));
+    expect(pending()).toEqual([]);
+
+    fireEvent.click(screen.getByLabelText("Close Layer Modal Button"));
+
+    expect(pending()).toEqual([["map-tile-uuid", "layer-9", "token", "set"]]);
+  });
+
+  test("switching the layer's plugin and closing the editor keeps the secret entered before", async () => {
+    await renderEditor({ layerInfo: savedLayer, pendingAtOpen: [keptSecret] });
+
+    await switchToPlainLayer();
+    expect(pending()).toEqual([["map-tile-uuid", "layer-9", "token", "set"]]);
+    fireEvent.click(screen.getByLabelText("Close Layer Modal Button"));
+
+    expect(pending()).toEqual([["map-tile-uuid", "layer-9", "token", "set"]]);
+  });
+
+  test("a secret entered for the layer's plugin is discarded when the layer is saved with another", async () => {
+    const { addMapLayer } = await renderEditor({
+      layerInfo: savedLayer,
+      pendingAtOpen: [keptSecret],
+    });
+
+    await switchToPlainLayer();
+    fireEvent.click(screen.getByLabelText("Create Layer Button"));
+
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+    expect(pending()).toEqual([]);
+  });
+
+  const pickSecretLayer = async () => {
+    selectEvent.openMenu(screen.getByLabelText("Source Type Input"));
+    fireEvent.click(await screen.findByText("Secret Layer"));
+    return screen.findByLabelText("Station Input");
+  };
+  const NEEDS_SECRET =
+    "This tile needs a secret. Enter it in the tile's settings.";
+  // Moves the fake clock on, as spyOnFetchDefaults sets one up.
+  const advance = (ms) =>
+    act(async () => {
+      jest.advanceTimersByTime(ms);
+    });
+  // Past the pause a picked plugin's defaults wait for its args to hold
+  // still, so a fetch that was going to run has run.
+  const settle = () => advance(ARGS_SETTLE_MS + 100);
+  const fetched = (count) =>
+    waitFor(() => expect(fetchDefaults).toHaveBeenCalledTimes(count));
+  // Fetch defaults' requests, on a fake clock. The Style tab reads a dynamic
+  // layer's fields through the same endpoint on every change, so it is
+  // stubbed while this spy is on: the spy then counts Fetch defaults alone.
+  let fetchDefaults;
+  let restoreFetchDefaults = () => {};
+  const spyOnFetchDefaults = () => {
+    jest.useFakeTimers();
+    const styleFields = jest
+      .spyOn(jest.requireMock("components/map/utilities"), "getStyleFields")
+      .mockResolvedValue([]);
+    fetchDefaults = jest.spyOn(appAPI, "getVisualizationData");
+    restoreFetchDefaults = () => {
+      fetchDefaults.mockRestore();
+      styleFields.mockRestore();
+      jest.useRealTimers();
+      restoreFetchDefaults = () => {};
+    };
+  };
+  afterEach(() => restoreFetchDefaults());
+
+  test("a picked plugin's defaults are fetched once every arg has a value, its secret included", async () => {
+    spyOnFetchDefaults();
+    await renderEditor({ layerInfo: {} });
+
+    // Picked with its args blank, the plugin is not run: it would answer for
+    // args not filled in yet.
+    const station = await pickSecretLayer();
+    fireEvent.change(station, { target: { value: "B" } });
+    await settle();
+    expect(fetchDefaults).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    await enterSecret();
+    await fetched(1);
+    expect(fetchDefaults).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        source: "secret_layer",
+        args: { station: "B", token: SECRET },
+      }),
+    );
+
+    // Once loaded, never again by itself: Fetch defaults overwrites the
+    // Style, Legend and Attributes tabs, so a later change is the author's to
+    // fetch for.
+    await waitFor(() =>
+      expect(screen.queryByText(/Fetching/)).not.toBeInTheDocument(),
+    );
+    fireEvent.change(station, { target: { value: "C" } });
+    await settle();
+    expect(fetchDefaults).toHaveBeenCalledTimes(1);
+  });
+
+  test("a value being typed is fetched for once it holds still, not at its first letter", async () => {
+    spyOnFetchDefaults();
+    await renderEditor({ layerInfo: {} });
+    const station = await pickSecretLayer();
+    await enterSecret();
+
+    // Keystrokes half the pause apart: none of the gaps is a pause.
+    for (const value of ["U", "US", "USGS", "USGS01"]) {
+      fireEvent.change(station, { target: { value } });
+      await advance(ARGS_SETTLE_MS / 2);
+      expect(fetchDefaults).not.toHaveBeenCalled();
+    }
+    await settle();
+
+    expect(fetchDefaults).toHaveBeenCalledTimes(1);
+    expect(fetchDefaults).toHaveBeenLastCalledWith(
+      expect.objectContaining({ args: { station: "USGS01", token: SECRET } }),
+    );
+  });
+
+  test("defaults that land after newer ones apply nothing", async () => {
+    spyOnFetchDefaults();
+    // The defaults for station B are held until those for C have landed.
+    let replyForB;
+    const heldForB = new Promise((resolve) => {
+      replyForB = resolve;
+    });
+    fetchDefaults.mockImplementation(async ({ args }) => {
+      if (args.station === "B") await heldForB;
+      return {
+        success: true,
+        data: {
+          configuration: { props: { name: "Live" } },
+          legend: {
+            title: `Station ${args.station}`,
+            items: [{ label: "Gauge", color: "#000000", symbol: "circle" }],
+          },
+        },
+      };
+    });
+    const { addMapLayer } = await renderEditor({
+      layerInfo: { layerProps: { name: "Live" } },
+    });
+    const station = await pickSecretLayer();
+    await enterSecret();
+
+    fireEvent.change(station, { target: { value: "B" } });
+    await settle();
+    await fetched(1);
+    fireEvent.change(station, { target: { value: "C" } });
+    await settle();
+    await fetched(2);
+    await waitFor(() =>
+      expect(screen.queryByText(/Fetching/)).not.toBeInTheDocument(),
+    );
+    await act(async () => replyForB());
+
+    fireEvent.click(screen.getByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+    expect(addMapLayer.mock.calls[0][0].legend.title).toBe("Station C");
+  });
+
+  test("defaults that fail to load are tried again once the values change, and not before", async () => {
+    spyOnFetchDefaults();
+    await renderEditor({ layerInfo: {} });
+    server.use(
+      rest.post(DATA_URL, (req, res, ctx) =>
+        res.once(
+          ctx.status(200),
+          ctx.json({
+            success: false,
+            data: { error: "Station B was not found." },
+          }),
+        ),
+      ),
+    );
+    const station = await pickSecretLayer();
+    await enterSecret();
+    fireEvent.change(station, { target: { value: "B" } });
+
+    expect(
+      await screen.findByText(
+        "Station B was not found.",
+        {},
+        { timeout: 3000 },
+      ),
+    ).toBeInTheDocument();
+    await settle();
+    expect(fetchDefaults).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(station, { target: { value: "C" } });
+    expect(
+      screen.queryByText("Station B was not found."),
+    ).not.toBeInTheDocument();
+    await fetched(2);
+    expect(fetchDefaults).toHaveBeenLastCalledWith(
+      expect.objectContaining({ args: { station: "C", token: SECRET } }),
+    );
+  });
+
+  test("switching plugins while defaults are owed fetches the new plugin's", async () => {
+    spyOnFetchDefaults();
+    await renderEditor({ layerInfo: {} });
+    await pickSecretLayer();
+
+    await switchToPlainLayer();
+    await fetched(1);
+    expect(fetchDefaults).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: "plain_layer" }),
+    );
+    await settle();
+    expect(fetchDefaults).toHaveBeenCalledTimes(1);
+  });
+
+  test("opening a saved layer fetches no defaults, though its args and secret are all set", async () => {
+    spyOnFetchDefaults();
+    await renderEditor({
+      layerInfo: savedLayer,
+      storedSecrets: [savedLayerPath],
+    });
+    expect(await screen.findByText("Secret set")).toBeInTheDocument();
+
+    await settle();
+    expect(fetchDefaults).not.toHaveBeenCalled();
+  });
+
+  test("pressing Fetch defaults settles the defaults a pick still owed", async () => {
+    spyOnFetchDefaults();
+    await renderEditor({ layerInfo: {} });
+    const station = await pickSecretLayer();
+
+    fireEvent.click(screen.getByLabelText("Fetch plugin defaults"));
+    await fetched(1);
+    // Every arg goes from the layer editor but a blank secret.
+    expect(fetchDefaults).toHaveBeenLastCalledWith(
+      expect.objectContaining({ args: { station: "" } }),
+    );
+    fireEvent.change(station, { target: { value: "B" } });
+    await enterSecret();
+    await settle();
+
+    expect(fetchDefaults).toHaveBeenCalledTimes(1);
+  });
+
+  test("a Fetch defaults alert goes once the secret or an arg it ran with changes", async () => {
+    await renderEditor({ layerInfo: savedLayer });
+    server.use(
+      rest.post(DATA_URL, (req, res, ctx) =>
+        res(
+          ctx.status(200),
+          ctx.json({ success: false, data: { error: NEEDS_SECRET } }),
+        ),
+      ),
+    );
+
+    fireEvent.click(await screen.findByLabelText("Fetch plugin defaults"));
+    expect(await screen.findByText(NEEDS_SECRET)).toBeInTheDocument();
+    await enterSecret();
+    expect(screen.queryByText(NEEDS_SECRET)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Fetch plugin defaults"));
+    expect(await screen.findByText(NEEDS_SECRET)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Station Input"), {
+      target: { value: "B" },
+    });
+    expect(screen.queryByText(NEEDS_SECRET)).not.toBeInTheDocument();
+  });
+
+  test("a Fetch defaults reply for values changed since it was sent shows no alert", async () => {
+    let reply;
+    const replied = new Promise((resolve) => {
+      reply = resolve;
+    });
+    await renderEditor({ layerInfo: savedLayer });
+    server.use(
+      rest.post(DATA_URL, async (req, res, ctx) => {
+        await replied;
+        return res(
+          ctx.status(200),
+          ctx.json({ success: false, data: { error: NEEDS_SECRET } }),
+        );
+      }),
+    );
+
+    fireEvent.click(await screen.findByLabelText("Fetch plugin defaults"));
+    expect(await screen.findByText(/Fetching/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Station Input"), {
+      target: { value: "B" },
+    });
+    reply();
+
+    await waitFor(() =>
+      expect(screen.queryByText(/Fetching/)).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText(NEEDS_SECRET)).not.toBeInTheDocument();
   });
 });

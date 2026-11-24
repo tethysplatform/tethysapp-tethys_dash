@@ -1,6 +1,7 @@
 import ast
 import pytest
 import json
+import re
 from pathlib import Path
 from sqlalchemy.exc import IntegrityError
 import tethysapp.tethysdash.controllers as controllers_module
@@ -12,22 +13,43 @@ from tethysapp.tethysdash.model import (
     Message,
     PermissionGroup,
     PermissionGroupUser,
+    TileSecret,
     VisualizationPermission,
     layer_file_name,
     store_layer_file,
 )
+from tethysapp.tethysdash import tile_secrets
+from tethysapp.tethysdash.tile_secrets import REDACTED, SecretIdentity, decrypt
+from tethysapp.tethysdash.tests.fixtures.echo_secret_plugin import (
+    EchoSecretIntake,
+    secret_proof,
+)
+from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
 from unittest.mock import MagicMock, mock_open, patch
 import os
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from tethysapp.tethysdash.model import save_thumbnail, thumbnail_name
 from django.conf import settings
-from django.test import override_settings
+from django.shortcuts import render
+from django.test import Client, override_settings
 from datetime import datetime, timedelta
 import types
 from tethysapp.tethysdash.exceptions import (
+    DASHBOARD_CHANGED,
     DASHBOARD_NOT_FOUND,
+    DATA_REQUEST_FAILED,
     INVALID_FILE_PATH,
+    PAGE_OUT_OF_DATE,
+    SECRET_NEEDED,
+    SECRET_NOT_SET_UP,
+    SECRET_RETURNED,
+    SECRET_SETTING_GONE,
+    SECRET_UNREADABLE,
+    DashboardNotFound,
+    DashboardUpdateRefused,
+    LayerStorageQuotaExceeded,
+    SecretChangeRefused,
     VisualizationError,
 )
 import uuid
@@ -40,6 +62,7 @@ from tethysapp.tethysdash.controllers import (
     _rate_limit_retry_after,
     _image_proxy_client_address,
     _redacted_url,
+    UPDATE_FAILED,
 )
 import requests
 import socket
@@ -64,144 +87,324 @@ def test_home_logged_in(client, admin_user, mock_app):
     assert response.status_code == 200
 
 
+def _render_app_shell(mock_app):
+    """Render the real app shell template rather than the mock's stand-in.
+
+    The app is not registered in the test database, so the context processor
+    that supplies ``tethys_app`` finds none; the template is handed the fields
+    it reads instead.
+    """
+    app = mock_app("tethysapp.tethysdash.controllers.App")
+    app.render.side_effect = lambda request, template, context: render(
+        request,
+        f"tethysdash/{template}",
+        {**context, "tethys_app": {"package": "tethysdash", "name": "TethysDash"}},
+    )
+    return app
+
+
+def _embedded_csrf_token(response):
+    return re.search(
+        r'<meta name="csrf-token" content="([^"]+)"', response.content.decode()
+    ).group(1)
+
+
 @pytest.mark.django_db
-def test_data_failed(client, mock_app, mocker):
-    mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:visualization")
+def test_home_gives_a_signed_out_visitor_a_csrf_token(client, mock_app):
+    _render_app_shell(mock_app)
+
+    response = client.get(reverse("tethysdash:home"))
+
+    assert response.status_code == 200
+    assert response.cookies[settings.CSRF_COOKIE_NAME].value
+    assert "no-store" in response["Cache-Control"]
+    assert "Cookie" in [value.strip() for value in response["Vary"].split(",")]
+    assert _embedded_csrf_token(response)
+    assert '<meta name="csrf-cookie-name" content="csrftoken" />' in (
+        response.content.decode()
+    )
+
+
+@pytest.mark.django_db
+@override_settings(CSRF_COOKIE_NAME="portal_csrf")
+def test_home_names_the_portals_csrf_cookie(client, mock_app):
+    _render_app_shell(mock_app)
+
+    response = client.get(reverse("tethysdash:home"))
+
+    assert response.cookies["portal_csrf"].value
+    assert '<meta name="csrf-cookie-name" content="portal_csrf" />' in (
+        response.content.decode()
+    )
+
+
+@pytest.mark.django_db
+@override_settings(CSRF_USE_SESSIONS=True)
+def test_home_embeds_a_token_when_the_portal_sets_no_csrf_cookie(client, mock_app):
+    """A portal keeping the token in the session sets no cookie the browser can
+    read, so the embedded token is the one the frontend sends."""
+    _render_app_shell(mock_app)
+
+    response = client.get(reverse("tethysdash:home"))
+
+    assert settings.CSRF_COOKIE_NAME not in response.cookies
+    assert _embedded_csrf_token(response)
+
+
+@pytest.mark.django_db
+@override_settings(ENABLE_OPEN_PORTAL=True)
+def test_signed_out_post_passes_the_csrf_check_only_with_the_shells_token(mock_app):
+    """The add endpoint answers a signed-out caller with the app's refusal, so a
+    200 carrying it shows the request got past Django's CSRF check."""
+    _render_app_shell(mock_app)
+    csrf_client = Client(enforce_csrf_checks=True)
+    shell = csrf_client.get(reverse("tethysdash:home"))
+    url = reverse("tethysdash:add_dashboard")
+    body = json.dumps({"name": "signed-out", "gridItems": []})
+
+    without_token = csrf_client.generic("POST", url, body)
+    wrong_token = csrf_client.generic("POST", url, body, HTTP_X_CSRFTOKEN="x" * 32)
+
+    assert without_token.status_code == 403
+    assert wrong_token.status_code == 403
+    for token in (
+        shell.cookies[settings.CSRF_COOKIE_NAME].value,
+        _embedded_csrf_token(shell),
+    ):
+        response = csrf_client.generic("POST", url, body, HTTP_X_CSRFTOKEN=token)
+        assert response.status_code == 200
+        assert response.json() == {
+            "success": False,
+            "message": "You must be signed in to do that.",
+        }
+
+
+RECORDING_FC = {
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {"id": 1},
+            "geometry": {"type": "Point", "coordinates": [-112.0, 40.0]},
+        }
+    ],
+    "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+}
+
+# A tile's saved args, and the same request with an arg that is not wired to a
+# variable input changed: the server must never run the second for a viewer.
+SAVED = {"location": "CREC1", "base_url": "https://data.example.org"}
+CHANGED = {"location": "CREC1", "base_url": "https://elsewhere.example"}
+
+
+@pytest.fixture
+def recording_plugins(mocker):
+    """Install plugins that answer with the args they were built with.
+
+    ``recording`` is open to everyone and ``restricted_recording`` takes a
+    visualization permission. Each build is recorded as ``(source, args)`` in the
+    list returned, so a test can show a plugin was never constructed.
+    """
+    built = []
+
+    class RecordingPlugin:
+        plugin_source = "recording"
+        type = "table"
+        restricted = False
+        dynamic_map_layer = True
+        args = {"location": "text", "base_url": "text", "start": "date"}
+
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            built.append((self.plugin_source, kwargs))
+
+        def read(self):
+            return {"ran_with": self.kwargs}
+
+        def read_features(self, request_id=None):
+            return RECORDING_FC
+
+    class RestrictedRecordingPlugin(RecordingPlugin):
+        plugin_source = "restricted_recording"
+        restricted = True
+
+    class MockIntake:
+        source = types.SimpleNamespace(
+            registry={
+                "recording": RecordingPlugin,
+                "restricted_recording": RestrictedRecordingPlugin,
+            }
+        )
+        open_recording = RecordingPlugin
+        open_restricted_recording = RestrictedRecordingPlugin
+
+    mocker.patch("tethysapp.tethysdash.visualizations.intake", new=MockIntake())
+    return built
+
+
+def _add_tile(db_session, dashboard, source="recording", args=None):
+    """Save a top-level tile on the dashboard and return its uuid."""
+    tile_uuid = str(uuid.uuid4())
+    db_session.add(
+        GridItem(
+            dashboard_id=dashboard.id,
+            uuid=tile_uuid,
+            i="1",
+            x=0,
+            y=0,
+            w=1,
+            h=1,
+            source=source,
+            args_string=json.dumps(args or {}),
+            metadata_string="{}",
+        )
+    )
+    db_session.commit()
+    return tile_uuid
+
+
+def _grant_group(db_session, dashboard, user, permission):
+    """Give a user a dashboard permission through a group of their own."""
+    group = PermissionGroup(name=str(uuid.uuid4()), description="", owner="someone")
+    db_session.add(group)
+    db_session.flush()
+    db_session.add(
+        PermissionGroupUser(
+            username=user.username, group_id=group.id, permission="member"
+        )
+    )
+    db_session.add(
+        DashboardPermission(
+            dashboard_id=dashboard.id, group_id=group.id, permission=permission
+        )
+    )
+    db_session.commit()
+
+
+def _post_data(client, dashboard_uuid, tile_uuid, args, source="recording", **fields):
+    body = {
+        "dashboard": dashboard_uuid,
+        "tile": tile_uuid,
+        "source": source,
+        "args": args,
+        "requestId": "n:g:layer-1",
+        **fields,
+    }
+    return client.post(
+        reverse("tethysdash:visualization"),
+        json.dumps(body),
+        content_type="application/json",
+    )
+
+
+def _ran_with(response):
+    body = response.json()
+    assert response.status_code == 200
+    assert body["success"] is True, body
+    return body["data"]["ran_with"]
+
+
+def _data_refusal(message):
+    return {"success": False, "data": {"error": message}, "viz_type": None}
+
+
+@pytest.fixture
+def editor_post(client, mock_app_get_ps_db, dashboard, test_owner_user):
+    """POST a data request as the dashboard's owner, whose args run as sent: it
+    carries every arg (``allArgs``), as the browser sends an editor's."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    client.force_login(test_owner_user)
+
+    def post(source, args, **fields):
+        fields.setdefault("allArgs", True)
+        return _post_data(
+            client, dashboard.uuid, str(uuid.uuid4()), args, source, **fields
+        )
+
+    return post
+
+
+@pytest.mark.django_db
+def test_data_failed(editor_post, mocker):
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     mock_gv.side_effect = [Exception("Failed data retrieval")]
-    requestId = str(uuid.uuid4())
 
-    itemData = {
-        "source": "usace_time_series",
-        "args": json.dumps({"location": "CREC1", "year": 2025}),
-        "requestId": requestId,
-    }
-
-    response = client.get(url, itemData)
+    response = editor_post("usace_time_series", {"location": "CREC1", "year": 2025})
 
     mock_gv.assert_called_once()
     assert response.status_code == 200
-    assert response.json()["success"] is False
-    assert response.json()["data"] == {"error": "Failed to retrieve data"}
-    assert response.json()["viz_type"] is None
+    assert response.json() == _data_refusal(DATA_REQUEST_FAILED)
 
 
 @pytest.mark.django_db
-def test_data_failed_custom_error(client, mock_app, mocker):
-    mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:visualization")
+def test_data_failed_custom_error(editor_post, mocker):
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     mock_gv.side_effect = [VisualizationError("some custom error message")]
-    requestId = str(uuid.uuid4())
 
-    itemData = {
-        "source": "usace_time_series",
-        "args": json.dumps({"location": "CREC1", "year": 2025}),
-        "requestId": requestId,
-    }
-
-    response = client.get(url, itemData)
+    response = editor_post("usace_time_series", {"location": "CREC1", "year": 2025})
 
     mock_gv.assert_called_once()
     assert response.status_code == 200
-    assert response.json()["success"] is False
-    assert response.json()["data"] == {"error": "some custom error message"}
-    assert response.json()["viz_type"] is None
+    assert response.json() == _data_refusal("some custom error message")
 
 
 @pytest.mark.django_db
-def test_data(client, mock_app, mocker):
-    mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:visualization")
+def test_data(editor_post, mocker, test_owner_user):
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     plot_data = {"data": [], "layout": {}}
     mock_gv.return_value = ["plotly", plot_data]
-    requestId = str(uuid.uuid4())
+    args = {"location": "CREC1", "year": 2025}
 
-    itemData = {
-        "source": "usace_time_series",
-        "args": json.dumps({"location": "CREC1", "year": 2025}),
-        "requestId": requestId,
-    }
-
-    response = client.get(url, itemData)
+    response = editor_post("usace_time_series", args, requestId="req-1")
 
     mock_gv.assert_called_once()
+    assert mock_gv.call_args.args == (
+        "usace_time_series",
+        args,
+        test_owner_user,
+        "req-1",
+    )
     assert response.status_code == 200
-    assert response.json()["success"] is True
-    assert response.json()["data"] == plot_data
-    assert response.json()["viz_type"] == "plotly"
+    assert response.json() == {"success": True, "data": plot_data, "viz_type": "plotly"}
 
 
 @pytest.mark.django_db
-def test_data_features_mode_passes_through_exception_message(client, mock_app, mocker):
+def test_data_features_mode_passes_through_exception_message(editor_post, mocker):
     """Unit 2: mode=features must pass the plugin's exception message through
     so authors can self-diagnose. mode=scaffold (default) keeps the existing
     sanitized 'Failed to retrieve data' message."""
-    mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:visualization")
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     mock_gv.side_effect = RuntimeError("raw plugin traceback details")
 
     # mode=features -> plugin exception message passes through
-    response = client.get(
-        url,
-        {
-            "source": "echo_runtime",
-            "args": json.dumps({"mode": "raise"}),
-            "requestId": "n:g:layer-1",
-            "mode": "features",
-        },
-    )
+    response = editor_post("echo_runtime", {"mode": "raise"}, mode="features")
     assert response.status_code == 200
-    assert response.json()["success"] is False
-    assert response.json()["data"] == {"error": "raw plugin traceback details"}
+    assert response.json() == _data_refusal("raw plugin traceback details")
 
     # mode=scaffold (default) -> sanitized message preserved
     mock_gv.side_effect = RuntimeError("raw plugin traceback details")
-    response = client.get(
-        url,
-        {
-            "source": "echo_runtime",
-            "args": json.dumps({}),
-            "requestId": "req-1",
-        },
-    )
+    response = editor_post("echo_runtime", {})
     assert response.status_code == 200
-    assert response.json()["success"] is False
-    assert response.json()["data"] == {"error": "Failed to retrieve data"}
+    assert response.json() == _data_refusal(DATA_REQUEST_FAILED)
 
 
 @pytest.mark.django_db
-def test_data_features_mode_happy_path(client, mock_app, mocker):
+def test_data_features_mode_happy_path(editor_post, mocker):
     """mode=features success returns viz_type=features with the FC payload."""
-    mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:visualization")
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
-    fc = {
-        "type": "FeatureCollection",
-        "features": [],
-        "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
-    }
-    mock_gv.return_value = ["features", fc]
+    mock_gv.return_value = ["features", RECORDING_FC]
 
-    response = client.get(
-        url,
-        {
-            "source": "echo_runtime",
-            "args": json.dumps({"mode": "empty"}),
-            "requestId": "n:g:layer-1",
-            "mode": "features",
-        },
-    )
+    response = editor_post("echo_runtime", {"mode": "empty"}, mode="features")
+
     # Confirm the controller forwarded mode=features to get_visualization.
     mock_gv.assert_called_once()
     _, kwargs = mock_gv.call_args
     assert kwargs.get("mode") == "features"
-    assert response.json()["success"] is True
-    assert response.json()["viz_type"] == "features"
-    assert response.json()["data"] == fc
+    assert response.json() == {
+        "success": True,
+        "viz_type": "features",
+        "data": RECORDING_FC,
+    }
 
 
 @pytest.fixture
@@ -224,25 +427,14 @@ def echo_runtime_raster_intake(mocker):
 
 
 @pytest.mark.django_db
-def test_data_features_mode_geotiff_source(
-    client, mock_app, echo_runtime_raster_intake
-):
+def test_data_features_mode_geotiff_source(editor_post, echo_runtime_raster_intake):
     """A GeoTIFF runtime fetch responds with viz_type=source and the
     validated source description, through the same mode=features request."""
     from tethysapp.tethysdash.tests.fixtures.echo_runtime_raster_plugin import (
         ECHO_RASTER_URL,
     )
 
-    mock_app("tethysapp.tethysdash.controllers.App")
-    response = client.get(
-        reverse("tethysdash:visualization"),
-        {
-            "source": "echo_runtime_raster",
-            "args": json.dumps({"mode": "styled"}),
-            "requestId": "n:g:layer-1",
-            "mode": "features",
-        },
-    )
+    response = editor_post("echo_runtime_raster", {"mode": "styled"}, mode="features")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -261,19 +453,12 @@ def test_data_features_mode_geotiff_source(
 
 @pytest.mark.django_db
 def test_data_features_mode_geotiff_invalid_source(
-    client, mock_app, echo_runtime_raster_intake
+    editor_post, echo_runtime_raster_intake
 ):
     """A malformed GeoTIFF description fails per-layer with the validator's
     actionable message passed through, like any features-mode error."""
-    mock_app("tethysapp.tethysdash.controllers.App")
-    response = client.get(
-        reverse("tethysdash:visualization"),
-        {
-            "source": "echo_runtime_raster",
-            "args": json.dumps({"mode": "wrong_type"}),
-            "requestId": "n:g:layer-1",
-            "mode": "features",
-        },
+    response = editor_post(
+        "echo_runtime_raster", {"mode": "wrong_type"}, mode="features"
     )
 
     body = response.json()
@@ -285,24 +470,588 @@ def test_data_features_mode_geotiff_invalid_source(
 
 
 @pytest.mark.django_db
-def test_data_scaffold_mode_default(client, mock_app, mocker):
+def test_data_scaffold_mode_default(editor_post, mocker):
     """Omitting mode defaults to scaffold (backward compat)."""
-    mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:visualization")
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     mock_gv.return_value = ["plotly", {"data": []}]
 
-    response = client.get(
-        url,
-        {
-            "source": "some_plugin",
-            "args": json.dumps({}),
-            "requestId": "req-1",
-        },
-    )
+    response = editor_post("some_plugin", {})
+
     assert response.status_code == 200
     _, kwargs = mock_gv.call_args
     assert kwargs.get("mode") == "scaffold"
+
+
+@pytest.mark.django_db
+def test_data_runs_a_public_dashboards_saved_tile_for_a_signed_out_caller(
+    client, mock_app_get_ps_db, db_session, public_dashboard, recording_plugins
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tile = _add_tile(db_session, public_dashboard, args=SAVED)
+
+    response = _post_data(client, public_dashboard.uuid, tile, CHANGED)
+
+    assert response.json() == {
+        "success": True,
+        "data": {"ran_with": SAVED},
+        "viz_type": "table",
+    }
+    assert recording_plugins == [("recording", SAVED)]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "open_portal, empty_username_row",
+    [(False, False), (True, False), (False, True)],
+    ids=["closed portal", "open portal", "empty-username row"],
+)
+def test_data_answers_an_unviewable_dashboard_like_a_missing_one(
+    client,
+    mock_app_get_ps_db,
+    db_session,
+    dashboard,
+    admin_user,
+    recording_plugins,
+    settings,
+    open_portal,
+    empty_username_row,
+):
+    """Signed out, or signed in holding no permission, a private dashboard's tile is
+    answered as a missing dashboard's is, and its plugin is never constructed. An
+    open portal lets signed-out callers past Tethys's own login check, and a
+    permission row stored under an empty username matches no signed-out caller."""
+    settings.ENABLE_OPEN_PORTAL = open_portal
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tile = _add_tile(db_session, dashboard, args=SAVED)
+    if empty_username_row:
+        db_session.add(
+            DashboardPermission(
+                dashboard_id=dashboard.id, username="", permission="admin"
+            )
+        )
+        db_session.commit()
+    named = [dashboard.uuid, str(uuid.uuid4()), "not-a-uuid"]
+
+    signed_out = [_post_data(client, d, tile, SAVED).json() for d in named]
+    client.force_login(admin_user)
+    no_permission = [_post_data(client, d, tile, SAVED).json() for d in named]
+
+    assert signed_out == no_permission == [_data_refusal(DASHBOARD_NOT_FOUND)] * 3
+    assert recording_plugins == []
+
+
+@pytest.mark.django_db
+def test_data_gives_a_signed_out_caller_no_edit_rights_from_an_empty_username_row(
+    client, mock_app_get_ps_db, db_session, public_dashboard, recording_plugins
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    db_session.add(
+        DashboardPermission(
+            dashboard_id=public_dashboard.id, username="", permission="admin"
+        )
+    )
+    db_session.commit()
+    tile = _add_tile(db_session, public_dashboard, args=SAVED)
+
+    assert _ran_with(_post_data(client, public_dashboard.uuid, tile, CHANGED)) == SAVED
+
+
+@pytest.mark.django_db
+def test_data_runs_a_viewers_request_from_the_saved_settings(
+    client,
+    mock_app_get_ps_db,
+    db_session,
+    dashboard,
+    test_member_user,
+    recording_plugins,
+):
+    """A viewer runs the saved value of every arg not wired to a variable input,
+    whatever the request sends for it, and the request's value of a wired one. A
+    tile resolves the viewer's relative date in the browser, so it takes the
+    request's date. Keys the request adds are dropped."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tile = _add_tile(
+        db_session,
+        dashboard,
+        args={**SAVED, "location": "${Station}", "start": "now-1D"},
+    )
+    client.force_login(test_member_user)  # a viewer, through a group
+
+    ran = _ran_with(
+        _post_data(
+            client,
+            dashboard.uuid,
+            tile,
+            {
+                **CHANGED,
+                "location": "XYZ",
+                "start": "2026-11-19T00:00:00-07:00",
+                "added": "x",
+            },
+        )
+    )
+
+    assert ran == {
+        "location": "XYZ",
+        "base_url": SAVED["base_url"],
+        "start": "2026-11-19T00:00:00-07:00",
+    }
+
+
+@pytest.mark.django_db
+def test_data_runs_an_editors_args_as_sent(
+    client,
+    mock_app_get_ps_db,
+    db_session,
+    dashboard,
+    test_owner_user,
+    test_admin_user,
+    test_member_user,
+    recording_plugins,
+):
+    """The owner, an editor, and an editor through a group run unsaved work as
+    sent, on a saved tile or on one with no row yet, in a request that carries every
+    arg, as the browser sends an editor's."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tile = _add_tile(db_session, dashboard, args=SAVED)
+    _grant_group(db_session, dashboard, test_member_user, "editor")
+    unsaved = {"location": "draft", "base_url": "https://draft.example"}
+
+    for user in [test_owner_user, test_admin_user, test_member_user]:
+        client.force_login(user)
+        assert (
+            _ran_with(_post_data(client, dashboard.uuid, tile, unsaved, allArgs=True))
+            == unsaved
+        )
+        new_tile = str(uuid.uuid4())
+        assert (
+            _ran_with(
+                _post_data(client, dashboard.uuid, new_tile, unsaved, allArgs=True)
+            )
+            == unsaved
+        )
+
+
+@pytest.mark.django_db
+def test_data_runs_an_editors_request_without_all_args_from_the_saved_settings(
+    client,
+    mock_app_get_ps_db,
+    db_session,
+    dashboard,
+    test_owner_user,
+    recording_plugins,
+):
+    """Only a request that says it carries every arg runs as sent. Without
+    ``allArgs`` an editor's request, as from a page loaded before they could edit,
+    holds only a viewer's args, so it runs the saved settings as a viewer's does."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tile = _add_tile(db_session, dashboard, args=SAVED)
+    client.force_login(test_owner_user)
+
+    assert _ran_with(_post_data(client, dashboard.uuid, tile, CHANGED)) == SAVED
+    assert (
+        _post_data(client, dashboard.uuid, str(uuid.uuid4()), SAVED).json()
+        == _data_refusal(DASHBOARD_CHANGED)
+    )
+
+
+@pytest.mark.django_db
+def test_data_never_runs_a_viewers_request_as_sent_for_all_args(
+    client, mock_app_get_ps_db, db_session, public_dashboard, recording_plugins
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tile = _add_tile(db_session, public_dashboard, args=SAVED)
+
+    assert (
+        _ran_with(
+            _post_data(client, public_dashboard.uuid, tile, CHANGED, allArgs=True)
+        )
+        == SAVED
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("all_args", ["yes", 1, None])
+def test_data_refuses_an_all_args_that_is_not_a_boolean(
+    client,
+    mock_app_get_ps_db,
+    db_session,
+    public_dashboard,
+    recording_plugins,
+    all_args,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tile = _add_tile(db_session, public_dashboard, args=SAVED)
+
+    response = _post_data(client, public_dashboard.uuid, tile, SAVED, allArgs=all_args)
+
+    assert response.json() == _data_refusal(DATA_REQUEST_FAILED)
+    assert recording_plugins == []
+
+
+@pytest.mark.django_db
+def test_data_takes_the_viewer_path_once_an_editors_permission_is_removed(
+    client,
+    mock_app_get_ps_db,
+    db_session,
+    dashboard,
+    test_admin_user,
+    recording_plugins,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tile = _add_tile(db_session, dashboard, args=SAVED)
+    client.force_login(test_admin_user)
+    post = lambda: _post_data(  # noqa: E731
+        client, dashboard.uuid, tile, CHANGED, allArgs=True
+    )
+    assert _ran_with(post()) == CHANGED
+
+    db_session.query(DashboardPermission).filter_by(
+        dashboard_id=dashboard.id, username=test_admin_user.username
+    ).delete()
+    db_session.commit()
+
+    # Still a viewer through a group, so the next request runs the saved settings,
+    # whatever the page loaded while they could edit still sends.
+    assert _ran_with(post()) == SAVED
+
+
+@pytest.mark.django_db
+def test_data_tells_a_viewer_the_dashboard_changed(
+    client,
+    mock_app_get_ps_db,
+    db_session,
+    public_dashboard,
+    recording_plugins,
+    capsys,
+):
+    """A deleted tile, a tile whose saved plugin changed, and args the saved ones
+    cannot have produced all answer with the reload message, never the plugin."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    changed_source = _add_tile(db_session, public_dashboard, "other_plugin", SAVED)
+    template = _add_tile(
+        db_session, public_dashboard, args={**SAVED, "location": "gauge-${Station}"}
+    )
+    requests = [
+        (str(uuid.uuid4()), SAVED),
+        (None, SAVED),
+        (changed_source, SAVED),
+        (template, {**SAVED, "location": "other-XYZ"}),
+    ]
+
+    responses = [
+        _post_data(client, public_dashboard.uuid, tile, args).json()
+        for tile, args in requests
+    ]
+
+    assert responses == [_data_refusal(DASHBOARD_CHANGED)] * 4
+    assert recording_plugins == []
+    assert (
+        f"Refused a data request for tile {changed_source!r} layer '' of dashboard "
+        f"{public_dashboard.uuid}: The saved plugin source is another one."
+    ) in capsys.readouterr().out
+
+
+@pytest.mark.django_db
+def test_data_runs_a_viewers_dynamic_layer_from_its_saved_plugin_source(
+    client, mock_app_get_ps_db, db_session, public_dashboard, recording_plugins
+):
+    """A layer is looked up within its Map tile. Layer requests resolve no dates in
+    the browser, so the saved relative date runs as saved."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    saved_args = {**SAVED, "location": "${Station}", "start": "now-1D"}
+    map_tile = _add_tile(
+        db_session,
+        public_dashboard,
+        "Map",
+        {
+            "layers": [
+                {
+                    "configuration": {
+                        "props": {
+                            "layerId": "layer-1",
+                            "pluginSource": {"source": "recording", "args": saved_args},
+                        }
+                    }
+                }
+            ]
+        },
+    )
+    sent = {**CHANGED, "location": "XYZ", "start": "2026-11-19T00:00:00-07:00"}
+
+    response = _post_data(
+        client, public_dashboard.uuid, map_tile, sent, mode="features", layer="layer-1"
+    )
+
+    assert response.json() == {
+        "success": True,
+        "data": RECORDING_FC,
+        "viz_type": "features",
+    }
+    assert recording_plugins == [
+        (
+            "recording",
+            {"location": "XYZ", "base_url": SAVED["base_url"], "start": "now-1D"},
+        )
+    ]
+
+
+@pytest.mark.django_db
+def test_data_runs_a_viewers_popup_tile_from_its_saved_settings(
+    client, mock_app_get_ps_db, db_session, public_dashboard, recording_plugins
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    popup_tile = str(uuid.uuid4())
+    popup = {
+        "uuid": popup_tile,
+        "source": "recording",
+        "args_string": json.dumps(SAVED),
+    }
+    _add_tile(
+        db_session,
+        public_dashboard,
+        "Map",
+        {"layers": [{"popupConfig": {"gridItems": [popup]}}]},
+    )
+
+    response = _post_data(client, public_dashboard.uuid, popup_tile, CHANGED)
+
+    assert _ran_with(response) == SAVED
+
+
+@pytest.mark.django_db
+def test_data_reports_a_viewers_uninstalled_plugin(
+    client, mock_app_get_ps_db, db_session, public_dashboard, recording_plugins
+):
+    """A saved tile whose plugin is not installed has no declared arg types, and
+    fails as it always has once its saved args are built."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tile = _add_tile(db_session, public_dashboard, "uninstalled", SAVED)
+
+    response = _post_data(client, public_dashboard.uuid, tile, SAVED, "uninstalled")
+
+    assert response.json() == _data_refusal(
+        "Visualization (uninstalled) is not installed."
+    )
+
+
+@pytest.mark.django_db
+def test_data_keeps_the_restricted_plugin_check(
+    client,
+    mock_app_get_ps_db,
+    db_session,
+    public_dashboard,
+    test_owner_user,
+    recording_plugins,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tile = _add_tile(db_session, public_dashboard, "restricted_recording", SAVED)
+
+    def post():
+        return _post_data(
+            client, public_dashboard.uuid, tile, SAVED, "restricted_recording"
+        )
+
+    assert post().json() == _data_refusal(
+        "User does not have permission to access this visualization."
+    )
+    client.force_login(test_owner_user)
+    assert post().json()["success"] is False
+    assert recording_plugins == []
+
+    db_session.add(
+        VisualizationPermission(
+            visualization="restricted_recording", username=test_owner_user.username
+        )
+    )
+    db_session.commit()
+    assert _ran_with(post()) == SAVED
+
+
+@pytest.mark.django_db
+def test_data_reads_chat_history_only_through_the_chats_own_dashboard(
+    client,
+    mock_app_get_ps_db,
+    db_session,
+    live_chat_dashboard,
+    public_dashboard,
+    test_owner_user,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    private_chat = live_chat_dashboard.tabs[0].grid_items[0].uuid
+    public_chat = _add_tile(db_session, public_dashboard, "Live Chat")
+    for chat, text in [(private_chat, "private"), (public_chat, "public")]:
+        db_session.add(
+            Message(
+                timestamp=datetime.utcnow(),
+                request_id=chat,
+                session_id="some_session_id",
+                message_id=f"{text}_message",
+                sender="user",
+                message=text,
+            )
+        )
+    db_session.commit()
+
+    def history(dashboard_uuid, chat):
+        response = _post_data(client, dashboard_uuid, chat, {}, "Live Chat").json()
+        if not response["success"]:
+            return response
+        assert response["viz_type"] == "Live Chat"
+        return [m["message"] for m in response["data"]["chatHistory"]]
+
+    # A private dashboard's chat named under a public dashboard has no history.
+    assert history(public_dashboard.uuid, private_chat) == []
+    assert history(public_dashboard.uuid, public_chat) == ["public"]
+    assert history(live_chat_dashboard.uuid, private_chat) == _data_refusal(
+        DASHBOARD_NOT_FOUND
+    )
+    client.force_login(test_owner_user)
+    assert history(live_chat_dashboard.uuid, private_chat) == ["private"]
+
+
+@pytest.mark.django_db
+def test_data_reads_chat_history_only_from_a_top_level_live_chat_tile(
+    client, mock_app_get_ps_db, db_session, live_chat_dashboard, public_dashboard
+):
+    """A popup tile's uuid is the editor's to choose: one repeating a private
+    dashboard's chat tile, or a top-level tile that is not a chat, has no history."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    private_chat = live_chat_dashboard.tabs[0].grid_items[0].uuid
+    popup = {"uuid": private_chat, "source": "Live Chat", "args_string": "{}"}
+    _add_tile(
+        db_session,
+        public_dashboard,
+        "Map",
+        {"layers": [{"popupConfig": {"gridItems": [popup]}}]},
+    )
+    not_a_chat = _add_tile(db_session, public_dashboard, "recording", SAVED)
+    for chat, text in [(private_chat, "private"), (not_a_chat, "not a chat")]:
+        db_session.add(
+            Message(
+                timestamp=datetime.utcnow(),
+                request_id=chat,
+                session_id="some_session_id",
+                message_id=f"{text}_message",
+                sender="user",
+                message=text,
+            )
+        )
+    db_session.commit()
+
+    responses = [
+        _post_data(client, public_dashboard.uuid, tile, {}, "Live Chat").json()
+        for tile in (private_chat, private_chat.upper(), not_a_chat)
+    ]
+
+    assert responses == [
+        {"success": True, "data": {"chatHistory": []}, "viz_type": "Live Chat"}
+    ] * 3
+
+
+@pytest.mark.django_db
+def test_data_takes_only_a_post(client, recording_plugins):
+    response = client.get(
+        reverse("tethysdash:visualization"),
+        {"source": "recording", "args": json.dumps(SAVED), "requestId": "req-1"},
+    )
+
+    assert response.status_code == 405
+    assert response["Allow"] == "POST"
+    assert response.json() == _data_refusal(PAGE_OUT_OF_DATE)
+    assert recording_plugins == []
+
+
+@pytest.mark.django_db
+@override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=1024 * 1024)
+def test_data_answers_a_body_over_the_portals_limit_with_413(client, recording_plugins):
+    response = _post_data(
+        client, str(uuid.uuid4()), str(uuid.uuid4()), {"csv": "x" * 1024 * 1024}
+    )
+
+    assert response.status_code == 413
+    assert response.json() == _data_refusal(
+        "The values sent are too large. A request must be smaller than 1.0 MB."
+    )
+    assert recording_plugins == []
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "body",
+    [
+        "{not json",
+        "[]",
+        json.dumps({"args": {}}),
+        json.dumps({"source": "recording", "args": json.dumps(SAVED)}),
+        json.dumps({"source": "recording", "args": {}, "mode": "everything"}),
+    ],
+    ids=["not json", "not an object", "no source", "args a string", "unknown mode"],
+)
+def test_data_answers_a_malformed_body_with_the_generic_message(
+    client, recording_plugins, body
+):
+    response = client.post(
+        reverse("tethysdash:visualization"), body, content_type="application/json"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == _data_refusal(DATA_REQUEST_FAILED)
+    assert recording_plugins == []
+
+
+@pytest.mark.django_db
+def test_data_answers_an_unexpected_failure_with_the_generic_message(
+    client, mocker, capsys
+):
+    """Only a plugin's own failure passes its message through in features mode;
+    anything else that fails answers the generic message."""
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.prepare_run_args",
+        side_effect=RuntimeError("connection to server failed"),
+    )
+
+    response = _post_data(
+        client, str(uuid.uuid4()), str(uuid.uuid4()), {}, mode="features"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == _data_refusal(DATA_REQUEST_FAILED)
+    assert "Failed to answer a data request: connection to server failed" in (
+        capsys.readouterr().out
+    )
+
+
+@pytest.mark.django_db
+def test_data_takes_a_signed_out_callers_csrf_token(
+    mock_app, mock_app_get_ps_db, db_session, public_dashboard, recording_plugins
+):
+    _render_app_shell(mock_app)
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tile = _add_tile(db_session, public_dashboard, args=SAVED)
+    csrf_client = Client(enforce_csrf_checks=True)
+    shell = csrf_client.get(reverse("tethysdash:home"))
+    url = reverse("tethysdash:visualization")
+    body = json.dumps(
+        {
+            "dashboard": public_dashboard.uuid,
+            "tile": tile,
+            "source": "recording",
+            "args": SAVED,
+        }
+    )
+
+    without_token = csrf_client.post(url, body, content_type="application/json")
+    assert without_token.status_code == 403
+    assert recording_plugins == []
+
+    response = csrf_client.post(
+        url,
+        body,
+        content_type="application/json",
+        HTTP_X_CSRFTOKEN=shell.cookies[settings.CSRF_COOKIE_NAME].value,
+    )
+    assert _ran_with(response) == SAVED
 
 
 @pytest.mark.django_db
@@ -479,6 +1228,7 @@ def test_get_dashboard(
             "id": dashboard.id,
             "name": dashboard.name,
             "tabs": [],
+            "storedSecrets": [],
             "uuid": dashboard.uuid,
             "notes": "some notes",
             "image": None,
@@ -928,6 +1678,7 @@ def test_update_dashboard(
     expected_dashboard = {
         "description": dashboard.description,
         "tabs": dashboard.tabs,
+        "storedSecrets": [],
         "id": dashboard.id,
         "name": "new_dashboard_name",
         "notes": dashboard.notes,
@@ -1034,7 +1785,26 @@ def test_update_dashboard_succeeds_when_the_sweep_fails(
 
 
 @pytest.mark.django_db
-def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
+@pytest.mark.parametrize(
+    "refusal, message",
+    [
+        (DashboardNotFound(), DASHBOARD_NOT_FOUND),
+        (
+            DashboardUpdateRefused("User does not have admin permission."),
+            "User does not have admin permission.",
+        ),
+        (SecretChangeRefused(SECRET_SETTING_GONE), SECRET_SETTING_GONE),
+        (
+            LayerStorageQuotaExceeded(2 * 1024 * 1024, 1024 * 1024),
+            str(LayerStorageQuotaExceeded(2 * 1024 * 1024, 1024 * 1024)),
+        ),
+    ],
+    ids=["not found", "refused", "secret change refused", "over the quota"],
+)
+def test_update_dashboard_failed(
+    client, admin_user, mock_app, mocker, refusal, message
+):
+    """A refusal written for the editor is shown as it is."""
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
         "id": "1",
@@ -1046,7 +1816,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     mock_update_dashboard = mocker.patch(
         "tethysapp.tethysdash.controllers.update_named_dashboard"
     )
-    mock_update_dashboard.side_effect = [Exception("failed to update")]
+    mock_update_dashboard.side_effect = [refusal]
 
     response = client.generic("POST", url, json.dumps(itemData))
 
@@ -1056,8 +1826,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
         {"name": "dashboard_name"},
     )
     assert response.status_code == 200
-    assert response.json()["success"] is False
-    assert response.json()["message"] == "failed to update"
+    assert response.json() == {"success": False, "message": message}
 
 
 @override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=1024)  # 1 KB
@@ -1092,35 +1861,73 @@ def test_update_dashboard_body_too_big(client, admin_user, mock_app, mocker):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    "error",
+    [
+        KeyError("source"),
+        ValueError("dashboard uuid 'a/b' cannot name a thumbnail"),
+        IntegrityError("INSERT INTO griditems", {}, Exception("duplicate key")),
+        Exception("failed to update"),
+        Exception(),
+    ],
+    ids=["KeyError", "ValueError", "database error", "Exception", "no message"],
+)
 def test_update_dashboard_failed_unknown_exception(
-    client, admin_user, mock_app, mocker
+    client, admin_user, mock_app, mocker, error, capsys
+):
+    """Any other error's text is internal: the editor is told only that the save
+    failed, and the error is logged."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.update_named_dashboard", side_effect=[error]
+    )
+    client.force_login(admin_user)
+
+    response = client.generic(
+        "POST",
+        reverse("tethysdash:update_dashboard"),
+        json.dumps({"id": "1", "name": "dashboard_name"}),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"success": False, "message": UPDATE_FAILED}
+    assert str(error) in capsys.readouterr().out
+
+
+@pytest.mark.django_db
+def test_update_dashboard_shows_a_permission_refusal_but_not_a_malformed_tile(
+    client,
+    test_admin_user,
+    test_owner_user,
+    mock_app,
+    mock_app_get_ps_db,
+    dashboard,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    itemData = {
-        "id": "1",
-        "name": "dashboard_name",
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    no_source = {"uuid": str(uuid.uuid4()), "args_string": "{}"}
+
+    client.force_login(test_admin_user)
+    renamed = client.generic(
+        "POST",
+        reverse("tethysdash:update_dashboard"),
+        json.dumps({"id": dashboard.id, "name": "A new name"}),
+    )
+    client.force_login(test_owner_user)
+    malformed = client.generic(
+        "POST",
+        reverse("tethysdash:update_dashboard"),
+        json.dumps(
+            {"id": dashboard.id, "tabs": [{"name": "Tab", "gridItems": [no_source]}]}
+        ),
+    )
+
+    assert renamed.json() == {
+        "success": False,
+        "message": "User does not have admin permission to change the name of the "
+        "dashboard.",
     }
-
-    url = reverse("tethysdash:update_dashboard")
-    client.force_login(admin_user)
-    mock_update_dashboard = mocker.patch(
-        "tethysapp.tethysdash.controllers.update_named_dashboard"
-    )
-    mock_update_dashboard.side_effect = [Exception()]
-
-    response = client.generic("POST", url, json.dumps(itemData))
-
-    mock_update_dashboard.assert_called_with(
-        admin_user,
-        itemData["id"],
-        {"name": "dashboard_name"},
-    )
-    assert response.status_code == 200
-    assert response.json()["success"] is False
-    assert (
-        response.json()["message"]
-        == f"Failed to update the dashboard {itemData["id"]}. Check server for logs."  # noqa: E501
-    )
+    assert malformed.json() == {"success": False, "message": UPDATE_FAILED}
 
 
 @pytest.mark.django_db
@@ -4321,9 +5128,8 @@ def test_a_signed_out_visitor_can_open_a_public_dashboard_end_to_end(
         "data": {"layer": 1},
     }
 
-    widget = client.get(
-        reverse("tethysdash:visualization"),
-        {"source": "Live Chat", "args": "{}", "requestId": grid_item_uuid},
+    widget = _post_data(
+        client, live_chat_dashboard.uuid, grid_item_uuid, {}, "Live Chat"
     ).json()
     assert widget["success"] is True
     assert [m["message"] for m in widget["data"]["chatHistory"]] == ["hello"]
@@ -4374,3 +5180,626 @@ def test_an_import_saves_its_tabs_into_the_dashboard_it_created(
     # The tab and placeholder item the dashboard was created with are gone.
     stored = db_session.query(GridItem).filter_by(dashboard_id=created["id"]).all()
     assert sorted(i.uuid for i in stored) == ["item-1", "item-2"]
+
+
+# Secrets saved, read and swept with the dashboard
+
+ECHO_SECRET = "s3cr3t-api-key"
+# A value an older save left in a secret arg, which is never stored or served.
+LEFT_IN_ARGS = "l3ft-1n-args-key"
+
+
+@pytest.fixture
+def echo_secrets(mocker, monkeypatch, mock_app, mock_app_get_ps_db):
+    """The app, with the echo secret plugins as the only ones installed.
+
+    The key rotation warning counts as given, so no test depends on another's.
+    """
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch("tethysapp.tethysdash.visualizations.intake", new=EchoSecretIntake())
+    monkeypatch.setattr(tile_secrets, "_warned_derived_keys_only", True)
+
+
+def _echo_tile(api_key="", **fields):
+    """A tile of the echo secret plugin, whose api_key arg is secret."""
+    return {
+        "i": "1",
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1,
+        "source": "echo_secret",
+        "args_string": json.dumps({"api_key": api_key, "site": "A"}),
+        "metadata_string": "{}",
+        "uuid": str(uuid.uuid4()),
+        **fields,
+    }
+
+
+def _echo_map(api_key=""):
+    """A Map tile with a dynamic echo secret layer, whose popup holds an echo tile."""
+    layer = {
+        "configuration": {
+            "type": "VectorLayer",
+            "props": {
+                "name": "Echo",
+                "layerId": "layer-1",
+                "pluginSource": {
+                    "source": "echo_secret_layer",
+                    "args": {"api_key": api_key, "site": "A"},
+                },
+            },
+        },
+        "popupConfig": {"gridItems": [_echo_tile(api_key)]},
+    }
+    return _echo_tile(source="Map", args_string=json.dumps({"layers": [layer]}))
+
+
+def _set_secret(tile, value=ECHO_SECRET, layer="", arg="api_key"):
+    return {"tile": tile, "layer": layer, "arg": arg, "value": value}
+
+
+def _update(client, body):
+    return client.generic("POST", reverse("tethysdash:update_dashboard"), body)
+
+
+def _save_secret(client, dashboard, tile, value=ECHO_SECRET):
+    """Save a tab holding the tile, setting its secret."""
+    return _update(
+        client,
+        json.dumps(
+            {
+                "id": dashboard.id,
+                "tabs": [{"name": "Tab", "gridItems": [tile]}],
+                "secretChanges": [_set_secret(tile["uuid"], value)],
+            }
+        ),
+    )
+
+
+@pytest.mark.django_db
+def test_update_dashboard_saves_a_secret_and_answers_only_its_place(
+    client, dashboard, db_session, echo_secrets, test_owner_user, capsys
+):
+    tile = _echo_tile()
+    client.force_login(test_owner_user)
+
+    response = _save_secret(client, dashboard, tile)
+
+    body = response.json()
+    assert body["success"] is True
+    assert body["updated_dashboard"]["storedSecrets"] == [
+        {"tile": tile["uuid"], "layer": "", "arg": "api_key"}
+    ]
+    assert ECHO_SECRET not in response.content.decode()
+    out = capsys.readouterr().out
+    assert f"Successfully updated the dashboard {dashboard.id}" in out
+    assert ECHO_SECRET not in out
+    (row,) = db_session.query(TileSecret).all()
+    identity = SecretIdentity(
+        dashboard.uuid, tile["uuid"], "", "api_key", "echo_secret"
+    )
+    assert decrypt(identity, row.ciphertext).reveal() == ECHO_SECRET
+
+
+@pytest.mark.django_db
+def test_update_dashboard_scrubs_an_encryption_error_carrying_the_value(
+    client, dashboard, db_session, echo_secrets, test_owner_user, mocker, capsys
+):
+    def encrypt_quoting_the_value(identity, value):
+        raise ValueError(f"Could not encrypt {value!r} for {identity}")
+
+    mocker.patch(
+        "tethysapp.tethysdash.model.encrypt", side_effect=encrypt_quoting_the_value
+    )
+    client.force_login(test_owner_user)
+
+    response = _save_secret(client, dashboard, _echo_tile())
+
+    # The error's text is internal, so only the log has it, scrubbed.
+    assert response.json() == {"success": False, "message": UPDATE_FAILED}
+    out = capsys.readouterr().out
+    assert f"Could not encrypt '{REDACTED}' for dashboard" in out
+    assert ECHO_SECRET not in out
+    # The save failed whole.
+    assert db_session.query(TileSecret).count() == 0
+    assert db_session.query(GridItem).filter_by(dashboard_id=dashboard.id).count() == 0
+
+
+@pytest.mark.django_db
+def test_update_dashboard_scrubs_a_value_found_in_a_secret_arg(
+    client, dashboard, echo_secrets, test_owner_user, mocker, capsys
+):
+    """A value in a secret arg, however deep, is scrubbed from a refusal quoting it."""
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.update_named_dashboard",
+        side_effect=DashboardUpdateRefused(f"Could not save {LEFT_IN_ARGS}"),
+    )
+    client.force_login(test_owner_user)
+    body = {
+        "id": dashboard.id,
+        "tabs": [{"name": "Tab", "gridItems": [_echo_map(LEFT_IN_ARGS)]}],
+    }
+
+    response = _update(client, json.dumps(body))
+
+    assert response.json() == {
+        "success": False,
+        "message": f"Could not save {REDACTED}",
+    }
+    out = capsys.readouterr().out
+    assert f"Could not save {REDACTED}" in out
+    assert LEFT_IN_ARGS not in out
+
+
+@pytest.mark.django_db
+def test_update_dashboard_scrubs_a_failed_file_sweep(
+    client, dashboard, echo_secrets, test_owner_user, mocker, capsys
+):
+    """The save is committed before the layer file sweep, whose failure is only
+    logged, scrubbed like everything else the save logs."""
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.clean_up_dashboard_files",
+        side_effect=OSError(f"storage is unreachable at {ECHO_SECRET}"),
+    )
+    client.force_login(test_owner_user)
+
+    response = _save_secret(client, dashboard, _echo_tile())
+
+    assert response.json()["success"] is True
+    out = capsys.readouterr().out
+    assert f"storage is unreachable at {REDACTED}" in out
+    assert ECHO_SECRET not in out
+
+
+@pytest.mark.django_db
+def test_update_dashboard_refuses_a_secret_for_an_arg_that_is_not_secret(
+    client, dashboard, db_session, echo_secrets, test_owner_user
+):
+    tile = _echo_tile()
+    client.force_login(test_owner_user)
+    body = {
+        "id": dashboard.id,
+        "tabs": [{"name": "Tab", "gridItems": [tile]}],
+        "secretChanges": [
+            _set_secret(tile["uuid"]),
+            _set_secret(tile["uuid"], arg="site"),
+        ],
+    }
+
+    response = _update(client, json.dumps(body))
+
+    assert response.json() == {"success": False, "message": SECRET_SETTING_GONE}
+    assert db_session.query(TileSecret).count() == 0
+    assert db_session.query(GridItem).filter_by(dashboard_id=dashboard.id).count() == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "body",
+    ["not json", json.dumps([{"id": 1}]), json.dumps({"name": "No id"})],
+    ids=["not JSON", "not an object", "no id"],
+)
+def test_update_dashboard_answers_a_malformed_body_with_the_generic_message(
+    body, client, echo_secrets, test_owner_user, capsys
+):
+    client.force_login(test_owner_user)
+
+    response = _update(client, body)
+
+    assert response.status_code == 200
+    assert response.json() == {"success": False, "message": UPDATE_FAILED}
+    assert "Failed to update a dashboard: " in capsys.readouterr().out
+
+
+@pytest.mark.django_db
+def test_no_dashboard_answer_holds_a_secret_value(
+    client, dashboard, db_session, echo_secrets, test_owner_user
+):
+    """Every endpoint answering with a dashboard serves its secret args blank, for a
+    dashboard holding a stored secret and a value an older save left in its args."""
+    client.force_login(test_owner_user)
+    tile = _echo_tile()
+    saved = _save_secret(client, dashboard, tile).json()["updated_dashboard"]
+    legacy = _echo_map(LEFT_IN_ARGS)
+    db_session.add(
+        GridItem(
+            dashboard_id=dashboard.id,
+            tab_id=saved["tabs"][0]["id"],
+            uuid=legacy["uuid"],
+            i="2",
+            x=0,
+            y=0,
+            w=1,
+            h=1,
+            source="Map",
+            args_string=legacy["args_string"],
+            metadata_string="{}",
+        )
+    )
+    db_session.commit()
+
+    def get(dashboard_id):
+        return client.get(reverse("tethysdash:get_dashboard"), {"id": dashboard_id})
+
+    def post(name, body):
+        return client.generic("POST", reverse(f"tethysdash:{name}"), json.dumps(body))
+
+    answers = {
+        "get": get(dashboard.id),
+        "list": client.get(reverse("tethysdash:dashboards")),
+        "update": post("update_dashboard", {"id": dashboard.id, "name": "Renamed"}),
+        "copy": post("copy_dashboard", {"id": dashboard.id, "newName": "Copy"}),
+        "add": post(
+            "add_dashboard",
+            {
+                "name": "Imported",
+                "tabs": [{"name": "Tab", "gridItems": [_echo_map(LEFT_IN_ARGS)]}],
+            },
+        ),
+    }
+    for name in ("copy", "add"):
+        answers[f"{name}, then get"] = get(answers[name].json()["new_dashboard"]["id"])
+
+    for name, response in answers.items():
+        assert response.status_code == 200, name
+        assert response.json().get("success", True) is True, name
+        text = response.content.decode()
+        assert ECHO_SECRET not in text, name
+        assert LEFT_IN_ARGS not in text, name
+    served = answers["get"].json()["dashboard"]
+    assert served["storedSecrets"] == [
+        {"tile": tile["uuid"], "layer": "", "arg": "api_key"}
+    ]
+    assert len(served["tabs"][0]["gridItems"]) == 2
+    copy = answers["copy, then get"].json()["dashboard"]
+    assert copy["storedSecrets"] == []
+    assert len(copy["tabs"][0]["gridItems"]) == 2
+
+
+# Secrets resolved at run time and kept out of outputs
+
+# What an editor types into a secret arg and previews before saving. Quoting it in
+# a URL changes it, so a URL carrying it holds another form of it.
+TYPED_SECRET = "typed k3y/+value"
+
+
+@pytest.fixture
+def stored_tile(client, dashboard, echo_secrets, test_owner_user):
+    """The uuid of an echo secret tile saved on the dashboard, ECHO_SECRET stored as
+    its secret. The client is left signed out."""
+    tile = _echo_tile()
+    client.force_login(test_owner_user)
+    assert _save_secret(client, dashboard, tile).json()["success"] is True
+    client.logout()
+    return tile["uuid"]
+
+
+@pytest.fixture
+def stored_map(client, dashboard, echo_secrets, test_owner_user):
+    """A Map tile saved on the dashboard with ECHO_SECRET stored for its dynamic
+    layer and for the tile in that layer's popup. Returns the map's and the popup
+    tile's uuids; the client is left signed out."""
+    tile = _echo_map()
+    popup = json.loads(tile["args_string"])["layers"][0]["popupConfig"]["gridItems"]
+    popup_uuid = popup[0]["uuid"]
+    client.force_login(test_owner_user)
+    body = {
+        "id": dashboard.id,
+        "tabs": [{"name": "Tab", "gridItems": [tile]}],
+        "secretChanges": [
+            _set_secret(tile["uuid"], layer="layer-1"),
+            _set_secret(popup_uuid),
+        ],
+    }
+    assert _update(client, json.dumps(body)).json()["success"] is True
+    client.logout()
+    return tile["uuid"], popup_uuid
+
+
+@pytest.fixture
+def broadcast(mocker):
+    """The messages sent over the progress WebSocket, as the browser gets them."""
+    sent = []
+
+    async def group_send(group, event):
+        sent.append(event["message"]["message"])
+
+    mocker.patch(
+        "channels.layers.get_channel_layer",
+        return_value=types.SimpleNamespace(group_send=group_send),
+    )
+    return sent
+
+
+@pytest.fixture
+def plugins_built(mocker):
+    """Every plugin construction, to show a refused request never built one."""
+    return mocker.spy(TethysDashPlugin, "__init__")
+
+
+def _run_echo(client, dashboard, tile, api_key="", site="A", **fields):
+    """POST a data request for an echo secret plugin, echo_secret by default, as the
+    browser sends an editor's: every arg (``allArgs``), and the secret only when one
+    was typed. A viewer's ``allArgs`` changes nothing, so viewers run it too."""
+    source = fields.pop("source", "echo_secret")
+    fields.setdefault("allArgs", True)
+    args = {"site": site, **({"api_key": api_key} if api_key else {})}
+    return _post_data(client, dashboard.uuid, tile, args, source, **fields)
+
+
+def _echo_answer(response):
+    """What the echo secret tile answered: its site and its secret's proof."""
+    body = response.json()
+    assert body["success"] is True, body
+    return body["data"]["data"][0]
+
+
+def _proof(value, site="A"):
+    return {"site": site, **secret_proof(value)}
+
+
+@pytest.mark.django_db
+def test_data_runs_a_secret_tile_for_a_signed_out_viewer_of_a_public_dashboard(
+    client, dashboard, db_session, stored_tile
+):
+    """The plugin gets the stored secret, whatever the request sends for it, and
+    the response holds none of it. The tile's uuid may come in any case."""
+    dashboard.public = True
+    db_session.commit()
+
+    response = _run_echo(client, dashboard, stored_tile.upper(), api_key="guess")
+
+    assert _echo_answer(response) == _proof(ECHO_SECRET)
+    assert ECHO_SECRET not in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_data_runs_an_editors_typed_secret_before_the_stored_one(
+    client, dashboard, stored_tile, test_owner_user, test_admin_user, test_member_user
+):
+    """An editor's request runs the secret they just typed, and the stored one when
+    they typed none. Only a request that runs as sent (``allArgs``) runs a typed
+    value: an editor's without it, like a viewer's, runs the stored one."""
+    for user in [test_owner_user, test_admin_user]:
+        client.force_login(user)
+        typed = _run_echo(client, dashboard, stored_tile, api_key=TYPED_SECRET)
+        stored = _run_echo(client, dashboard, stored_tile, api_key="")
+        not_as_sent = _run_echo(
+            client, dashboard, stored_tile, api_key=TYPED_SECRET, allArgs=False
+        )
+
+        assert _echo_answer(typed) == _proof(TYPED_SECRET)
+        assert _echo_answer(stored) == _proof(ECHO_SECRET)
+        assert _echo_answer(not_as_sent) == _proof(ECHO_SECRET)
+    client.force_login(test_member_user)
+    viewer = _run_echo(client, dashboard, stored_tile, api_key=TYPED_SECRET)
+    assert _echo_answer(viewer) == _proof(ECHO_SECRET)
+
+
+@pytest.mark.django_db
+def test_data_runs_a_viewers_dynamic_layer_and_popup_tile_with_their_secrets(
+    client, dashboard, stored_map, test_member_user
+):
+    map_tile, popup_tile = stored_map
+    client.force_login(test_member_user)
+
+    layer = _run_echo(
+        client,
+        dashboard,
+        map_tile,
+        source="echo_secret_layer",
+        mode="features",
+        layer="layer-1",
+    )
+    popup = _run_echo(client, dashboard, popup_tile)
+
+    features = layer.json()["data"]["features"]
+    assert features[0]["properties"] == _proof(ECHO_SECRET)
+    assert _echo_answer(popup) == _proof(ECHO_SECRET)
+
+
+@pytest.mark.django_db
+def test_data_tells_editors_and_viewers_a_secret_is_missing_without_building_the_plugin(
+    client,
+    dashboard,
+    db_session,
+    echo_secrets,
+    test_owner_user,
+    test_member_user,
+    plugins_built,
+):
+    """With no secret stored, a viewer is told the tile is not set up and an editor
+    to enter the secret, on a saved tile or an unsaved one. A value left in the
+    saved args does not count."""
+    tile = _add_tile(
+        db_session, dashboard, "echo_secret", {"api_key": LEFT_IN_ARGS, "site": "A"}
+    )
+
+    client.force_login(test_member_user)
+    viewer = _run_echo(client, dashboard, tile, api_key=LEFT_IN_ARGS)
+    client.force_login(test_owner_user)
+    editor = _run_echo(client, dashboard, tile)
+    unsaved = _run_echo(client, dashboard, str(uuid.uuid4()))
+
+    assert viewer.json() == _data_refusal(SECRET_NOT_SET_UP)
+    assert editor.json() == unsaved.json() == _data_refusal(SECRET_NEEDED)
+    assert plugins_built.call_count == 0
+
+
+@pytest.mark.django_db
+def test_data_treats_a_secret_stored_for_another_plugin_as_missing(
+    client,
+    dashboard,
+    db_session,
+    stored_tile,
+    test_owner_user,
+    test_member_user,
+    plugins_built,
+):
+    client.force_login(test_owner_user)
+    # An editor previewing another plugin on the tile, before saving the change.
+    switched = _run_echo(client, dashboard, stored_tile, source="echo_secret_early")
+    assert switched.json() == _data_refusal(SECRET_NEEDED)
+
+    row = db_session.query(TileSecret).one()
+    row.plugin_source = "echo_secret_layer"
+    db_session.commit()
+
+    editor = _run_echo(client, dashboard, stored_tile)
+    client.force_login(test_member_user)
+    viewer = _run_echo(client, dashboard, stored_tile)
+
+    assert editor.json() == _data_refusal(SECRET_NEEDED)
+    assert viewer.json() == _data_refusal(SECRET_NOT_SET_UP)
+    assert plugins_built.call_count == 0
+
+
+@pytest.mark.django_db
+def test_data_asks_an_editor_to_reenter_a_secret_that_cannot_be_read(
+    client,
+    dashboard,
+    db_session,
+    stored_tile,
+    test_owner_user,
+    test_member_user,
+    plugins_built,
+    capsys,
+):
+    row = db_session.query(TileSecret).one()
+    row.ciphertext = "not a ciphertext"
+    db_session.commit()
+
+    client.force_login(test_owner_user)
+    editor = _run_echo(client, dashboard, stored_tile)
+    client.force_login(test_member_user)
+    viewer = _run_echo(client, dashboard, stored_tile)
+
+    assert editor.json() == _data_refusal(SECRET_UNREADABLE)
+    assert viewer.json() == _data_refusal(SECRET_NOT_SET_UP)
+    assert plugins_built.call_count == 0
+    assert f"tile {stored_tile} arg 'api_key' (plugin echo_secret) is unavailable" in (
+        capsys.readouterr().out
+    )
+
+
+@pytest.mark.django_db
+def test_data_answers_a_bad_secret_key_setting_with_the_generic_message(
+    client, dashboard, stored_tile, test_member_user, settings, capsys
+):
+    settings.TETHYSDASH_SECRET_KEYS = ["not a key"]
+    client.force_login(test_member_user)
+
+    response = _run_echo(client, dashboard, stored_tile)
+
+    assert response.json() == _data_refusal(DATA_REQUEST_FAILED)
+    assert (
+        "Failed to answer a data request: Entry 0 of TETHYSDASH_SECRET_KEYS is not a "
+        "Fernet key."
+    ) in capsys.readouterr().out
+
+
+@pytest.mark.django_db
+def test_data_scrubs_a_plugin_error_quoting_its_secret(
+    client, dashboard, stored_tile, test_owner_user, test_member_user, capsys
+):
+    """The error reaches the browser, and the log, with the secret masked: the
+    stored one, and the one an editor typed."""
+    client.force_login(test_member_user)
+    viewer = _run_echo(client, dashboard, stored_tile)
+    client.force_login(test_owner_user)
+    # The saved site is not wired, so only an editor's request can change it.
+    stored = _run_echo(client, dashboard, stored_tile, site="raise")
+    typed = _run_echo(
+        client, dashboard, stored_tile, api_key=TYPED_SECRET, site="raise"
+    )
+
+    assert _echo_answer(viewer) == _proof(ECHO_SECRET)
+    expected = _data_refusal(f"Could not sign in to raise with {REDACTED}")
+    assert stored.json() == typed.json() == expected
+    out = capsys.readouterr().out
+    assert f"VisualizationError: Could not sign in to raise with {REDACTED}" in out
+    for secret in (ECHO_SECRET, TYPED_SECRET):
+        assert secret not in out
+        assert secret not in stored.content.decode() + typed.content.decode()
+
+
+@pytest.mark.django_db
+def test_data_scrubs_a_dynamic_layers_failure_quoting_its_secret(
+    client, dashboard, stored_map, test_owner_user, capsys
+):
+    """A features-mode failure passes the plugin's own message through, scrubbed."""
+    map_tile, _ = stored_map
+    client.force_login(test_owner_user)
+
+    response = _run_echo(
+        client,
+        dashboard,
+        map_tile,
+        site="crash",
+        source="echo_secret_layer",
+        mode="features",
+        layer="layer-1",
+    )
+
+    assert response.json() == _data_refusal(f"Connection refused for {REDACTED}")
+    out = capsys.readouterr().out
+    assert f"Connection refused for {REDACTED}" in out
+    assert ECHO_SECRET not in out
+
+
+@pytest.mark.django_db
+def test_data_scrubs_progress_quoting_a_secret(
+    client, dashboard, stored_tile, test_owner_user, broadcast
+):
+    """Progress is scrubbed of the stored secret and of a typed one, including
+    progress a plugin sends while it is still being built."""
+    client.force_login(test_owner_user)
+
+    stored = _run_echo(client, dashboard, stored_tile, site="progress")
+    early = _run_echo(
+        client,
+        dashboard,
+        str(uuid.uuid4()),
+        api_key=TYPED_SECRET,
+        source="echo_secret_early",
+    )
+
+    assert _echo_answer(stored) == _proof(ECHO_SECRET, "progress")
+    assert _echo_answer(early) == _proof(TYPED_SECRET)
+    assert broadcast == [
+        f"Signing in with {REDACTED}",
+        f"Connecting with {REDACTED}",
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "source, fields",
+    [
+        ("echo_secret", {}),
+        ("echo_secret_layer", {"mode": "features", "layer": "layer-1"}),
+        ("echo_secret_raster", {"mode": "features", "layer": "layer-1"}),
+    ],
+    ids=["tile", "dynamic GeoJSON layer", "dynamic GeoTIFF layer"],
+)
+def test_data_refuses_a_result_holding_a_secret(
+    client, dashboard, echo_secrets, test_owner_user, source, fields, capsys
+):
+    """However the result carries it: the GeoTIFF plugin URL-quotes it into the
+    query string of the file it names."""
+    client.force_login(test_owner_user)
+
+    response = _run_echo(
+        client,
+        dashboard,
+        str(uuid.uuid4()),
+        api_key=TYPED_SECRET,
+        site="leak",
+        source=source,
+        **fields,
+    )
+
+    assert response.json() == _data_refusal(SECRET_RETURNED)
+    assert f"VisualizationError: {SECRET_RETURNED}" in capsys.readouterr().out

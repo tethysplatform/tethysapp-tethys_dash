@@ -5,15 +5,18 @@ This module provides utility functions for sending messages via Django Channels
 and other plugin-related helpers.
 """
 
+import contextvars
 import requests
 import warnings
 import xmltodict
 import copy
+from contextlib import contextmanager
 from datetime import datetime
 from intake.source import base
 from dateutil.parser import parse
 
 from .layer_sources import _is_numeric_bound
+from .tile_secrets import REDACTED, contains_secret, redact
 
 # Re-exported so plugins keep importing these from plugin_helpers.
 from .layer_sources import (  # noqa: F401
@@ -70,6 +73,72 @@ def get_plugin_prop(obj, name, default=None):
 # mechanism, so a test enforces parity.
 DATE_PRESET_SENTINELS = {"latest"}
 
+# The arg type of a secret: a credential the author enters once, which the server
+# stores encrypted and hands the plugin as a plain string when it runs. Only
+# top-level args can be secret.
+SECRET_ARG_TYPE = "secret"
+
+# What a plugin's description (its repr) shows in place of a secret arg's value.
+SECRET_ARG_MASK = "[redacted]"
+
+
+def secret_arg_names(args):
+    """Return the names of the args an ``args`` declaration types as secret.
+
+    Args:
+        args: A plugin's ``args``, arg name to type. Anything but a dict declares
+            no secrets.
+
+    Returns:
+        frozenset: The secret args' names.
+    """
+    if not isinstance(args, dict):
+        return frozenset()
+    return frozenset(
+        name for name, arg_type in args.items() if arg_type == SECRET_ARG_TYPE
+    )
+
+
+# The secret values of the plugin run in progress. A context variable rather than a
+# module global, so runs answered at the same time each see only their own values.
+_run_secret_values = contextvars.ContextVar("tethysdash_run_secret_values", default=())
+
+
+@contextmanager
+def run_secrets(values):
+    """Make ``values`` the secret values of the plugin run in progress, for the block.
+
+    Every message :func:`send_websocket_message` sends within the block, in this
+    context, is scrubbed of them. That includes what a plugin sends while it is
+    still being constructed, before ``TethysDashPlugin.__init__`` has run, so the
+    block must start before the plugin is constructed. The values are cleared when
+    the block ends, however it ends.
+
+    Python does not hand a context variable to a thread the run starts, so a
+    plugin's own worker thread sees none of these values.
+    :meth:`TethysDashPlugin.send_update` still scrubs there, with the values the
+    plugin instance carries; a helper that sends from its own thread without the
+    instance gets only the URL-password backstop of ``tile_secrets.redact``.
+
+    Args:
+        values: The run's secret values, as strings or
+            ``tile_secrets.SecretValue`` s
+    """
+    token = _run_secret_values.set(tuple(values))
+    try:
+        yield
+    finally:
+        _run_secret_values.reset(token)
+
+
+def run_secret_values():
+    """Return the secret values of the plugin run in progress in this context.
+
+    Returns:
+        tuple: The values :func:`run_secrets` set, or () outside a run
+    """
+    return _run_secret_values.get()
+
 
 valid_plugin_types = [
     "plotly",
@@ -105,6 +174,12 @@ class TethysDashPlugin(base.DataSource):
     - ``"GeoTIFF"``: override :py:meth:`fetch_source` to return a source
       description (build it with :py:func:`geotiff_source`), which repoints the
       layer at a new GeoTIFF URL and optionally restyles it.
+
+    An arg typed ``"secret"`` in ``args`` holds a credential: the plugin receives
+    its value as a plain string, like a ``"text"`` arg, and its names are in
+    ``secret_arg_names``. Never return the value, or put it in a progress
+    message or an error. A result holding it is refused, and progress messages and
+    errors are scrubbed of it, but a plugin should not lean on that.
     """
 
     container = "python"
@@ -223,6 +298,10 @@ class TethysDashPlugin(base.DataSource):
                 stacklevel=2,
             )
 
+        # A secret arg's value is a plain string, set like any other arg; it is
+        # recorded here so its value can be kept out of what leaves the server.
+        self.secret_arg_names = secret_arg_names(self.args)
+
         # Raw arg map keyed by the flat (possibly dotted) names the frontend
         # sends. This is the reliable way to read args — attribute access via
         # setattr() breaks for dotted keys, which Python cannot resolve with
@@ -244,6 +323,39 @@ class TethysDashPlugin(base.DataSource):
         return getattr(type(self), method_name) is not getattr(
             TethysDashPlugin, method_name
         )
+
+    def secret_values(self):
+        """Return the values this plugin holds for its secret args.
+
+        Both the value each secret arg was given and its attribute now are
+        returned, in case the plugin has replaced the attribute, so what the
+        plugin sends out can be scrubbed of either.
+
+        Before ``TethysDashPlugin.__init__`` has run there are none.
+
+        Returns:
+            tuple: The distinct non-empty string values, in arg-name order.
+        """
+        values = []
+        received_args = getattr(self, "received_args", {})
+        for name in sorted(getattr(self, "secret_arg_names", ())):
+            for value in (received_args.get(name), getattr(self, name, None)):
+                if isinstance(value, str) and value and value not in values:
+                    values.append(value)
+        return tuple(values)
+
+    def _yaml(self):
+        """Intake's description of this source, with each secret arg masked.
+
+        Intake builds a source's ``repr`` and ``yaml()`` from this, listing
+        every arg the source was created with.
+        """
+        data = super()._yaml()
+        secrets = secret_arg_names(get_plugin_prop(self, "args", {}))
+        for description in data["sources"].values():
+            for name in secrets & description["args"].keys():
+                description["args"][name] = SECRET_ARG_MASK
+        return data
 
     def get_arg(self, name, default=None):
         """Read a visualization arg by its flat (possibly dotted) name.
@@ -446,16 +558,38 @@ class TethysDashPlugin(base.DataSource):
                 applicable). Include this
                 automatically via the fallback when emitting progress from a
                 runtime features fetch.
+
+        The message is scrubbed of this plugin's secret values (see
+        :py:meth:`secret_values`) as well as of the run's (see
+        :py:func:`send_websocket_message`), so this is also the way to send
+        progress from a thread the plugin starts itself, where the run's values
+        are not seen. It may be called before ``TethysDashPlugin.__init__`` has
+        run, when the message carries no request id and only the run's values
+        scrub it.
         """
         effective_layer_id = (
-            layer_id if layer_id is not None else self._pending_layer_id
+            layer_id
+            if layer_id is not None
+            else getattr(self, "_pending_layer_id", None)
         )
         send_websocket_message(
-            self.request_id,
+            getattr(self, "request_id", None),
             message,
             percentage_complete=percentage_complete,
             layer_id=effective_layer_id,
+            secret_values=self.secret_values(),
         )
+
+
+def _scrub_message(message, values):
+    """A message with every secret value, in any form, and any URL password masked.
+
+    A message that is not a string is sent as it is unless it holds a secret value,
+    when the whole of it is replaced.
+    """
+    if isinstance(message, str):
+        return redact(message, values)
+    return REDACTED if contains_secret(message, values) else message
 
 
 # General helper for sending messages via Django Channels
@@ -468,9 +602,19 @@ def send_websocket_message(
     timestamp=None,
     messageId=None,
     layer_id=None,
+    secret_values=(),
 ):
     """
     Send a message to a Django Channels group for WebSocket delivery.
+
+    This is the one place progress and chat messages leave the server, and every
+    message is scrubbed here before it is sent (``tile_secrets.redact``): of the
+    secret values of the plugin run in progress in this context (see
+    :func:`run_secrets`), of ``secret_values``, and of any URL password. A plugin's
+    worker thread sees no run values, so a message sent from one is scrubbed only
+    of what ``secret_values`` carries, which :meth:`TethysDashPlugin.send_update`
+    fills with the plugin's own; a helper that sends from its own thread without
+    the plugin instance gets only the URL-password backstop.
 
     Args:
         request_id (str): The request identifier for the message.
@@ -486,15 +630,21 @@ def send_websocket_message(
             ``layerId`` (camelCase) so the frontend can route it to a per-layer
             indicator. Omitted entirely when ``None``, preserving the existing
             one-plugin-per-GridItem payload shape.
+        secret_values (sequence, optional): More secret values to scrub the
+            message of, as strings or ``tile_secrets.SecretValue`` s.
 
     Example:
         send_websocket_message('user_123', 'progress_message', 50)
     """
+    values = (*run_secret_values(), *secret_values)
     try:
         from channels.layers import get_channel_layer
         from asgiref.sync import async_to_sync
 
-        websocket_message = {"message": message, "requestId": request_id}
+        websocket_message = {
+            "message": _scrub_message(message, values),
+            "requestId": request_id,
+        }
         if percentage_complete is not None:
             websocket_message["percentageComplete"] = percentage_complete
 
@@ -522,8 +672,7 @@ def send_websocket_message(
             },
         )
     except Exception as e:
-        # Optionally log or handle errors here
-        print(f"WebSocket message send failed: {e}")
+        print(redact(f"WebSocket message send failed: {e}", values))
 
 
 _SCAFFOLD_SHAPE_KEYS = frozenset(
