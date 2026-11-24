@@ -1047,7 +1047,7 @@ describe("a tile's secret arg", () => {
       source: "secret_plugin",
     });
     expect(bodies[0].args).toEqual({ station: "A" });
-    expect(screen.getByText(/This tile needs a secret/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter the secret")).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText("Api Key Input"), SECRET);
     await userEvent.click(screen.getByText("Elsewhere"));
@@ -1079,8 +1079,9 @@ describe("a tile's secret arg", () => {
     await userEvent.click(comboboxes[0]);
     fireEvent.click(await screen.findByText("Other Secret Plugin"));
 
+    // The other plugin has no secret yet: an empty field.
     expect(
-      await screen.findByText(/This tile needs a secret/),
+      await screen.findByPlaceholderText("Enter the secret"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Secret set")).not.toBeInTheDocument();
     expect(screen.queryByText(/New secret entered/)).not.toBeInTheDocument();

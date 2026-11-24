@@ -5550,7 +5550,7 @@ describe("a dynamic layer's secret arg", () => {
       },
     });
     expect(
-      await screen.findByText(/This layer needs a secret/),
+      await screen.findByPlaceholderText("Enter the secret"),
     ).toBeInTheDocument();
 
     await enterSecret();

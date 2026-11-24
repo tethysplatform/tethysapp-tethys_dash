@@ -184,7 +184,7 @@ const renderSecret = async ({
 
 const pathOf = ({ tile, layer, arg }) => ({ tile, layer, arg });
 
-test("a secret not set is an empty password field no password manager has a name for, with a hint that the tile needs one", async () => {
+test("a secret not set is an empty password field no password manager has a name for, with an info tip on how secrets are kept", async () => {
   await renderSecret();
 
   const field = screen.getByLabelText("Api Key Input");
@@ -193,7 +193,13 @@ test("a secret not set is an empty password field no password manager has a name
   expect(field).not.toHaveAttribute("name");
   expect(field).not.toHaveAttribute("id");
   expect(field.value).toBe("");
-  expect(screen.getByText(/This tile needs a secret/)).toBeInTheDocument();
+  expect(field).toHaveAttribute("placeholder", "Enter the secret");
+  await userEvent.hover(screen.getByLabelText("Api Key help"));
+  expect(
+    await screen.findByText(
+      "Secrets are saved with the dashboard and can never be read back to keep them secure.",
+    ),
+  ).toBeInTheDocument();
   expect(screen.getByLabelText("Apply Api Key")).toBeDisabled();
   expect(screen.queryByText("Secret set")).not.toBeInTheDocument();
 });
@@ -273,7 +279,7 @@ test("a stored secret cleared and saved leaves the field unset", async () => {
   await userEvent.click(screen.getByText("Save dashboard"));
 
   expect(
-    await screen.findByText(/This tile needs a secret/),
+    await screen.findByPlaceholderText("Enter the secret"),
   ).toBeInTheDocument();
   expect(screen.getByLabelText("Api Key Input").value).toBe("");
   expect(updateDashboard.mock.calls[0][0].newProperties.secretChanges).toEqual([
@@ -343,13 +349,13 @@ test("a secret stored for another plugin reads as none", async () => {
     storedSecrets: [pathOf(tilePlace)],
   });
 
-  expect(screen.getByText(/This tile needs a secret/)).toBeInTheDocument();
+  expect(screen.getByPlaceholderText("Enter the secret")).toBeInTheDocument();
   expect(screen.queryByText("Secret set")).not.toBeInTheDocument();
 });
 
 test("a dynamic layer's secret is kept for the layer", async () => {
   const { updateDashboard } = await renderSecret({ place: layerPlace });
-  expect(screen.getByText(/This layer needs a secret/)).toBeInTheDocument();
+  expect(screen.getByPlaceholderText("Enter the secret")).toBeInTheDocument();
 
   await userEvent.type(screen.getByLabelText("Api Key Input"), SECRET);
   await userEvent.click(screen.getByText("Elsewhere"));

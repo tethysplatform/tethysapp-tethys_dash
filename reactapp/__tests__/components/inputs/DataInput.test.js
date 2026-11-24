@@ -243,7 +243,7 @@ test("renders a secret arg as a write-only secret field for its place", async ()
   const field = await screen.findByLabelText("Api Key Input");
   expect(field).toHaveAttribute("type", "password");
   expect(field.value).toBe("");
-  expect(screen.getByText(/This tile needs a secret/)).toBeInTheDocument();
+  expect(screen.getByLabelText("Api Key help")).toBeInTheDocument();
   // The arg keeps its key, blank.
   await waitFor(() => expect(mockOnChange).toHaveBeenCalledWith(""));
 });

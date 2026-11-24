@@ -4,6 +4,7 @@ import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
 import styled from "styled-components";
 import { LayoutContext } from "components/contexts/Contexts";
+import InfoTip from "components/inputs/InfoTip";
 import { secretArgStatus } from "components/visualizations/utilities";
 
 const Row = styled.div`
@@ -17,9 +18,16 @@ const Status = styled.span`
   margin-right: 0.25rem;
 `;
 
-const Hint = styled(Form.Text)`
-  display: block;
+const LabelRow = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
 `;
+
+// Shown from the info icon beside a secret field's label.
+const SECRET_INFO =
+  "Secrets are saved with the dashboard and can never be read back to keep them secure.";
 
 /**
  * A plugin's secret arg, in the tile and layer editors.
@@ -63,7 +71,6 @@ const SecretInput = ({ label, value, onChange, place }) => {
     { tile, layer, arg, source },
   );
   const showInput = replacing || status === "unset";
-  const holder = layer ? "layer" : "tile";
 
   function commit() {
     if (typed === "") return;
@@ -83,9 +90,12 @@ const SecretInput = ({ label, value, onChange, place }) => {
   return (
     <div>
       {label && (
-        <Form.Label className="no-caret">
-          <b>{label}</b>:
-        </Form.Label>
+        <LabelRow>
+          <InfoTip label={label}>{SECRET_INFO}</InfoTip>
+          <Form.Label className="no-caret mb-0">
+            <b>{label}</b>:
+          </Form.Label>
+        </LabelRow>
       )}
       {status === "stored" && !replacing && (
         <Row>
@@ -199,12 +209,6 @@ const SecretInput = ({ label, value, onChange, place }) => {
             </Button>
           )}
         </Row>
-      )}
-      {status === "unset" && (
-        <Hint muted>
-          This {holder} needs a secret. It is saved with the dashboard and can
-          never be read back.
-        </Hint>
       )}
     </div>
   );

@@ -2173,8 +2173,9 @@ describe("a secret entered in a tile's editor follows the editor", () => {
     const comboboxes = await screen.findAllByRole("combobox");
     await userEvent.click(comboboxes[0]);
     fireEvent.click(await screen.findByText("Other Secret Plugin"));
+    // The other plugin has no secret yet: an empty field.
     expect(
-      await screen.findByText(/This tile needs a secret/),
+      await screen.findByPlaceholderText("Enter the secret"),
     ).toBeInTheDocument();
   };
 
