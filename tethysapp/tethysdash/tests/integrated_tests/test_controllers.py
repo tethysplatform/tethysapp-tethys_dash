@@ -20,10 +20,6 @@ from tethysapp.tethysdash.model import (
 )
 from tethysapp.tethysdash import tile_secrets
 from tethysapp.tethysdash.tile_secrets import REDACTED, SecretIdentity, decrypt
-from tethysapp.tethysdash.tests.fixtures.echo_secret_plugin import (
-    EchoSecretIntake,
-    secret_proof,
-)
 from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
 from unittest.mock import MagicMock, mock_open, patch
 import os
@@ -67,6 +63,148 @@ from tethysapp.tethysdash.controllers import (
 import requests
 import socket
 from channels.layers import get_channel_layer
+import hashlib
+from urllib.parse import quote
+from tethysapp.tethysdash.plugin_helpers import LayerConfigurationBuilder
+from tethysapp.tethysdash.plugin_helpers import geotiff_source
+
+
+# Fake plugins taking a secret, for the tests below. A result carries its
+# secret's sha256 and length, never the secret. The ``site`` arg switches each
+# into a path that puts the secret where it must not go: ``raise`` raises a
+# VisualizationError quoting it, ``crash`` a RuntimeError, ``progress`` sends a
+# progress message quoting it, and ``leak`` returns it (the raster URL-quoted in
+# the URL it names). FakeSecretEarlyPlugin sends progress quoting it while it is
+# constructed, before TethysDashPlugin.__init__ runs.
+
+
+FAKE_SECRET_ARGS = {"api_key": "secret", "site": "text"}
+
+
+def secret_proof(value):
+    """What a result carries to show the plugin received ``value``."""
+    return {
+        "key_sha256": hashlib.sha256(value.encode("utf-8")).hexdigest(),
+        "key_length": len(value),
+    }
+
+
+class _FakeSecret:
+    """The switches both plugins share."""
+
+    def _answer(self):
+        """The fields a result carries: the site, and the secret's proof or value."""
+        api_key = self.get_arg("api_key")
+        site = self.get_arg("site")
+        if site == "raise":
+            raise VisualizationError(f"Could not sign in to {site} with {api_key}")
+        if site == "crash":
+            raise RuntimeError(f"Connection refused for {api_key}")
+        if site == "progress":
+            self.send_update(f"Signing in with {api_key}", percentage_complete=50)
+        if site == "leak":
+            return {"site": site, "api_key": api_key}
+        return {"site": site, **secret_proof(api_key)}
+
+
+class FakeSecretPlugin(_FakeSecret, TethysDashPlugin):
+    """A table plugin with a secret arg."""
+
+    name = "fake_secret"
+    group = "Test"
+    label = "Fake Secret"
+    type = "table"
+    args = FAKE_SECRET_ARGS
+
+    def run(self):
+        return {"title": "Fake Secret", "data": [self._answer()]}
+
+
+class FakeSecretLayerPlugin(_FakeSecret, TethysDashPlugin):
+    """A dynamic GeoJSON map layer plugin with a secret arg."""
+
+    name = "fake_secret_layer"
+    group = "Test"
+    label = "Fake Secret Layer"
+    type = "map_layer"
+    args = FAKE_SECRET_ARGS
+    dynamic_map_layer = True
+
+    def run(self):
+        # The scaffold's plugin source keeps the secret's slot, never its value.
+        builder = LayerConfigurationBuilder("Fake Secret", "GeoJSON")
+        builder.set_plugin_source(
+            "fake_secret_layer", {"api_key": "", "site": self.get_arg("site")}
+        )
+        return builder.build()
+
+    def fetch_features(self):
+        return {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": self._answer(),
+                    "geometry": {"type": "Point", "coordinates": [-112.0, 40.0]},
+                }
+            ],
+            "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+        }
+
+
+class FakeSecretRasterPlugin(_FakeSecret, TethysDashPlugin):
+    """A dynamic GeoTIFF map layer plugin with a secret arg."""
+
+    name = "fake_secret_raster"
+    group = "Test"
+    label = "Fake Secret Raster"
+    type = "map_layer"
+    args = FAKE_SECRET_ARGS
+    dynamic_map_layer = True
+    dynamic_map_layer_source = "GeoTIFF"
+
+    def run(self):
+        builder = LayerConfigurationBuilder("Fake Secret Raster", "GeoTIFF")
+        builder.set_plugin_source(
+            "fake_secret_raster", {"api_key": "", "site": self.get_arg("site")}
+        )
+        return builder.build()
+
+    def fetch_source(self):
+        answer = self._answer()
+        if answer["site"] == "leak":
+            token = quote(answer["api_key"], safe="")
+            return geotiff_source(f"https://data.example.org/latest.tif?token={token}")
+        return geotiff_source(f"https://data.example.org/{answer['key_sha256']}.tif")
+
+
+class FakeSecretEarlyPlugin(FakeSecretPlugin):
+    """A table plugin that sends progress quoting its secret while it is constructed,
+    before ``TethysDashPlugin.__init__`` has run."""
+
+    name = "fake_secret_early"
+    label = "Fake Secret Early"
+
+    def __init__(self, *args, **kwargs):
+        self.send_update(f"Connecting with {kwargs.get('api_key')}")
+        super().__init__(*args, **kwargs)
+
+
+class FakeSecretIntake:
+    """Stands in for the ``intake`` module with only the fake secret plugins."""
+
+    source = types.SimpleNamespace(
+        registry={
+            "fake_secret": FakeSecretPlugin,
+            "fake_secret_layer": FakeSecretLayerPlugin,
+            "fake_secret_raster": FakeSecretRasterPlugin,
+            "fake_secret_early": FakeSecretEarlyPlugin,
+        }
+    )
+    open_fake_secret = FakeSecretPlugin
+    open_fake_secret_layer = FakeSecretLayerPlugin
+    open_fake_secret_raster = FakeSecretRasterPlugin
+    open_fake_secret_early = FakeSecretEarlyPlugin
 
 
 @pytest.mark.django_db
@@ -5184,32 +5322,32 @@ def test_an_import_saves_its_tabs_into_the_dashboard_it_created(
 
 # Secrets saved, read and swept with the dashboard
 
-ECHO_SECRET = "s3cr3t-api-key"
+STORED_SECRET = "s3cr3t-api-key"
 # A value an older save left in a secret arg, which is never stored or served.
 LEFT_IN_ARGS = "l3ft-1n-args-key"
 
 
 @pytest.fixture
-def echo_secrets(mocker, monkeypatch, mock_app, mock_app_get_ps_db):
-    """The app, with the echo secret plugins as the only ones installed.
+def fake_secrets(mocker, monkeypatch, mock_app, mock_app_get_ps_db):
+    """The app, with the fake secret plugins as the only ones installed.
 
     The key rotation warning counts as given, so no test depends on another's.
     """
     mock_app("tethysapp.tethysdash.controllers.App")
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mocker.patch("tethysapp.tethysdash.visualizations.intake", new=EchoSecretIntake())
+    mocker.patch("tethysapp.tethysdash.visualizations.intake", new=FakeSecretIntake())
     monkeypatch.setattr(tile_secrets, "_warned_derived_keys_only", True)
 
 
-def _echo_tile(api_key="", **fields):
-    """A tile of the echo secret plugin, whose api_key arg is secret."""
+def _fake_tile(api_key="", **fields):
+    """A tile of the fake secret plugin, whose api_key arg is secret."""
     return {
         "i": "1",
         "x": 0,
         "y": 0,
         "w": 1,
         "h": 1,
-        "source": "echo_secret",
+        "source": "fake_secret",
         "args_string": json.dumps({"api_key": api_key, "site": "A"}),
         "metadata_string": "{}",
         "uuid": str(uuid.uuid4()),
@@ -5217,8 +5355,8 @@ def _echo_tile(api_key="", **fields):
     }
 
 
-def _echo_map(api_key=""):
-    """A Map tile with a dynamic echo secret layer, whose popup holds an echo tile."""
+def _fake_map(api_key=""):
+    """A Map tile with a dynamic fake secret layer, whose popup holds an echo tile."""
     layer = {
         "configuration": {
             "type": "VectorLayer",
@@ -5226,17 +5364,17 @@ def _echo_map(api_key=""):
                 "name": "Echo",
                 "layerId": "layer-1",
                 "pluginSource": {
-                    "source": "echo_secret_layer",
+                    "source": "fake_secret_layer",
                     "args": {"api_key": api_key, "site": "A"},
                 },
             },
         },
-        "popupConfig": {"gridItems": [_echo_tile(api_key)]},
+        "popupConfig": {"gridItems": [_fake_tile(api_key)]},
     }
-    return _echo_tile(source="Map", args_string=json.dumps({"layers": [layer]}))
+    return _fake_tile(source="Map", args_string=json.dumps({"layers": [layer]}))
 
 
-def _set_secret(tile, value=ECHO_SECRET, layer="", arg="api_key"):
+def _set_secret(tile, value=STORED_SECRET, layer="", arg="api_key"):
     return {"tile": tile, "layer": layer, "arg": arg, "value": value}
 
 
@@ -5244,7 +5382,7 @@ def _update(client, body):
     return client.generic("POST", reverse("tethysdash:update_dashboard"), body)
 
 
-def _save_secret(client, dashboard, tile, value=ECHO_SECRET):
+def _save_secret(client, dashboard, tile, value=STORED_SECRET):
     """Save a tab holding the tile, setting its secret."""
     return _update(
         client,
@@ -5260,9 +5398,9 @@ def _save_secret(client, dashboard, tile, value=ECHO_SECRET):
 
 @pytest.mark.django_db
 def test_update_dashboard_saves_a_secret_and_answers_only_its_place(
-    client, dashboard, db_session, echo_secrets, test_owner_user, capsys
+    client, dashboard, db_session, fake_secrets, test_owner_user, capsys
 ):
-    tile = _echo_tile()
+    tile = _fake_tile()
     client.force_login(test_owner_user)
 
     response = _save_secret(client, dashboard, tile)
@@ -5272,20 +5410,20 @@ def test_update_dashboard_saves_a_secret_and_answers_only_its_place(
     assert body["updated_dashboard"]["storedSecrets"] == [
         {"tile": tile["uuid"], "layer": "", "arg": "api_key"}
     ]
-    assert ECHO_SECRET not in response.content.decode()
+    assert STORED_SECRET not in response.content.decode()
     out = capsys.readouterr().out
     assert f"Successfully updated the dashboard {dashboard.id}" in out
-    assert ECHO_SECRET not in out
+    assert STORED_SECRET not in out
     (row,) = db_session.query(TileSecret).all()
     identity = SecretIdentity(
-        dashboard.uuid, tile["uuid"], "", "api_key", "echo_secret"
+        dashboard.uuid, tile["uuid"], "", "api_key", "fake_secret"
     )
-    assert decrypt(identity, row.ciphertext).reveal() == ECHO_SECRET
+    assert decrypt(identity, row.ciphertext).reveal() == STORED_SECRET
 
 
 @pytest.mark.django_db
 def test_update_dashboard_scrubs_an_encryption_error_carrying_the_value(
-    client, dashboard, db_session, echo_secrets, test_owner_user, mocker, capsys
+    client, dashboard, db_session, fake_secrets, test_owner_user, mocker, capsys
 ):
     def encrypt_quoting_the_value(identity, value):
         raise ValueError(f"Could not encrypt {value!r} for {identity}")
@@ -5295,13 +5433,13 @@ def test_update_dashboard_scrubs_an_encryption_error_carrying_the_value(
     )
     client.force_login(test_owner_user)
 
-    response = _save_secret(client, dashboard, _echo_tile())
+    response = _save_secret(client, dashboard, _fake_tile())
 
     # The error's text is internal, so only the log has it, scrubbed.
     assert response.json() == {"success": False, "message": UPDATE_FAILED}
     out = capsys.readouterr().out
     assert f"Could not encrypt '{REDACTED}' for dashboard" in out
-    assert ECHO_SECRET not in out
+    assert STORED_SECRET not in out
     # The save failed whole.
     assert db_session.query(TileSecret).count() == 0
     assert db_session.query(GridItem).filter_by(dashboard_id=dashboard.id).count() == 0
@@ -5309,7 +5447,7 @@ def test_update_dashboard_scrubs_an_encryption_error_carrying_the_value(
 
 @pytest.mark.django_db
 def test_update_dashboard_scrubs_a_value_found_in_a_secret_arg(
-    client, dashboard, echo_secrets, test_owner_user, mocker, capsys
+    client, dashboard, fake_secrets, test_owner_user, mocker, capsys
 ):
     """A value in a secret arg, however deep, is scrubbed from a refusal quoting it."""
     mocker.patch(
@@ -5319,7 +5457,7 @@ def test_update_dashboard_scrubs_a_value_found_in_a_secret_arg(
     client.force_login(test_owner_user)
     body = {
         "id": dashboard.id,
-        "tabs": [{"name": "Tab", "gridItems": [_echo_map(LEFT_IN_ARGS)]}],
+        "tabs": [{"name": "Tab", "gridItems": [_fake_map(LEFT_IN_ARGS)]}],
     }
 
     response = _update(client, json.dumps(body))
@@ -5335,29 +5473,29 @@ def test_update_dashboard_scrubs_a_value_found_in_a_secret_arg(
 
 @pytest.mark.django_db
 def test_update_dashboard_scrubs_a_failed_file_sweep(
-    client, dashboard, echo_secrets, test_owner_user, mocker, capsys
+    client, dashboard, fake_secrets, test_owner_user, mocker, capsys
 ):
     """The save is committed before the layer file sweep, whose failure is only
     logged, scrubbed like everything else the save logs."""
     mocker.patch(
         "tethysapp.tethysdash.controllers.clean_up_dashboard_files",
-        side_effect=OSError(f"storage is unreachable at {ECHO_SECRET}"),
+        side_effect=OSError(f"storage is unreachable at {STORED_SECRET}"),
     )
     client.force_login(test_owner_user)
 
-    response = _save_secret(client, dashboard, _echo_tile())
+    response = _save_secret(client, dashboard, _fake_tile())
 
     assert response.json()["success"] is True
     out = capsys.readouterr().out
     assert f"storage is unreachable at {REDACTED}" in out
-    assert ECHO_SECRET not in out
+    assert STORED_SECRET not in out
 
 
 @pytest.mark.django_db
 def test_update_dashboard_refuses_a_secret_for_an_arg_that_is_not_secret(
-    client, dashboard, db_session, echo_secrets, test_owner_user
+    client, dashboard, db_session, fake_secrets, test_owner_user
 ):
-    tile = _echo_tile()
+    tile = _fake_tile()
     client.force_login(test_owner_user)
     body = {
         "id": dashboard.id,
@@ -5382,7 +5520,7 @@ def test_update_dashboard_refuses_a_secret_for_an_arg_that_is_not_secret(
     ids=["not JSON", "not an object", "no id"],
 )
 def test_update_dashboard_answers_a_malformed_body_with_the_generic_message(
-    body, client, echo_secrets, test_owner_user, capsys
+    body, client, fake_secrets, test_owner_user, capsys
 ):
     client.force_login(test_owner_user)
 
@@ -5395,14 +5533,14 @@ def test_update_dashboard_answers_a_malformed_body_with_the_generic_message(
 
 @pytest.mark.django_db
 def test_no_dashboard_answer_holds_a_secret_value(
-    client, dashboard, db_session, echo_secrets, test_owner_user
+    client, dashboard, db_session, fake_secrets, test_owner_user
 ):
     """Every endpoint answering with a dashboard serves its secret args blank, for a
     dashboard holding a stored secret and a value an older save left in its args."""
     client.force_login(test_owner_user)
-    tile = _echo_tile()
+    tile = _fake_tile()
     saved = _save_secret(client, dashboard, tile).json()["updated_dashboard"]
-    legacy = _echo_map(LEFT_IN_ARGS)
+    legacy = _fake_map(LEFT_IN_ARGS)
     db_session.add(
         GridItem(
             dashboard_id=dashboard.id,
@@ -5435,7 +5573,7 @@ def test_no_dashboard_answer_holds_a_secret_value(
             "add_dashboard",
             {
                 "name": "Imported",
-                "tabs": [{"name": "Tab", "gridItems": [_echo_map(LEFT_IN_ARGS)]}],
+                "tabs": [{"name": "Tab", "gridItems": [_fake_map(LEFT_IN_ARGS)]}],
             },
         ),
     }
@@ -5446,7 +5584,7 @@ def test_no_dashboard_answer_holds_a_secret_value(
         assert response.status_code == 200, name
         assert response.json().get("success", True) is True, name
         text = response.content.decode()
-        assert ECHO_SECRET not in text, name
+        assert STORED_SECRET not in text, name
         assert LEFT_IN_ARGS not in text, name
     served = answers["get"].json()["dashboard"]
     assert served["storedSecrets"] == [
@@ -5466,10 +5604,10 @@ TYPED_SECRET = "typed k3y/+value"
 
 
 @pytest.fixture
-def stored_tile(client, dashboard, echo_secrets, test_owner_user):
-    """The uuid of an echo secret tile saved on the dashboard, ECHO_SECRET stored as
+def stored_tile(client, dashboard, fake_secrets, test_owner_user):
+    """The uuid of an fake secret tile saved on the dashboard, STORED_SECRET stored as
     its secret. The client is left signed out."""
-    tile = _echo_tile()
+    tile = _fake_tile()
     client.force_login(test_owner_user)
     assert _save_secret(client, dashboard, tile).json()["success"] is True
     client.logout()
@@ -5477,11 +5615,11 @@ def stored_tile(client, dashboard, echo_secrets, test_owner_user):
 
 
 @pytest.fixture
-def stored_map(client, dashboard, echo_secrets, test_owner_user):
-    """A Map tile saved on the dashboard with ECHO_SECRET stored for its dynamic
+def stored_map(client, dashboard, fake_secrets, test_owner_user):
+    """A Map tile saved on the dashboard with STORED_SECRET stored for its dynamic
     layer and for the tile in that layer's popup. Returns the map's and the popup
     tile's uuids; the client is left signed out."""
-    tile = _echo_map()
+    tile = _fake_map()
     popup = json.loads(tile["args_string"])["layers"][0]["popupConfig"]["gridItems"]
     popup_uuid = popup[0]["uuid"]
     client.force_login(test_owner_user)
@@ -5519,18 +5657,18 @@ def plugins_built(mocker):
     return mocker.spy(TethysDashPlugin, "__init__")
 
 
-def _run_echo(client, dashboard, tile, api_key="", site="A", **fields):
-    """POST a data request for an echo secret plugin, echo_secret by default, as the
+def _run_fake(client, dashboard, tile, api_key="", site="A", **fields):
+    """POST a data request for an fake secret plugin, fake_secret by default, as the
     browser sends an editor's: every arg (``allArgs``), and the secret only when one
     was typed. A viewer's ``allArgs`` changes nothing, so viewers run it too."""
-    source = fields.pop("source", "echo_secret")
+    source = fields.pop("source", "fake_secret")
     fields.setdefault("allArgs", True)
     args = {"site": site, **({"api_key": api_key} if api_key else {})}
     return _post_data(client, dashboard.uuid, tile, args, source, **fields)
 
 
-def _echo_answer(response):
-    """What the echo secret tile answered: its site and its secret's proof."""
+def _fake_answer(response):
+    """What the fake secret tile answered: its site and its secret's proof."""
     body = response.json()
     assert body["success"] is True, body
     return body["data"]["data"][0]
@@ -5549,10 +5687,10 @@ def test_data_runs_a_secret_tile_for_a_signed_out_viewer_of_a_public_dashboard(
     dashboard.public = True
     db_session.commit()
 
-    response = _run_echo(client, dashboard, stored_tile.upper(), api_key="guess")
+    response = _run_fake(client, dashboard, stored_tile.upper(), api_key="guess")
 
-    assert _echo_answer(response) == _proof(ECHO_SECRET)
-    assert ECHO_SECRET not in response.content.decode()
+    assert _fake_answer(response) == _proof(STORED_SECRET)
+    assert STORED_SECRET not in response.content.decode()
 
 
 @pytest.mark.django_db
@@ -5564,18 +5702,18 @@ def test_data_runs_an_editors_typed_secret_before_the_stored_one(
     value: an editor's without it, like a viewer's, runs the stored one."""
     for user in [test_owner_user, test_admin_user]:
         client.force_login(user)
-        typed = _run_echo(client, dashboard, stored_tile, api_key=TYPED_SECRET)
-        stored = _run_echo(client, dashboard, stored_tile, api_key="")
-        not_as_sent = _run_echo(
+        typed = _run_fake(client, dashboard, stored_tile, api_key=TYPED_SECRET)
+        stored = _run_fake(client, dashboard, stored_tile, api_key="")
+        not_as_sent = _run_fake(
             client, dashboard, stored_tile, api_key=TYPED_SECRET, allArgs=False
         )
 
-        assert _echo_answer(typed) == _proof(TYPED_SECRET)
-        assert _echo_answer(stored) == _proof(ECHO_SECRET)
-        assert _echo_answer(not_as_sent) == _proof(ECHO_SECRET)
+        assert _fake_answer(typed) == _proof(TYPED_SECRET)
+        assert _fake_answer(stored) == _proof(STORED_SECRET)
+        assert _fake_answer(not_as_sent) == _proof(STORED_SECRET)
     client.force_login(test_member_user)
-    viewer = _run_echo(client, dashboard, stored_tile, api_key=TYPED_SECRET)
-    assert _echo_answer(viewer) == _proof(ECHO_SECRET)
+    viewer = _run_fake(client, dashboard, stored_tile, api_key=TYPED_SECRET)
+    assert _fake_answer(viewer) == _proof(STORED_SECRET)
 
 
 @pytest.mark.django_db
@@ -5585,19 +5723,19 @@ def test_data_runs_a_viewers_dynamic_layer_and_popup_tile_with_their_secrets(
     map_tile, popup_tile = stored_map
     client.force_login(test_member_user)
 
-    layer = _run_echo(
+    layer = _run_fake(
         client,
         dashboard,
         map_tile,
-        source="echo_secret_layer",
+        source="fake_secret_layer",
         mode="features",
         layer="layer-1",
     )
-    popup = _run_echo(client, dashboard, popup_tile)
+    popup = _run_fake(client, dashboard, popup_tile)
 
     features = layer.json()["data"]["features"]
-    assert features[0]["properties"] == _proof(ECHO_SECRET)
-    assert _echo_answer(popup) == _proof(ECHO_SECRET)
+    assert features[0]["properties"] == _proof(STORED_SECRET)
+    assert _fake_answer(popup) == _proof(STORED_SECRET)
 
 
 @pytest.mark.django_db
@@ -5605,7 +5743,7 @@ def test_data_tells_editors_and_viewers_a_secret_is_missing_without_building_the
     client,
     dashboard,
     db_session,
-    echo_secrets,
+    fake_secrets,
     test_owner_user,
     test_member_user,
     plugins_built,
@@ -5614,14 +5752,14 @@ def test_data_tells_editors_and_viewers_a_secret_is_missing_without_building_the
     to enter the secret, on a saved tile or an unsaved one. A value left in the
     saved args does not count."""
     tile = _add_tile(
-        db_session, dashboard, "echo_secret", {"api_key": LEFT_IN_ARGS, "site": "A"}
+        db_session, dashboard, "fake_secret", {"api_key": LEFT_IN_ARGS, "site": "A"}
     )
 
     client.force_login(test_member_user)
-    viewer = _run_echo(client, dashboard, tile, api_key=LEFT_IN_ARGS)
+    viewer = _run_fake(client, dashboard, tile, api_key=LEFT_IN_ARGS)
     client.force_login(test_owner_user)
-    editor = _run_echo(client, dashboard, tile)
-    unsaved = _run_echo(client, dashboard, str(uuid.uuid4()))
+    editor = _run_fake(client, dashboard, tile)
+    unsaved = _run_fake(client, dashboard, str(uuid.uuid4()))
 
     assert viewer.json() == _data_refusal(SECRET_NOT_SET_UP)
     assert editor.json() == unsaved.json() == _data_refusal(SECRET_NEEDED)
@@ -5640,16 +5778,16 @@ def test_data_treats_a_secret_stored_for_another_plugin_as_missing(
 ):
     client.force_login(test_owner_user)
     # An editor previewing another plugin on the tile, before saving the change.
-    switched = _run_echo(client, dashboard, stored_tile, source="echo_secret_early")
+    switched = _run_fake(client, dashboard, stored_tile, source="fake_secret_early")
     assert switched.json() == _data_refusal(SECRET_NEEDED)
 
     row = db_session.query(TileSecret).one()
-    row.plugin_source = "echo_secret_layer"
+    row.plugin_source = "fake_secret_layer"
     db_session.commit()
 
-    editor = _run_echo(client, dashboard, stored_tile)
+    editor = _run_fake(client, dashboard, stored_tile)
     client.force_login(test_member_user)
-    viewer = _run_echo(client, dashboard, stored_tile)
+    viewer = _run_fake(client, dashboard, stored_tile)
 
     assert editor.json() == _data_refusal(SECRET_NEEDED)
     assert viewer.json() == _data_refusal(SECRET_NOT_SET_UP)
@@ -5672,14 +5810,14 @@ def test_data_asks_an_editor_to_reenter_a_secret_that_cannot_be_read(
     db_session.commit()
 
     client.force_login(test_owner_user)
-    editor = _run_echo(client, dashboard, stored_tile)
+    editor = _run_fake(client, dashboard, stored_tile)
     client.force_login(test_member_user)
-    viewer = _run_echo(client, dashboard, stored_tile)
+    viewer = _run_fake(client, dashboard, stored_tile)
 
     assert editor.json() == _data_refusal(SECRET_UNREADABLE)
     assert viewer.json() == _data_refusal(SECRET_NOT_SET_UP)
     assert plugins_built.call_count == 0
-    assert f"tile {stored_tile} arg 'api_key' (plugin echo_secret) is unavailable" in (
+    assert f"tile {stored_tile} arg 'api_key' (plugin fake_secret) is unavailable" in (
         capsys.readouterr().out
     )
 
@@ -5691,7 +5829,7 @@ def test_data_answers_a_bad_secret_key_setting_with_the_generic_message(
     settings.TETHYSDASH_SECRET_KEYS = ["not a key"]
     client.force_login(test_member_user)
 
-    response = _run_echo(client, dashboard, stored_tile)
+    response = _run_fake(client, dashboard, stored_tile)
 
     assert response.json() == _data_refusal(DATA_REQUEST_FAILED)
     assert (
@@ -5707,20 +5845,20 @@ def test_data_scrubs_a_plugin_error_quoting_its_secret(
     """The error reaches the browser, and the log, with the secret masked: the
     stored one, and the one an editor typed."""
     client.force_login(test_member_user)
-    viewer = _run_echo(client, dashboard, stored_tile)
+    viewer = _run_fake(client, dashboard, stored_tile)
     client.force_login(test_owner_user)
     # The saved site is not wired, so only an editor's request can change it.
-    stored = _run_echo(client, dashboard, stored_tile, site="raise")
-    typed = _run_echo(
+    stored = _run_fake(client, dashboard, stored_tile, site="raise")
+    typed = _run_fake(
         client, dashboard, stored_tile, api_key=TYPED_SECRET, site="raise"
     )
 
-    assert _echo_answer(viewer) == _proof(ECHO_SECRET)
+    assert _fake_answer(viewer) == _proof(STORED_SECRET)
     expected = _data_refusal(f"Could not sign in to raise with {REDACTED}")
     assert stored.json() == typed.json() == expected
     out = capsys.readouterr().out
     assert f"VisualizationError: Could not sign in to raise with {REDACTED}" in out
-    for secret in (ECHO_SECRET, TYPED_SECRET):
+    for secret in (STORED_SECRET, TYPED_SECRET):
         assert secret not in out
         assert secret not in stored.content.decode() + typed.content.decode()
 
@@ -5733,12 +5871,12 @@ def test_data_scrubs_a_dynamic_layers_failure_quoting_its_secret(
     map_tile, _ = stored_map
     client.force_login(test_owner_user)
 
-    response = _run_echo(
+    response = _run_fake(
         client,
         dashboard,
         map_tile,
         site="crash",
-        source="echo_secret_layer",
+        source="fake_secret_layer",
         mode="features",
         layer="layer-1",
     )
@@ -5746,7 +5884,7 @@ def test_data_scrubs_a_dynamic_layers_failure_quoting_its_secret(
     assert response.json() == _data_refusal(f"Connection refused for {REDACTED}")
     out = capsys.readouterr().out
     assert f"Connection refused for {REDACTED}" in out
-    assert ECHO_SECRET not in out
+    assert STORED_SECRET not in out
 
 
 @pytest.mark.django_db
@@ -5757,17 +5895,17 @@ def test_data_scrubs_progress_quoting_a_secret(
     progress a plugin sends while it is still being built."""
     client.force_login(test_owner_user)
 
-    stored = _run_echo(client, dashboard, stored_tile, site="progress")
-    early = _run_echo(
+    stored = _run_fake(client, dashboard, stored_tile, site="progress")
+    early = _run_fake(
         client,
         dashboard,
         str(uuid.uuid4()),
         api_key=TYPED_SECRET,
-        source="echo_secret_early",
+        source="fake_secret_early",
     )
 
-    assert _echo_answer(stored) == _proof(ECHO_SECRET, "progress")
-    assert _echo_answer(early) == _proof(TYPED_SECRET)
+    assert _fake_answer(stored) == _proof(STORED_SECRET, "progress")
+    assert _fake_answer(early) == _proof(TYPED_SECRET)
     assert broadcast == [
         f"Signing in with {REDACTED}",
         f"Connecting with {REDACTED}",
@@ -5778,20 +5916,20 @@ def test_data_scrubs_progress_quoting_a_secret(
 @pytest.mark.parametrize(
     "source, fields",
     [
-        ("echo_secret", {}),
-        ("echo_secret_layer", {"mode": "features", "layer": "layer-1"}),
-        ("echo_secret_raster", {"mode": "features", "layer": "layer-1"}),
+        ("fake_secret", {}),
+        ("fake_secret_layer", {"mode": "features", "layer": "layer-1"}),
+        ("fake_secret_raster", {"mode": "features", "layer": "layer-1"}),
     ],
     ids=["tile", "dynamic GeoJSON layer", "dynamic GeoTIFF layer"],
 )
 def test_data_refuses_a_result_holding_a_secret(
-    client, dashboard, echo_secrets, test_owner_user, source, fields, capsys
+    client, dashboard, fake_secrets, test_owner_user, source, fields, capsys
 ):
     """However the result carries it: the GeoTIFF plugin URL-quotes it into the
     query string of the file it names."""
     client.force_login(test_owner_user)
 
-    response = _run_echo(
+    response = _run_fake(
         client,
         dashboard,
         str(uuid.uuid4()),

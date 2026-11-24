@@ -43,11 +43,148 @@ from tethysapp.tethysdash.tests.fixtures.echo_runtime_raster_plugin import (
     ECHO_RASTER_URL,
     EchoRuntimeRasterPlugin,
 )
-from tethysapp.tethysdash.tests.fixtures.echo_secret_plugin import (
-    EchoSecretIntake,
-    EchoSecretPlugin,
-    secret_proof,
-)
+import hashlib
+from tethysapp.tethysdash.plugin_helpers import LayerConfigurationBuilder
+from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
+from tethysapp.tethysdash.plugin_helpers import geotiff_source
+
+
+# Fake plugins taking a secret, for the tests below. A result carries its
+# secret's sha256 and length, never the secret. The ``site`` arg switches each
+# into a path that puts the secret where it must not go: ``raise`` raises a
+# VisualizationError quoting it, ``crash`` a RuntimeError, ``progress`` sends a
+# progress message quoting it, and ``leak`` returns it (the raster URL-quoted in
+# the URL it names). FakeSecretEarlyPlugin sends progress quoting it while it is
+# constructed, before TethysDashPlugin.__init__ runs.
+
+
+FAKE_SECRET_ARGS = {"api_key": "secret", "site": "text"}
+
+
+def secret_proof(value):
+    """What a result carries to show the plugin received ``value``."""
+    return {
+        "key_sha256": hashlib.sha256(value.encode("utf-8")).hexdigest(),
+        "key_length": len(value),
+    }
+
+
+class _FakeSecret:
+    """The switches both plugins share."""
+
+    def _answer(self):
+        """The fields a result carries: the site, and the secret's proof or value."""
+        api_key = self.get_arg("api_key")
+        site = self.get_arg("site")
+        if site == "raise":
+            raise VisualizationError(f"Could not sign in to {site} with {api_key}")
+        if site == "crash":
+            raise RuntimeError(f"Connection refused for {api_key}")
+        if site == "progress":
+            self.send_update(f"Signing in with {api_key}", percentage_complete=50)
+        if site == "leak":
+            return {"site": site, "api_key": api_key}
+        return {"site": site, **secret_proof(api_key)}
+
+
+class FakeSecretPlugin(_FakeSecret, TethysDashPlugin):
+    """A table plugin with a secret arg."""
+
+    name = "fake_secret"
+    group = "Test"
+    label = "Fake Secret"
+    type = "table"
+    args = FAKE_SECRET_ARGS
+
+    def run(self):
+        return {"title": "Fake Secret", "data": [self._answer()]}
+
+
+class FakeSecretLayerPlugin(_FakeSecret, TethysDashPlugin):
+    """A dynamic GeoJSON map layer plugin with a secret arg."""
+
+    name = "fake_secret_layer"
+    group = "Test"
+    label = "Fake Secret Layer"
+    type = "map_layer"
+    args = FAKE_SECRET_ARGS
+    dynamic_map_layer = True
+
+    def run(self):
+        # The scaffold's plugin source keeps the secret's slot, never its value.
+        builder = LayerConfigurationBuilder("Fake Secret", "GeoJSON")
+        builder.set_plugin_source(
+            "fake_secret_layer", {"api_key": "", "site": self.get_arg("site")}
+        )
+        return builder.build()
+
+    def fetch_features(self):
+        return {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": self._answer(),
+                    "geometry": {"type": "Point", "coordinates": [-112.0, 40.0]},
+                }
+            ],
+            "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+        }
+
+
+class FakeSecretRasterPlugin(_FakeSecret, TethysDashPlugin):
+    """A dynamic GeoTIFF map layer plugin with a secret arg."""
+
+    name = "fake_secret_raster"
+    group = "Test"
+    label = "Fake Secret Raster"
+    type = "map_layer"
+    args = FAKE_SECRET_ARGS
+    dynamic_map_layer = True
+    dynamic_map_layer_source = "GeoTIFF"
+
+    def run(self):
+        builder = LayerConfigurationBuilder("Fake Secret Raster", "GeoTIFF")
+        builder.set_plugin_source(
+            "fake_secret_raster", {"api_key": "", "site": self.get_arg("site")}
+        )
+        return builder.build()
+
+    def fetch_source(self):
+        answer = self._answer()
+        if answer["site"] == "leak":
+            token = quote(answer["api_key"], safe="")
+            return geotiff_source(f"https://data.example.org/latest.tif?token={token}")
+        return geotiff_source(f"https://data.example.org/{answer['key_sha256']}.tif")
+
+
+class FakeSecretEarlyPlugin(FakeSecretPlugin):
+    """A table plugin that sends progress quoting its secret while it is constructed,
+    before ``TethysDashPlugin.__init__`` has run."""
+
+    name = "fake_secret_early"
+    label = "Fake Secret Early"
+
+    def __init__(self, *args, **kwargs):
+        self.send_update(f"Connecting with {kwargs.get('api_key')}")
+        super().__init__(*args, **kwargs)
+
+
+class FakeSecretIntake:
+    """Stands in for the ``intake`` module with only the fake secret plugins."""
+
+    source = types.SimpleNamespace(
+        registry={
+            "fake_secret": FakeSecretPlugin,
+            "fake_secret_layer": FakeSecretLayerPlugin,
+            "fake_secret_raster": FakeSecretRasterPlugin,
+            "fake_secret_early": FakeSecretEarlyPlugin,
+        }
+    )
+    open_fake_secret = FakeSecretPlugin
+    open_fake_secret_layer = FakeSecretLayerPlugin
+    open_fake_secret_raster = FakeSecretRasterPlugin
+    open_fake_secret_early = FakeSecretEarlyPlugin
 
 
 @pytest.fixture
@@ -728,20 +865,20 @@ def test_warm_visualization_cache_touches_each_and_skips_failures(mocker):
     assert "bad" in str(log_spy.warning.call_args)
 
 
-ECHO_SECRET = "s3cr3t-api-key"
+STORED_SECRET = "s3cr3t-api-key"
 
 
 @pytest.fixture
-def echo_secret_intake(mocker):
-    """Install the echo secret plugins as the only ones."""
-    mocker.patch("tethysapp.tethysdash.visualizations.intake", new=EchoSecretIntake())
+def fake_secret_intake(mocker):
+    """Install the fake secret plugins as the only ones."""
+    mocker.patch("tethysapp.tethysdash.visualizations.intake", new=FakeSecretIntake())
 
 
 def test_get_plugin_secret_args_of_tile_and_dynamic_layer_plugins(
-    echo_secret_intake,
+    fake_secret_intake,
 ):
-    assert get_plugin_secret_args("echo_secret") == {"api_key"}
-    assert get_plugin_secret_args("echo_secret_layer") == {"api_key"}
+    assert get_plugin_secret_args("fake_secret") == {"api_key"}
+    assert get_plugin_secret_args("fake_secret_layer") == {"api_key"}
 
 
 def test_get_plugin_secret_args_of_plugin_declaring_none(mocker):
@@ -754,42 +891,42 @@ def test_get_plugin_secret_args_of_plugin_declaring_none(mocker):
     assert get_plugin_secret_args("plain") == frozenset()
 
 
-def test_get_plugin_secret_args_of_uninstalled_source_is_unknown(echo_secret_intake):
+def test_get_plugin_secret_args_of_uninstalled_source_is_unknown(fake_secret_intake):
     assert get_plugin_secret_args("not_installed") is None
 
 
 @pytest.mark.django_db
-def test_visualizations_list_shows_a_secret_arg(client, echo_secret_intake):
+def test_visualizations_list_shows_a_secret_arg(client, fake_secret_intake):
     response = client.get(reverse("tethysdash:visualizations"))
 
     assert response.status_code == 200
     (group,) = response.json()["visualizations"]
     args = {option["source"]: option["args"] for option in group["options"]}
     assert args == {
-        "echo_secret": {"api_key": "secret", "site": "text"},
-        "echo_secret_layer": {"api_key": "secret", "site": "text"},
-        "echo_secret_raster": {"api_key": "secret", "site": "text"},
-        "echo_secret_early": {"api_key": "secret", "site": "text"},
+        "fake_secret": {"api_key": "secret", "site": "text"},
+        "fake_secret_layer": {"api_key": "secret", "site": "text"},
+        "fake_secret_raster": {"api_key": "secret", "site": "text"},
+        "fake_secret_early": {"api_key": "secret", "site": "text"},
     }
 
 
-def test_echo_secret_plugin_runs_with_its_secret(echo_secret_intake):
+def test_fake_secret_plugin_runs_with_its_secret(fake_secret_intake):
     viz_type, data = get_visualization(
-        "echo_secret", {"api_key": ECHO_SECRET, "site": "A"}, None, "req-1"
+        "fake_secret", {"api_key": STORED_SECRET, "site": "A"}, None, "req-1"
     )
 
     assert viz_type == "table"
     assert data == {
-        "title": "Echo Secret",
-        "data": [{"site": "A", **secret_proof(ECHO_SECRET)}],
+        "title": "Fake Secret",
+        "data": [{"site": "A", **secret_proof(STORED_SECRET)}],
     }
-    assert ECHO_SECRET not in str(data)
+    assert STORED_SECRET not in str(data)
 
 
-def test_echo_secret_layer_fetches_with_its_secret(echo_secret_intake):
+def test_fake_secret_layer_fetches_with_its_secret(fake_secret_intake):
     viz_type, data = get_visualization(
-        "echo_secret_layer",
-        {"api_key": ECHO_SECRET, "site": "A"},
+        "fake_secret_layer",
+        {"api_key": STORED_SECRET, "site": "A"},
         None,
         "n:g:layer-1",
         mode="features",
@@ -798,38 +935,38 @@ def test_echo_secret_layer_fetches_with_its_secret(echo_secret_intake):
     assert viz_type == "features"
     assert data["features"][0]["properties"] == {
         "site": "A",
-        **secret_proof(ECHO_SECRET),
+        **secret_proof(STORED_SECRET),
     }
-    assert ECHO_SECRET not in str(data)
+    assert STORED_SECRET not in str(data)
 
 
-def test_echo_secret_layer_scaffold_keeps_the_secret_slot_empty(echo_secret_intake):
+def test_fake_secret_layer_scaffold_keeps_the_secret_slot_empty(fake_secret_intake):
     _, data = get_visualization(
-        "echo_secret_layer", {"api_key": ECHO_SECRET, "site": "A"}, None, "req-1"
+        "fake_secret_layer", {"api_key": STORED_SECRET, "site": "A"}, None, "req-1"
     )
 
     plugin_source = data["configuration"]["props"]["pluginSource"]
     assert plugin_source == {
-        "source": "echo_secret_layer",
+        "source": "fake_secret_layer",
         "args": {"api_key": "", "site": "A"},
     }
-    assert ECHO_SECRET not in str(data)
+    assert STORED_SECRET not in str(data)
 
 
-def test_echo_secret_plugin_switches_leak_the_secret(mocker):
+def test_fake_secret_plugin_switches_leak_the_secret(mocker):
     """The switches tests use to show a secret is scrubbed or refused."""
-    with pytest.raises(VisualizationError, match=ECHO_SECRET):
-        EchoSecretPlugin(api_key=ECHO_SECRET, site="raise").read("req-1")
+    with pytest.raises(VisualizationError, match=STORED_SECRET):
+        FakeSecretPlugin(api_key=STORED_SECRET, site="raise").read("req-1")
 
     mock_send = mocker.patch(
         "tethysapp.tethysdash.plugin_helpers.send_websocket_message"
     )
-    proof = EchoSecretPlugin(api_key=ECHO_SECRET, site="progress").read("req-1")
-    assert ECHO_SECRET in mock_send.call_args.args[1]
-    assert proof["data"] == [{"site": "progress", **secret_proof(ECHO_SECRET)}]
+    proof = FakeSecretPlugin(api_key=STORED_SECRET, site="progress").read("req-1")
+    assert STORED_SECRET in mock_send.call_args.args[1]
+    assert proof["data"] == [{"site": "progress", **secret_proof(STORED_SECRET)}]
 
-    leaked = EchoSecretPlugin(api_key=ECHO_SECRET, site="leak").read("req-1")
-    assert leaked["data"] == [{"site": "leak", "api_key": ECHO_SECRET}]
+    leaked = FakeSecretPlugin(api_key=STORED_SECRET, site="leak").read("req-1")
+    assert leaked["data"] == [{"site": "leak", "api_key": STORED_SECRET}]
 
 
 # Secrets resolved at run time and kept out of outputs
@@ -854,10 +991,10 @@ def broadcast(mocker):
 
 
 @pytest.fixture
-def stored_echo_tile(
-    db_session, dashboard, echo_secret_intake, mock_app_get_ps_db, monkeypatch
+def stored_fake_tile(
+    db_session, dashboard, fake_secret_intake, mock_app_get_ps_db, monkeypatch
 ):
-    """The uuid of an echo secret tile saved on the dashboard, ECHO_SECRET stored as
+    """The uuid of an fake secret tile saved on the dashboard, STORED_SECRET stored as
     its secret."""
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     monkeypatch.setattr(tile_secrets, "_warned_derived_keys_only", True)
@@ -871,20 +1008,20 @@ def stored_echo_tile(
             y=0,
             w=1,
             h=1,
-            source="echo_secret",
+            source="fake_secret",
             args_string=json.dumps({"api_key": "", "site": "A"}),
             metadata_string="{}",
         )
     )
-    identity = SecretIdentity(dashboard.uuid, tile, "", "api_key", "echo_secret")
+    identity = SecretIdentity(dashboard.uuid, tile, "", "api_key", "fake_secret")
     db_session.add(
         TileSecret(
             dashboard_id=dashboard.id,
             tile_uuid=tile,
             layer_id="",
             arg_name="api_key",
-            plugin_source="echo_secret",
-            ciphertext=encrypt(identity, ECHO_SECRET),
+            plugin_source="fake_secret",
+            ciphertext=encrypt(identity, STORED_SECRET),
             updated_by="owner_user",
         )
     )
@@ -892,12 +1029,12 @@ def stored_echo_tile(
     return tile
 
 
-def _echo_request(dashboard, tile, api_key):
+def _fake_request(dashboard, tile, api_key):
     return DataRequest(
         dashboard=dashboard.uuid,
         tile=tile,
         layer="",
-        source="echo_secret",
+        source="fake_secret",
         args={"api_key": api_key, "site": "A"},
         mode="scaffold",
         request_id="req-1",
@@ -907,18 +1044,18 @@ def _echo_request(dashboard, tile, api_key):
 
 @pytest.mark.django_db
 def test_prepare_run_args_hands_on_every_secret_wrapped(
-    dashboard, stored_echo_tile, test_owner_user, test_member_user
+    dashboard, stored_fake_tile, test_owner_user, test_member_user
 ):
     """The stored secret and an editor's typed one alike leave as SecretValues,
     which never show the value."""
     viewer = prepare_run_args(
-        test_member_user, _echo_request(dashboard, stored_echo_tile, "guess")
+        test_member_user, _fake_request(dashboard, stored_fake_tile, "guess")
     )
     editor = prepare_run_args(
-        test_owner_user, _echo_request(dashboard, stored_echo_tile, "typed-key")
+        test_owner_user, _fake_request(dashboard, stored_fake_tile, "typed-key")
     )
 
-    for run_args, value in [(viewer, ECHO_SECRET), (editor, "typed-key")]:
+    for run_args, value in [(viewer, STORED_SECRET), (editor, "typed-key")]:
         assert isinstance(run_args["api_key"], SecretValue)
         assert run_args["api_key"].reveal() == value
         assert value not in repr(run_args)
@@ -926,24 +1063,24 @@ def test_prepare_run_args_hands_on_every_secret_wrapped(
 
 
 def test_get_visualization_unwraps_a_secret_only_to_build_the_plugin(
-    echo_secret_intake,
+    fake_secret_intake,
 ):
     viz_type, data = get_visualization(
-        "echo_secret", {"api_key": SecretValue(ECHO_SECRET), "site": "A"}, None, "r"
+        "fake_secret", {"api_key": SecretValue(STORED_SECRET), "site": "A"}, None, "r"
     )
 
     assert viz_type == "table"
-    assert data["data"] == [{"site": "A", **secret_proof(ECHO_SECRET)}]
+    assert data["data"] == [{"site": "A", **secret_proof(STORED_SECRET)}]
 
 
 def test_get_visualization_scrubs_progress_from_before_the_plugin_is_built(
-    echo_secret_intake, broadcast
+    fake_secret_intake, broadcast
 ):
     """The run's secrets are known from before the plugin is built until the run
     ends, and only then."""
-    args = {"api_key": SecretValue(ECHO_SECRET), "site": "progress"}
+    args = {"api_key": SecretValue(STORED_SECRET), "site": "progress"}
 
-    get_visualization("echo_secret_early", args, None, "req-1")
+    get_visualization("fake_secret_early", args, None, "req-1")
 
     assert broadcast == [
         f"Connecting with {REDACTED}",
@@ -955,13 +1092,13 @@ def test_get_visualization_scrubs_progress_from_before_the_plugin_is_built(
 @pytest.mark.parametrize(
     "source, mode",
     [
-        ("echo_secret", "scaffold"),
-        ("echo_secret_layer", "features"),
-        ("echo_secret_raster", "features"),
+        ("fake_secret", "scaffold"),
+        ("fake_secret_layer", "features"),
+        ("fake_secret_raster", "features"),
     ],
 )
 def test_get_visualization_refuses_a_result_holding_a_secret(
-    echo_secret_intake, source, mode
+    fake_secret_intake, source, mode
 ):
     """In any form: the GeoTIFF plugin URL-quotes it into the file's query string."""
     args = {"api_key": SecretValue(QUOTED_SECRET), "site": "leak"}
@@ -972,13 +1109,10 @@ def test_get_visualization_refuses_a_result_holding_a_secret(
     assert run_secret_values() == ()
 
 
-def test_echo_secret_raster_leak_carries_only_the_quoted_secret():
+def test_fake_secret_raster_leak_carries_only_the_quoted_secret():
     """The raster leak shows the result check finds a form other than the value."""
-    from tethysapp.tethysdash.tests.fixtures.echo_secret_plugin import (
-        EchoSecretRasterPlugin,
-    )
 
-    plugin = EchoSecretRasterPlugin(api_key=QUOTED_SECRET, site="leak")
+    plugin = FakeSecretRasterPlugin(api_key=QUOTED_SECRET, site="leak")
     url = plugin.read_source("n:g:layer-1")["props"]["url"]
 
     assert QUOTED_SECRET not in url
@@ -986,11 +1120,11 @@ def test_echo_secret_raster_leak_carries_only_the_quoted_secret():
 
 
 def test_get_visualization_passes_a_result_holding_only_the_secrets_empty_slot(
-    echo_secret_intake,
+    fake_secret_intake,
 ):
     _, data = get_visualization(
-        "echo_secret_layer",
-        {"api_key": SecretValue(ECHO_SECRET), "site": "A"},
+        "fake_secret_layer",
+        {"api_key": SecretValue(STORED_SECRET), "site": "A"},
         None,
         "req-1",
     )
@@ -999,14 +1133,14 @@ def test_get_visualization_passes_a_result_holding_only_the_secrets_empty_slot(
 
 
 def test_get_visualization_hides_every_frame_below_it_from_error_reports(
-    echo_secret_intake,
+    fake_secret_intake,
 ):
     """Django's error reports list each frame's variables; under get_visualization,
     the plugin's own included, every one is masked."""
     with pytest.raises(VisualizationError) as raised:
         get_visualization(
-            "echo_secret",
-            {"api_key": SecretValue(ECHO_SECRET), "site": "raise"},
+            "fake_secret",
+            {"api_key": SecretValue(STORED_SECRET), "site": "raise"},
             None,
             "req-1",
         )
@@ -1025,4 +1159,4 @@ def test_get_visualization_hides_every_frame_below_it_from_error_reports(
     assert "api_key" in frames["_answer"]
     for name in ("get_visualization", "_read_plugin", "run", "_answer"):
         assert set(frames[name].values()) == {reporter_filter.cleansed_substitute}
-    assert ECHO_SECRET not in repr(frames)
+    assert STORED_SECRET not in repr(frames)

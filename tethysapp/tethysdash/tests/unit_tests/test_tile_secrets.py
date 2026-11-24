@@ -32,7 +32,7 @@ IDENTITY = SecretIdentity(
     tile="22222222-2222-4222-8222-222222222222",
     layer="",
     arg="api_key",
-    source="echo_secret",
+    source="fake_secret",
 )
 DEDICATED_KEY = Fernet.generate_key().decode()
 
@@ -243,24 +243,24 @@ def test_a_dedicated_key_that_is_not_a_key_is_a_configuration_error(bad_key):
 
 def test_an_identity_keeps_strings_and_an_empty_layer():
     dashboard = uuid4()
-    identity = SecretIdentity(dashboard, "tile", None, "api_key", "echo_secret")
+    identity = SecretIdentity(dashboard, "tile", None, "api_key", "fake_secret")
 
     assert identity.as_dict() == {
         "dashboard": str(dashboard),
         "tile": "tile",
         "layer": "",
         "arg": "api_key",
-        "source": "echo_secret",
+        "source": "fake_secret",
     }
     assert identity == SecretIdentity(
-        str(dashboard), "tile", "", "api_key", "echo_secret"
+        str(dashboard), "tile", "", "api_key", "fake_secret"
     )
     assert str(identity) == (
-        f"dashboard {dashboard} tile tile arg 'api_key' (plugin echo_secret)"
+        f"dashboard {dashboard} tile tile arg 'api_key' (plugin fake_secret)"
     )
     assert str(dataclasses.replace(identity, layer="layer-1")) == (
         f"dashboard {dashboard} tile tile layer layer-1 arg 'api_key' "
-        "(plugin echo_secret)"
+        "(plugin fake_secret)"
     )
 
 
@@ -449,7 +449,7 @@ def _secret_row(dashboard, arg="api_key", **fields):
         dashboard_id=dashboard.id,
         tile_uuid=IDENTITY.tile,
         arg_name=arg,
-        plugin_source="echo_secret",
+        plugin_source="fake_secret",
         ciphertext=encrypt(IDENTITY, SECRET),
         updated_by="editor",
         **fields,
