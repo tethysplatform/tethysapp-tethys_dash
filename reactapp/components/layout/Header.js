@@ -508,8 +508,12 @@ export const DashboardHeader = () => {
       setIsEditing(false);
       setThumbnailPending(true);
     } else {
+      // The server's own reason, such as a refused secret change, is written
+      // to be shown; without one, the generic text stands.
       setErrorMessage(
-        "Failed to save changes. Check server logs for more information.",
+        typeof response.message === "string" && response.message
+          ? response.message
+          : "Failed to save changes. Check server logs for more information.",
       );
       setShowErrorMessage(true);
     }

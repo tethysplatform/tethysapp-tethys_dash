@@ -128,16 +128,13 @@ test("Dashboard Editor Canvas edit and save", async () => {
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
   await userEvent.click(saveButton);
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      name: "new_name",
-      description: "New Description",
-      id: 1,
-      notes: "<p>Hello world!</p>",
-      unrestrictedPlacement: true,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    name: "new_name",
+    description: "New Description",
+    id: 1,
+    notes: "<p>Hello world!</p>",
+    unrestrictedPlacement: true,
+  });
   expect(
     await screen.findByText("Successfully updated dashboard settings"),
   ).toBeInTheDocument();
@@ -195,16 +192,13 @@ test("Dashboard Editor Canvas edit desription only and save", async () => {
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
   await userEvent.click(saveButton);
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      name: "User Dashboard",
-      description: "New Description",
-      id: 1,
-      notes: "<p>Hello world!</p>",
-      unrestrictedPlacement: false,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    name: "User Dashboard",
+    description: "New Description",
+    id: 1,
+    notes: "<p>Hello world!</p>",
+    unrestrictedPlacement: false,
+  });
   expect(
     await screen.findByText("Successfully updated dashboard settings"),
   ).toBeInTheDocument();
@@ -239,16 +233,13 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
   await userEvent.click(saveButton);
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      name: "User Dashboard",
-      description: "New Description",
-      id: 1,
-      notes: "user_notes",
-      unrestrictedPlacement: false,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    name: "User Dashboard",
+    description: "New Description",
+    id: 1,
+    notes: "user_notes",
+    unrestrictedPlacement: false,
+  });
   expect(
     await screen.findByText(
       "Failed to update dashboard settings. Check server logs.",
@@ -280,16 +271,13 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
   await userEvent.click(saveButton);
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      name: "User Dashboard",
-      description: "New Description",
-      id: 1,
-      notes: "user_notes",
-      unrestrictedPlacement: false,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    name: "User Dashboard",
+    description: "New Description",
+    id: 1,
+    notes: "user_notes",
+    unrestrictedPlacement: false,
+  });
   expect(await screen.findByText("failed to update")).toBeInTheDocument();
 });
 
@@ -412,10 +400,10 @@ test("Dashboard Editor Canvas copy and success", async () => {
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   await userEvent.click(copyButton);
-  expect(mockCopyDashboard).toHaveBeenCalledWith(
-    { id: userDashboard.id, newName: `${userDashboard.name} - Copy` },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockCopyDashboard).toHaveBeenCalledWith({
+    id: userDashboard.id,
+    newName: `${userDashboard.name} - Copy`,
+  });
 
   expect(navigateMock).toHaveBeenCalledWith("/dashboard/123456789");
 });
@@ -441,10 +429,10 @@ test("Dashboard Editor Canvas copy and fail with message", async () => {
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   await userEvent.click(copyButton);
-  expect(mockCopyDashboard).toHaveBeenCalledWith(
-    { id: userDashboard.id, newName: `${userDashboard.name} - Copy` },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockCopyDashboard).toHaveBeenCalledWith({
+    id: userDashboard.id,
+    newName: `${userDashboard.name} - Copy`,
+  });
   expect(
     await screen.findByText("failed to copy for some reason"),
   ).toBeInTheDocument();
@@ -472,10 +460,10 @@ test("Dashboard Editor Canvas copy and fail without message", async () => {
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   await userEvent.click(copyButton);
-  expect(mockCopyDashboard).toHaveBeenCalledWith(
-    { id: userDashboard.id, newName: `${userDashboard.name} - Copy` },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockCopyDashboard).toHaveBeenCalledWith({
+    id: userDashboard.id,
+    newName: `${userDashboard.name} - Copy`,
+  });
   expect(
     await screen.findByText("Failed to copy dashboard"),
   ).toBeInTheDocument();

@@ -230,15 +230,28 @@ it("loads a chain in waves, resolving each wave's args from the last", async () 
     visualizations,
     variableInputValues: { Basin: "willamette" },
     onProgress,
+    dashboardUUID: "dash-uuid",
   });
 
+  // Each request names the dashboard and the variable input's own tile. A
+  // preload for a caller who may not edit sends a viewer's args alone.
   expect(spy.mock.calls.map(([itemData]) => itemData)).toEqual([
     {
+      dashboard: "dash-uuid",
+      tile: "picker_a",
       source: "picker_a",
       args: { region: "willamette" },
       requestId: "picker_a",
+      allArgs: false,
     },
-    { source: "picker_b", args: { station: "west" }, requestId: "picker_b" },
+    {
+      dashboard: "dash-uuid",
+      tile: "picker_b",
+      source: "picker_b",
+      args: { station: "west" },
+      requestId: "picker_b",
+      allArgs: false,
+    },
   ]);
   expect(result.values).toEqual({ Region: "west", Station: "west-1" });
   expect(onProgress.mock.calls.map(([progress]) => progress)).toEqual([

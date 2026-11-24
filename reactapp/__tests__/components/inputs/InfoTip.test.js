@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import InfoTip from "components/inputs/InfoTip";
 import CheckboxInput from "components/inputs/CheckboxInput";
@@ -9,6 +9,21 @@ test("InfoTip shows its explanation on hover and on keyboard focus", async () =>
   expect(screen.queryByText("Fills the screen.")).not.toBeInTheDocument();
   await userEvent.hover(screen.getByLabelText("Fill Viewport help"));
   expect(await screen.findByText("Fills the screen.")).toBeInTheDocument();
+});
+
+test("InfoTip's explanation is its icon's accessible description", async () => {
+  render(<InfoTip label="Fill Viewport">Fills the screen.</InfoTip>);
+  const help = screen.getByLabelText("Fill Viewport help");
+
+  await userEvent.hover(help);
+  await screen.findByText("Fills the screen.");
+
+  // The icon names the tooltip in aria-describedby, which splits on spaces,
+  // so an id with spaces describes it with nothing. The positioning library
+  // sets it just after the tooltip shows.
+  await waitFor(() =>
+    expect(help).toHaveAccessibleDescription("Fills the screen."),
+  );
 });
 
 test("InfoTip is reachable with the keyboard", async () => {

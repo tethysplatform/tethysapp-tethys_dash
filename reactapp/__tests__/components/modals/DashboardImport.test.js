@@ -4,10 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import DashboardImportModal from "components/modals/DashboardImport";
 import createLoadedComponent from "__tests__/utilities/customRender";
-import {
-  AppContext,
-  AvailableDashboardsContext,
-} from "components/contexts/Contexts";
+import { AvailableDashboardsContext } from "components/contexts/Contexts";
 import { LayoutSuccessAlertContext } from "components/contexts/LayoutAlertContext";
 import * as dashboardUtils from "components/dashboard/DashboardItem";
 import * as importIdentity from "components/dashboard/importIdentity";
@@ -177,10 +174,7 @@ test("DashboardImportModal Landing Page with bad griditems", async () => {
     ),
   ).toBeInTheDocument();
   // The dashboard created for the import is taken back down.
-  expect(mockDeleteDashboard).toHaveBeenCalledWith(
-    { id: 41 },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockDeleteDashboard).toHaveBeenCalledWith({ id: 41 });
   expect(mockUpdateDashboard).not.toHaveBeenCalled();
 });
 
@@ -248,38 +242,35 @@ test("DashboardImportModal Landing Page with griditems", async () => {
   await waitFor(() => expect(importButton).not.toBeDisabled());
   await userEvent.click(importButton);
 
-  expect(mockAddDashboard).toHaveBeenCalledWith(
-    { name: "Test", description: "this is a new description" },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      id: 41,
-      tabs: [
-        {
-          name: "Main",
-          gridItems: [
-            {
-              args_string: JSON.stringify(
-                importedDashboard.gridItems[0].args_string,
-              ),
-              h: 20,
-              i: "1",
-              metadata_string: JSON.stringify(
-                importedDashboard.gridItems[0].metadata_string,
-              ),
-              source: "Variable Input",
-              uuid: 12345678,
-              w: 20,
-              x: 0,
-              y: 0,
-            },
-          ],
-        },
-      ],
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockAddDashboard).toHaveBeenCalledWith({
+    name: "Test",
+    description: "this is a new description",
+  });
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    id: 41,
+    tabs: [
+      {
+        name: "Main",
+        gridItems: [
+          {
+            args_string: JSON.stringify(
+              importedDashboard.gridItems[0].args_string,
+            ),
+            h: 20,
+            i: "1",
+            metadata_string: JSON.stringify(
+              importedDashboard.gridItems[0].metadata_string,
+            ),
+            source: "Variable Input",
+            uuid: 12345678,
+            w: 20,
+            x: 0,
+            y: 0,
+          },
+        ],
+      },
+    ],
+  });
   expect(mockDeleteDashboard).not.toHaveBeenCalled();
 });
 
@@ -342,10 +333,7 @@ test("DashboardImportModal Landing Page with bad tabs", async () => {
     ),
   ).toBeInTheDocument();
   // The dashboard created for the import is taken back down.
-  expect(mockDeleteDashboard).toHaveBeenCalledWith(
-    { id: 41 },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockDeleteDashboard).toHaveBeenCalledWith({ id: 41 });
   expect(mockUpdateDashboard).not.toHaveBeenCalled();
 });
 
@@ -419,40 +407,37 @@ test("DashboardImportModal Landing Page with tabs", async () => {
   await waitFor(() => expect(importButton).not.toBeDisabled());
   await userEvent.click(importButton);
 
-  expect(mockAddDashboard).toHaveBeenCalledWith(
-    { name: "Test", description: "this is a new description" },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockAddDashboard).toHaveBeenCalledWith({
+    name: "Test",
+    description: "this is a new description",
+  });
   // The tab's exported id is dropped: the save would match it against the new
   // dashboard's own tabs.
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      id: 41,
-      tabs: [
-        {
-          name: "Tab 1",
-          gridItems: [
-            {
-              args_string: JSON.stringify(
-                importedDashboard.tabs[0].gridItems[0].args_string,
-              ),
-              h: 20,
-              i: "1",
-              metadata_string: JSON.stringify(
-                importedDashboard.tabs[0].gridItems[0].metadata_string,
-              ),
-              source: "Variable Input",
-              uuid: 12345678,
-              w: 20,
-              x: 0,
-              y: 0,
-            },
-          ],
-        },
-      ],
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    id: 41,
+    tabs: [
+      {
+        name: "Tab 1",
+        gridItems: [
+          {
+            args_string: JSON.stringify(
+              importedDashboard.tabs[0].gridItems[0].args_string,
+            ),
+            h: 20,
+            i: "1",
+            metadata_string: JSON.stringify(
+              importedDashboard.tabs[0].gridItems[0].metadata_string,
+            ),
+            source: "Variable Input",
+            uuid: 12345678,
+            w: 20,
+            x: 0,
+            y: 0,
+          },
+        ],
+      },
+    ],
+  });
   expect(mockDeleteDashboard).not.toHaveBeenCalled();
 });
 
@@ -613,10 +598,11 @@ test("DashboardImportModal Dashboard View", async () => {
   await waitFor(() => expect(importButton).not.toBeDisabled());
   await userEvent.click(importButton);
 
+  // The third argument is the plugins' secret args, which import blanks.
   expect(spyHandleGridItemImport).toHaveBeenCalledWith(
     importedGridItem,
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     "user-uuid",
+    expect.any(Map),
   );
   expect(mockOnImportGridItem).toHaveBeenCalledWith({
     type: "single",
@@ -2375,20 +2361,18 @@ test("DashboardImportModal landing page mount renders with no TabContext provide
   // that context here would throw at render and blank the page. Every other
   // case in this file renders inside DashboardLoader, which supplies one.
   render(
-    <AppContext.Provider value={{ csrf: "test-csrf" }}>
-      <LayoutSuccessAlertContext.Provider
-        value={{
-          setSuccessMessage: jest.fn(),
-          setShowSuccessMessage: jest.fn(),
-        }}
+    <LayoutSuccessAlertContext.Provider
+      value={{
+        setSuccessMessage: jest.fn(),
+        setShowSuccessMessage: jest.fn(),
+      }}
+    >
+      <AvailableDashboardsContext.Provider
+        value={{ importDashboard: jest.fn() }}
       >
-        <AvailableDashboardsContext.Provider
-          value={{ importDashboard: jest.fn() }}
-        >
-          <DashboardImportModal showModal={true} setShowModal={jest.fn()} />
-        </AvailableDashboardsContext.Provider>
-      </LayoutSuccessAlertContext.Provider>
-    </AppContext.Provider>,
+        <DashboardImportModal showModal={true} setShowModal={jest.fn()} />
+      </AvailableDashboardsContext.Provider>
+    </LayoutSuccessAlertContext.Provider>,
   );
 
   expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
@@ -2398,3 +2382,70 @@ TestingComponent.propTypes = {
   onImportGridItem: PropTypes.func,
   targetGroupNames: PropTypes.arrayOf(PropTypes.string),
 };
+
+test("DashboardImportModal blanks a hand-written item's secret before adding it", async () => {
+  const SECRET = "fixture-s3cret-value";
+  jest
+    .spyOn(dashboardUtils, "handleGridItemImport")
+    .mockImplementation(realHandleGridItemImport);
+  const mockOnImportGridItem = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <LayoutSuccessAlertContext.Provider
+          value={{
+            setSuccessMessage: jest.fn(),
+            setShowSuccessMessage: jest.fn(),
+          }}
+        >
+          <TestingComponent onImportGridItem={mockOnImportGridItem} />
+        </LayoutSuccessAlertContext.Provider>
+      ),
+      options: {
+        visualizations: [
+          {
+            label: "Secret Group",
+            options: [
+              {
+                source: "secret_plugin",
+                value: "Secret Plugin",
+                label: "Secret Plugin",
+                args: { station: "text", api_key: "secret" },
+                type: "text",
+                tags: [],
+                description: "",
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
+  await importFiles(
+    [
+      jsonFile(
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "secret_plugin",
+          args_string: { station: "A", api_key: SECRET },
+          metadata_string: { refreshRate: 0 },
+        },
+        "item.json",
+      ),
+    ],
+    "Import Dashboard Item",
+  );
+
+  await waitFor(() => expect(mockOnImportGridItem).toHaveBeenCalled());
+  const [{ gridItems }] = mockOnImportGridItem.mock.calls[0];
+  expect(JSON.parse(gridItems[0].args_string)).toEqual({
+    station: "A",
+    api_key: "",
+  });
+  expect(JSON.stringify(mockOnImportGridItem.mock.calls)).not.toContain(SECRET);
+});

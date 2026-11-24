@@ -215,6 +215,39 @@ describe("DataInput Component", () => {
   });
 });
 
+test("renders a secret arg as a write-only secret field for its place", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DataInput
+          label={"Api Key"}
+          type={"secret"}
+          value={null}
+          onChange={mockOnChange}
+          inputProps={{
+            gridItemIndex: 0,
+            secretPlace: {
+              tile: "tile-uuid",
+              layer: "",
+              arg: "api_key",
+              source: "secret_plugin",
+            },
+          }}
+        />
+      ),
+    }),
+  );
+
+  const field = await screen.findByLabelText("Api Key Input");
+  expect(field).toHaveAttribute("type", "password");
+  expect(field.value).toBe("");
+  expect(screen.getByLabelText("Api Key help")).toBeInTheDocument();
+  // The arg keeps its key, blank.
+  await waitFor(() => expect(mockOnChange).toHaveBeenCalledWith(""));
+});
+
 test("renders multiinput", async () => {
   const mockOnChange = jest.fn();
 

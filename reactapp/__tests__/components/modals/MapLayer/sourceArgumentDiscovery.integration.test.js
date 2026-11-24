@@ -48,7 +48,7 @@ function Harness({ initialProps }) {
   });
   return (
     <AppContext.Provider
-      value={{ dynamicMapLayers: [], mapLayerTemplates: [], csrf: "x" }}
+      value={{ dynamicMapLayers: [], mapLayerTemplates: [] }}
     >
       <LayoutContext.Provider value={{ uuid: "u" }}>
         <VariableInputsContext.Provider

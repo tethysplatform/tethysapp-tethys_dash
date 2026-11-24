@@ -4,6 +4,7 @@ import {
   useContext,
   useRef,
   useCallback,
+  useMemo,
   memo,
 } from "react";
 import PropTypes from "prop-types";
@@ -13,12 +14,18 @@ import DataInput from "components/inputs/DataInput";
 import {
   getVisualization,
   findSelectOptionByValue,
+  pendingSecretArgs,
+  secretArgNames,
+  SECRET_ARG_TYPE,
 } from "components/visualizations/utilities";
 import {
   AppContext,
+  GridItemContext,
+  LayoutContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import {
+  ARGS_SETTLE_MS,
   getInitialInputValue,
   spaceAndCapitalize,
   valuesEqual,
@@ -52,6 +59,7 @@ export const VisualizationArguments = ({
   setShowingSubModal,
   gridItemIndex,
   visualizationRef,
+  secretPlace,
 }) => {
   const renderInput = useCallback(
     (obj, key) => {
@@ -87,6 +95,11 @@ export const VisualizationArguments = ({
             ...(vizArgType === "custom-AddMapLayer" && {
               mapExtent: vizInputsValues?.map_extent,
             }),
+            // A secret names where it is kept: the tile, or the dynamic layer
+            // within it, its plugin, and the arg.
+            ...(vizArgType === SECRET_ARG_TYPE && {
+              secretPlace: { ...secretPlace, arg: key },
+            }),
           }}
         />
       );
@@ -97,6 +110,7 @@ export const VisualizationArguments = ({
       gridItemIndex,
       setShowingSubModal,
       visualizationRef,
+      secretPlace,
     ],
   );
 
@@ -173,6 +187,21 @@ function VisualizationPane({
   const { variableInputValues, variableInputDateFormats } = useContext(
     VariableInputsContext,
   );
+  // The dashboard and the tile being edited, which the preview names. An
+  // editor's preview runs the args as typed, saved or not.
+  const { uuid: dashboardUUID, pendingSecrets } =
+    useContext(LayoutContext) ?? {};
+  const { gridItemUUID } = useContext(GridItemContext) ?? {};
+  // Where this tile's secrets are kept, for its plugin as picked here.
+  const secretSource = selectedVizTypeOption?.source;
+  const secretPlace = useMemo(
+    () => ({ tile: gridItemUUID, layer: "", source: secretSource }),
+    [gridItemUUID, secretSource],
+  );
+  // The secrets entered here and not saved, which the preview runs with. Kept
+  // as text too, so the preview reruns only when this tile's own change.
+  const previewSecretArgs = pendingSecretArgs(pendingSecrets, secretPlace);
+  const previewSecretKey = JSON.stringify(previewSecretArgs);
   const { activeAppTour } = useAppTourContext();
   const currentSelectedVizTypeOption = useRef(selectedVizTypeOption);
   // Ref to track if we've already previewed for this source with empty args
@@ -184,6 +213,31 @@ function VisualizationPane({
   const customImageOption = defaultVisualizationOptions.options.find((obj) => {
     return obj.value === "Custom Image";
   });
+  // A plugin tile's preview runs the plugin on the server. A built-in tile's
+  // does not wait: Text, Variable Input and Map preview in the browser, and
+  // Custom Image loads its url as it is typed, as it always has.
+  const isPluginTile =
+    !!selectedVizTypeOption &&
+    !defaultVisualizationOptions.options.some(
+      (option) => option.source === selectedVizTypeOption.source,
+    );
+  // Whether the tile has had its first preview since the editor opened or
+  // its plugin changed: that one runs at once, later ones once the args hold
+  // still.
+  const previewedRef = useRef(false);
+  // Previews are numbered, as the map's dynamic layers number their requests
+  // (runtimeLayerFetcher's claimGeneration): a reply shows only while its
+  // preview is the newest, so a slow one cannot land over a newer one.
+  const previewGenerationRef = useRef(0);
+  // The args object a picked plugin's reset replaces (the effect on
+  // selectedVizTypeOption), which the preview may still see once.
+  const argsResetRef = useRef(null);
+  // The timer below runs the latest checkAllInputs, not the one of the render
+  // that set it.
+  const checkAllInputsRef = useRef();
+  useEffect(() => {
+    checkAllInputsRef.current = checkAllInputs;
+  });
 
   useEffect(() => {
     if (
@@ -194,6 +248,7 @@ function VisualizationPane({
       setSettings({});
       // Reset the loadedEmptyArgsForSource ref when visualization type changes
       loadedEmptyArgsForSource.current = {};
+      previewedRef.current = false;
       let updatedVizArguments = [];
       const updatedVizInputsValues = {};
       for (let arg in selectedVizTypeOption.args) {
@@ -219,24 +274,51 @@ function VisualizationPane({
         });
         updatedVizInputsValues[arg] = inputValue;
       }
+      argsResetRef.current = vizInputsValues;
       setVizInputsValues(updatedVizInputsValues);
       setVizArguments(updatedVizArguments);
       setVizType("unknown");
       setVizData({});
       setVizMetadata(null);
+      // Secrets entered for the plugin the tile had are for that plugin
+      // only, and not shown for this one. They are kept until the tile is
+      // saved with another plugin (see DataViewer), so closing without saving
+      // loses none.
       currentSelectedVizTypeOption.current = selectedVizTypeOption;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVizTypeOption]);
 
+  // The preview reruns when its args change. A plugin tile's runs on the
+  // server, and a typed arg changes at every keystroke, so after its first
+  // preview it waits for the args to hold still for ARGS_SETTLE_MS.
   useEffect(() => {
-    checkAllInputs();
+    // Whatever preview is still on its way is for other values now.
+    previewGenerationRef.current += 1;
+    // A plugin just picked has its args reset by the effect above. A run
+    // that still sees the args the reset replaces, the previous plugin's
+    // after a secret change or the dropdown's own first copy, is not this
+    // plugin's preview, nor its first. Any other args, the reset's or later
+    // ones, preview.
+    if (argsResetRef.current) {
+      if (vizInputsValues === argsResetRef.current) return undefined;
+      argsResetRef.current = null;
+    }
+    const wait = previewedRef.current && isPluginTile;
+    previewedRef.current = true;
+    if (!wait) {
+      checkAllInputs();
+      return undefined;
+    }
+    const timer = setTimeout(() => checkAllInputsRef.current(), ARGS_SETTLE_MS);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vizInputsValues, settings.customMessaging]);
+  }, [vizInputsValues, settings.customMessaging, previewSecretKey]);
 
   function onDataTypeChange(e) {
     visualizationRef.current = null;
     setSettings({});
+    previewedRef.current = false;
     setSelectVizTypeOption(e);
 
     let updatedVizArguments = [];
@@ -291,11 +373,16 @@ function VisualizationPane({
       const skipInitialValueCheck = ["slider", "csv-uploader"].includes(
         vizInputsValues.variable_options_source,
       );
-      const inputsToCheck = skipInitialValueCheck
-        ? Object.entries(vizInputsValues)
-            .filter(([key]) => key !== "initial_value")
-            .map(([, value]) => value)
-        : Object.values(vizInputsValues);
+      // A secret arg is always blank here; its value is entered apart from
+      // the args, and the server answers for one that is missing.
+      const secretArgs = secretArgNames(selectedVizTypeOption.args);
+      const inputsToCheck = Object.entries(vizInputsValues)
+        .filter(
+          ([key]) =>
+            !(skipInitialValueCheck && key === "initial_value") &&
+            !secretArgs.includes(key),
+        )
+        .map(([, value]) => value);
       const allFilled = inputsToCheck.every(
         (value) => !["", null].includes(value),
       );
@@ -363,17 +450,26 @@ function VisualizationPane({
       });
       itemData.args = updatedGridItemArgs;
       itemData.requestId = requestId;
+      const generation = ++previewGenerationRef.current;
+      const isCurrent = () => previewGenerationRef.current === generation;
       await getVisualization({
-        setVizType,
-        setVizData,
+        // A reply that a newer preview has replaced shows nothing.
+        setVizType: (value) => isCurrent() && setVizType(value),
+        setVizData: (value) => isCurrent() && setVizData(value),
         sourceType,
         sourceArgs,
         itemData,
+        dashboardUUID,
+        tileUUID: gridItemUUID,
         argsString: JSON.stringify(vizInputsValues),
         metadataString: JSON.stringify(settings),
         variableInputValues,
         vizLoadingIcon: true,
         variableInputDateFormats,
+        secretArgs: previewSecretArgs,
+        // A preview runs the tile as configured here, saved or not: only a
+        // caller who may edit the dashboard opens this editor.
+        allArgs: true,
       });
     }
   }
@@ -421,6 +517,7 @@ function VisualizationPane({
         setShowingSubModal={setShowingSubModal}
         gridItemIndex={gridItemIndex}
         visualizationRef={visualizationRef}
+        secretPlace={secretPlace}
       />
 
       {showVisualizationSelectorModal && (
@@ -448,6 +545,13 @@ VisualizationArguments.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
+  // Where the args' secrets are kept: the tile's uuid, the dynamic layer's
+  // layerId ("" for the tile's own args) and the plugin source.
+  secretPlace: PropTypes.shape({
+    tile: PropTypes.string,
+    layer: PropTypes.string,
+    source: PropTypes.string,
+  }),
 };
 
 VisualizationPane.propTypes = {

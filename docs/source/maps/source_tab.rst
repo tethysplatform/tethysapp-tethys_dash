@@ -494,6 +494,7 @@ When adding a layer, dynamic plugins are listed under the **Custom Layers** grou
 
 **Configure-time behavior:**
     - **Required arguments:** rendered automatically from the plugin's ``args`` schema. Variable inputs may be bound to args using the same syntax as other visualizations.
+    - **Defaults:** after you pick the plugin, its style, legend, and attributes load once every argument has a value, including a secret once you enter it. If they can't be loaded, they're tried again when you change an argument. Click **Fetch defaults** to load them yourself at any time.
     - **Style, legend, and attributes:** snapshot at save time so author edits are never silently overwritten by plugin updates. Click **Fetch defaults** to re-run the plugin and pick up updated defaults on demand.
 
 **Render-time behavior:**

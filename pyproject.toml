@@ -40,6 +40,10 @@ dependencies = [
     "geoalchemy2==0.20.0",
     "tethys-platform>=4.5.0",
     "python-dateutil",
+    # Encrypts plugin secrets (tile_secrets.py). A floor, not a pin, matching
+    # tethys-platform 4.5.0's own floor, so the two never conflict and security
+    # releases still install.
+    "cryptography>=46.0.5",
 ]
 classifiers = [
      "Environment :: Web Environment",

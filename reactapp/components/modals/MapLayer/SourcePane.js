@@ -1,6 +1,14 @@
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
-import { useState, useEffect, useCallback, memo, useContext } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  memo,
+  useContext,
+  useRef,
+} from "react";
 import FileUpload from "components/inputs/FileUpload";
 import styled from "styled-components";
 import {
@@ -16,14 +24,23 @@ import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
 import appAPI from "services/api/app";
 import {
+  ARGS_SETTLE_MS,
+  getInitialInputValue,
   removeEmptyValues,
   spaceAndCapitalize,
 } from "components/modals/utilities";
-import { findSelectOptionByValue } from "components/visualizations/utilities";
+import {
+  findSelectOptionByValue,
+  pendingSecretArgs,
+  SECRET_ARG_TYPE,
+  secretArgNames,
+  secretArgStatus,
+} from "components/visualizations/utilities";
 import { getDynamicLayerSourceType } from "components/modals/MapLayer/runtimeLayerSource";
 import { VisualizationArguments } from "components/modals/DataViewer/VisualizationPane";
 import {
   AppContext,
+  GridItemContext,
   LayoutContext,
   TabContext,
 } from "components/contexts/Contexts";
@@ -387,6 +404,7 @@ const SourcePane = ({
   onFetchPluginDefaults,
   shapefileDiscovery,
   argumentDiscovery,
+  layerId,
 }) => {
   const [sourceProperties, setSourceProperties] = useState([]); // array of objects that represent properties that will be rendered in the table
   const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]); // array of objects that represent placeholders for the table inputs
@@ -397,8 +415,17 @@ const SourcePane = ({
   const [geoJSONSource, setGeoJSONSource] = useState("custom"); // track the geojson value
   const [pluginFetching, setPluginFetching] = useState(false);
   const [pluginFetchError, setPluginFetchError] = useState(null);
+  // The plugin whose defaults picking it still owes (see handleLayerTypeChange).
+  const [defaultsOwedFor, setDefaultsOwedFor] = useState(null);
+  // Whether the owed defaults are still to be looked at for the first time:
+  // a plugin whose args all have values when picked is fetched at once.
+  const owedJustPickedRef = useRef(false);
+  // The values the last automatic fetch ran with, so one that failed is not
+  // repeated until they change.
+  const autoFetchedKeyRef = useRef(null);
 
-  const { uuid } = useContext(LayoutContext);
+  const { uuid, pendingSecrets, isSecretStored } = useContext(LayoutContext);
+  const { gridItemUUID } = useContext(GridItemContext) ?? {};
   const mapContext = useMapContext();
   const { dynamicMapLayers } = useContext(AppContext);
 
@@ -425,6 +452,55 @@ const SourcePane = ({
   const pluginVizArguments = Object.entries(pluginArgSchema).map(
     ([argName, argType]) => ({ name: argName, label: argName, type: argType }),
   );
+  // Where the plugin's secrets are kept: the Map tile, this layer and its
+  // plugin.
+  const secretPlace = useMemo(
+    () => ({
+      tile: gridItemUUID,
+      layer: layerId,
+      source: sourceProps.source ?? selectedPluginOption?.source,
+    }),
+    [gridItemUUID, layerId, sourceProps.source, selectedPluginOption?.source],
+  );
+  // Whether every plugin arg has a value. A blank or null arg has none, as in
+  // the tile editor's preview (VisualizationPane's checkAllInputs), and here a
+  // missing one has none either. A secret arg, always blank in the args, has
+  // one once a secret is entered or stored for this layer and plugin: the
+  // tile preview runs without it and shows the server's answer, as it reruns
+  // when one is entered, but defaults fetched automatically are not rerun.
+  const pluginSecretArgs = secretArgNames(pluginArgSchema);
+  const pluginSecretStatuses = pluginSecretArgs.map((arg) =>
+    secretArgStatus(
+      { pendingSecrets, isSecretStored },
+      { ...secretPlace, arg },
+    ),
+  );
+  const pluginArgsFilled =
+    Object.keys(pluginArgSchema).every(
+      (name) =>
+        pluginSecretArgs.includes(name) ||
+        !["", null, undefined].includes(sourceProps.args?.[name]),
+    ) &&
+    pluginSecretStatuses.every(
+      (status) => status === "pendingSet" || status === "stored",
+    );
+  // What Fetch defaults would run with, as text: the args, and the secrets
+  // entered or stored for them. A secret arg's own value is left out of the
+  // args: it is always blank, and its field blanks a missing one as it
+  // appears, which changes nothing the plugin runs with.
+  const pluginRunKey = JSON.stringify([
+    Object.fromEntries(
+      Object.entries(sourceProps.args ?? {}).filter(
+        ([name]) => !pluginSecretArgs.includes(name),
+      ),
+    ),
+    pluginSecretStatuses,
+    pendingSecretArgs(pendingSecrets, secretPlace),
+  ]);
+  // Read by a Fetch defaults reply, to tell whether the values it ran with
+  // are still the ones in the editor.
+  const pluginRunKeyRef = useRef(pluginRunKey);
+  pluginRunKeyRef.current = pluginRunKey;
 
   // The one file property an author still owns on a plugin-driven layer.
   //
@@ -463,21 +539,76 @@ const SourcePane = ({
     [setSourceProps],
   );
 
+  // Fetch defaults' requests are numbered, as the map's dynamic layers number
+  // theirs (runtimeLayerFetcher's claimGeneration): a reply counts only while
+  // its request is the newest, so one that lands after a newer request's, or
+  // after another plugin is picked, applies nothing.
+  const fetchGenerationRef = useRef(0);
+
+  // Fetches the plugin's defaults. True when they loaded for the values still
+  // in the editor; a reply for values changed since is not shown, since it
+  // says nothing about the ones there now.
   const runFetchPluginDefaults = useCallback(
     async (source, args) => {
-      if (!onFetchPluginDefaults) return;
+      if (!onFetchPluginDefaults) return false;
+      const generation = ++fetchGenerationRef.current;
+      const isCurrent = () => fetchGenerationRef.current === generation;
+      const ranWith = pluginRunKeyRef.current;
       setPluginFetchError(null);
       setPluginFetching(true);
-      const result = await onFetchPluginDefaults(source, args);
+      const result = await onFetchPluginDefaults(source, args, isCurrent);
+      // The spinner and the alert are the newer request's or pick's now.
+      if (!isCurrent()) return false;
       setPluginFetching(false);
+      if (pluginRunKeyRef.current !== ranWith) return false;
       if (!result?.success) {
         setPluginFetchError(
           result?.error ?? "Failed to fetch plugin defaults.",
         );
+        return false;
       }
+      return true;
     },
     [onFetchPluginDefaults],
   );
+
+  // A Fetch defaults alert is about the values it ran with, so it goes once
+  // they change: an arg filled in, a secret entered.
+  useEffect(() => {
+    setPluginFetchError(null);
+  }, [pluginRunKey]);
+
+  // The defaults a picked plugin owes are fetched once every arg has a value
+  // and the args have held still for ARGS_SETTLE_MS, or at once when they
+  // all have values as it is picked. One that fails is tried again when the
+  // values change, until one loads.
+  useEffect(() => {
+    if (!defaultsOwedFor || defaultsOwedFor !== sourceProps.source) return;
+    const justPicked = owedJustPickedRef.current;
+    owedJustPickedRef.current = false;
+    if (!pluginArgsFilled || autoFetchedKeyRef.current === pluginRunKey) {
+      return;
+    }
+    const source = sourceProps.source;
+    const args = sourceProps.args ?? {};
+    const timer = setTimeout(
+      async () => {
+        autoFetchedKeyRef.current = pluginRunKey;
+        if (await runFetchPluginDefaults(source, args)) {
+          setDefaultsOwedFor((owed) => (owed === source ? null : owed));
+        }
+      },
+      justPicked ? 0 : ARGS_SETTLE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [
+    defaultsOwedFor,
+    pluginArgsFilled,
+    pluginRunKey,
+    runFetchPluginDefaults,
+    sourceProps.source,
+    sourceProps.args,
+  ]);
 
   useEffect(() => {
     // if loading existing layer, then set states appropriately
@@ -608,6 +739,9 @@ const SourcePane = ({
   function handleLayerTypeChange(e) {
     setSourceType(e);
     setPluginFetchError(null);
+    // Secrets entered for the plugin the layer had are for that plugin only,
+    // and not shown for this one. They are kept until the layer is saved
+    // with another (see MapLayer), so closing without saving loses none.
 
     let properties = [];
     let placeholders = [];
@@ -630,11 +764,18 @@ const SourcePane = ({
     const parsedSourceProps = parsePropertiesArray(properties);
     setSourceProps(() => {
       if (isRuntime) {
+        // Each arg starts where the tile editor starts it.
         return {
           ...e,
           type: e.value,
           props: removeEmptyValues(parsedSourceProps),
-          args: {},
+          // A secret arg starts as the "" its field keeps it at.
+          args: Object.fromEntries(
+            Object.entries(e.args ?? {}).map(([name, type]) => [
+              name,
+              type === SECRET_ARG_TYPE ? "" : getInitialInputValue(type),
+            ]),
+          ),
         };
       }
       return {
@@ -646,9 +787,15 @@ const SourcePane = ({
     // reset attribute variable and omitted popup attributes since the source has changed
     setAttributeProps({});
 
-    if (isRuntime) {
-      runFetchPluginDefaults(e.source, {});
-    }
+    // A picked plugin's defaults are fetched once every arg has a value,
+    // which for a plugin taking none is at once. Run before then, the plugin
+    // answers for args not filled in yet, a secret included.
+    owedJustPickedRef.current = true;
+    autoFetchedKeyRef.current = null;
+    setDefaultsOwedFor(isRuntime ? e.source : null);
+    // Defaults still coming for the plugin the layer had are not this one's.
+    fetchGenerationRef.current += 1;
+    setPluginFetching(false);
   }
 
   function handleDrawExtentOnMap() {
@@ -782,6 +929,7 @@ const SourcePane = ({
                   vizArguments={pluginVizArguments}
                   vizInputsValues={sourceProps.args ?? {}}
                   handleInputChange={handlePluginArgChange}
+                  secretPlace={secretPlace}
                 />
               ) : (
                 <p>
@@ -812,12 +960,14 @@ const SourcePane = ({
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() =>
+                  // Pressed, it settles any defaults the pick still owed.
+                  onClick={() => {
+                    setDefaultsOwedFor(null);
                     runFetchPluginDefaults(
                       sourceProps.source ?? sourceType.value,
                       sourceProps.args ?? {},
-                    )
-                  }
+                    );
+                  }}
                   disabled={pluginFetching}
                   aria-label="Fetch plugin defaults"
                 >
@@ -926,6 +1076,8 @@ SourcePane.propTypes = {
   setErrorMessage: PropTypes.func,
   onRequestHideModal: PropTypes.func, // callback to hide the modal for extent drawing
   onFetchPluginDefaults: PropTypes.func,
+  // The layerId the layer is saved with, which its secrets are kept under.
+  layerId: PropTypes.string,
 };
 
 export default memo(SourcePane);

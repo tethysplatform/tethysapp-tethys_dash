@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import {
   EditingContext,
   DisabledEditingMovementContext,
+  LayoutContext,
 } from "components/contexts/Contexts";
 import PopupLayoutEditor, {
   getInitialViewportSize,
@@ -392,6 +393,35 @@ test("Cancel calls onClose without calling onSave", async () => {
 
   expect(onClose).toHaveBeenCalledTimes(1);
   expect(onSave).not.toHaveBeenCalled();
+});
+
+test("Cancel puts back the pending secrets the editor opened with, and Save keeps those entered since", async () => {
+  // A popup tile's secret is entered in its own editor, and kept by saving it.
+  const atOpen = { kept: { tile: "popup-uuid", value: "s3cret" } };
+  const restorePendingSecrets = jest.fn();
+  const renderEditor = () =>
+    render(
+      <LayoutContext.Provider
+        value={{ pendingSecrets: atOpen, restorePendingSecrets }}
+      >
+        <PopupLayoutEditor
+          show={true}
+          onClose={jest.fn()}
+          onSave={jest.fn()}
+          popupConfig={samplePopupConfig({ gridItems: [baseGridItem()] })}
+          layerName="Layer A"
+        />
+      </LayoutContext.Provider>,
+    );
+
+  const { unmount } = renderEditor();
+  await userEvent.click(screen.getByLabelText("Save Popup Layout Editor"));
+  expect(restorePendingSecrets).not.toHaveBeenCalled();
+  unmount();
+
+  renderEditor();
+  await userEvent.click(screen.getByLabelText("Cancel Popup Layout Editor"));
+  expect(restorePendingSecrets).toHaveBeenCalledWith(atOpen);
 });
 
 test("re-opening the editor resets localGridItems from the prop", async () => {

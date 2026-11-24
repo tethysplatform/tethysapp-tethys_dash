@@ -1323,18 +1323,21 @@ export async function getStyleFields({
   sourceProps,
   layerProps,
   dashboard_uuid,
+  tileUUID,
   isDynamicMapLayer = false,
 }) {
   let fields = [];
   // Shapefile is deliberately absent: both panes take their fields from the
   // author-triggered read in the Source tab (see useShapefileDiscovery) and
   // return before reaching this function, because a discovery pass here would
-  // download and parse the whole archive on every source-props change.
+  // download and parse the whole archive for every source change it read.
   if (isDynamicMapLayer || sourceProps.type === "PMTiles Vector") {
     const attributes = await getLayerAttributes({
       sourceProps,
       layerName: layerProps?.name ?? "",
       dashboard_uuid,
+      tileUUID,
+      layerId: layerProps?.layerId,
       isDynamicMapLayer,
     });
     fields = [
@@ -1375,9 +1378,9 @@ export async function getStyleFields({
     // sqlite/wasm and parquet chains behind them -- into every one of them.
     //
     // Both readers memoize per url and evict rejections, which is what makes
-    // them safe to call from an effect that re-runs on every keystroke: a url
-    // still being typed fails fast and is not kept, and the finished one is
-    // read once. That is the concern the Shapefile note above describes.
+    // them safe to call for every source change: a url that fails is not
+    // kept, and a good one is read once. That is the concern the Shapefile
+    // note above describes.
     try {
       const { listGeoParquetColumns, listGeoPackageFields } =
         await import("components/map/ModuleLoader");
@@ -1395,10 +1398,18 @@ export async function getStyleFields({
   return fields;
 }
 
+/**
+ * The attributes a layer's features carry, by sublayer name. A dynamic layer's
+ * come from its plugin's scaffold, in a request naming `dashboard_uuid`, the
+ * Map tile (`tileUUID`) and the layer's `layerId`, which a layer not saved yet
+ * does not have.
+ */
 export async function getLayerAttributes({
   sourceProps,
   layerName,
   dashboard_uuid,
+  tileUUID,
+  layerId,
   isDynamicMapLayer,
 }) {
   // setup constants
@@ -1412,8 +1423,14 @@ export async function getLayerAttributes({
 
   if (isDynamicMapLayer) {
     const apiResponse = await appAPI.getVisualizationData({
+      dashboard: dashboard_uuid,
+      tile: tileUUID,
+      layer: layerId,
       source: sourceProps.source,
       args: sourceProps.args ?? {},
+      // Only the layer editor reads a plugin's attributes, and runs the
+      // editor's args as sent.
+      allArgs: true,
     });
     if (!apiResponse?.success) {
       throw new Error(
@@ -1912,12 +1929,7 @@ function getFirstCoordinate(geometry) {
   return findCoord(coords);
 }
 
-export async function saveLayerJSON({
-  stringJSON,
-  csrf,
-  check_crs,
-  dashboard_uuid,
-}) {
+export async function saveLayerJSON({ stringJSON, check_crs, dashboard_uuid }) {
   let parsedJSON;
   if (stringJSON.startsWith('"') && stringJSON.endsWith('"')) {
     stringJSON = stringJSON.slice(1, -1);
@@ -1965,7 +1977,7 @@ export async function saveLayerJSON({
       data: JSON.stringify(parsedJSON),
       dashboard_uuid,
     };
-    const apiResponse = await appAPI.uploadJSON(JSONInfo, csrf);
+    const apiResponse = await appAPI.uploadJSON(JSONInfo);
 
     return apiResponse;
   } else {

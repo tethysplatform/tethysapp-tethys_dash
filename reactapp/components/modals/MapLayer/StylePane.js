@@ -11,9 +11,14 @@ import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
 import { resolveRamp } from "components/map/colorRamps";
 import { isClassStyleMode } from "components/map/geoTIFFStyle";
 import Button from "react-bootstrap/Button";
-import { LayoutContext, AppContext } from "components/contexts/Contexts";
+import {
+  LayoutContext,
+  AppContext,
+  GridItemContext,
+} from "components/contexts/Contexts";
 import { getStyleFields } from "components/map/utilities";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
+import { valuesEqual } from "components/modals/utilities";
 import { getDynamicLayerSourceType } from "components/modals/MapLayer/runtimeLayerSource";
 
 const EditorModeRow = styled.div`
@@ -161,12 +166,15 @@ const StylePane = ({
   setRasterStyle,
   layerProps,
   shapefileDiscovery,
+  tabKey,
 }) => {
   const [styleSource, setStyleSource] = useState("custom"); // track the geojson value
   const [styleMode, setStyleMode] = useState("json"); // "json" or "rules"
   const [rules, setRules] = useState([]);
   const [defaultStyle, setDefaultStyle] = useState({});
   const { uuid } = useContext(LayoutContext);
+  // The Map tile the layer belongs to, which a dynamic layer's request names.
+  const { gridItemUUID } = useContext(GridItemContext) ?? {};
   const [availableFields, setAvailableFields] = useState([]);
   const { dynamicMapLayers } = useContext(AppContext);
   // A dynamic plugin layer is typed by the plugin's label, not "GeoTIFF", so
@@ -175,38 +183,59 @@ const StylePane = ({
     getDynamicLayerSourceType(dynamicMapLayers, sourceProps) === "GeoTIFF";
   const isRaster = isRasterStyleSource(sourceProps, dynamicMapLayers);
 
+  // The fields the rule editor offers, read only while this tab is showing
+  // and only when what the read would ask with has changed since the last
+  // one, as AttributesPane reads its own. Every tab of the layer editor stays
+  // mounted, and a plugin layer's read runs the plugin, so reading on every
+  // change sent a request per keystroke typed on the Source or Layer tab. A
+  // raster has no rule editor, so its fields are never read.
+  const lastFieldRead = useRef(null);
+  // A reply that a newer read has replaced applies nothing.
+  const fieldReadGeneration = useRef(0);
   useEffect(() => {
     // A shapefile's fields come from the shared, author-triggered discovery
-    // instead. This effect re-runs on every source-props change -- which for a
-    // typed url is once per keystroke -- and each run there is a multi-megabyte
-    // download.
+    // instead: a read of its archive is a multi-megabyte download. Fields read
+    // for the source before it, and a read still on its way, no longer apply.
     if (shapefileDiscovery?.isShapefile) {
+      lastFieldRead.current = null;
+      fieldReadGeneration.current += 1;
       setAvailableFields(shapefileDiscovery.fields);
       return;
     }
+    if (tabKey !== "style" || isRaster) return;
 
-    const isDynamic = !!findSelectOptionByValue(
-      dynamicMapLayers,
-      sourceProps.type,
-    );
-    const fetchAvailableFields = async () => {
-      try {
-        const fields = await getStyleFields({
-          sourceProps,
-          layerProps,
-          dashboard_uuid: uuid,
-          isDynamicMapLayer: isDynamic,
-        });
-        setAvailableFields(fields);
-      } catch (e) {
-        setAvailableFields([]);
-      }
+    const read = {
+      sourceProps,
+      // All a read uses of the layer's settings, so a change to its opacity
+      // or zoom range reads nothing.
+      layerProps: { name: layerProps?.name, layerId: layerProps?.layerId },
+      dashboard_uuid: uuid,
+      tileUUID: gridItemUUID,
+      isDynamicMapLayer: !!findSelectOptionByValue(
+        dynamicMapLayers,
+        sourceProps.type,
+      ),
     };
-    fetchAvailableFields();
+    if (valuesEqual(lastFieldRead.current, read)) return;
+    lastFieldRead.current = read;
+    const generation = ++fieldReadGeneration.current;
+    // The fields read for the source before this one are not offered while
+    // this read is on its way.
+    setAvailableFields([]);
+    getStyleFields(read)
+      .catch(() => [])
+      .then((fields) => {
+        if (generation === fieldReadGeneration.current) {
+          setAvailableFields(fields);
+        }
+      });
   }, [
+    tabKey,
+    isRaster,
     sourceProps,
     layerProps,
     uuid,
+    gridItemUUID,
     dynamicMapLayers,
     shapefileDiscovery?.isShapefile,
     shapefileDiscovery?.fields,
@@ -626,6 +655,8 @@ const StylePane = ({
 };
 
 StylePane.propTypes = {
+  // The layer editor's shown tab; fields are read only while it is "style".
+  tabKey: PropTypes.string.isRequired,
   // Shared, author-triggered field discovery for a shapefile source. Supplied by
   // the modal so both panes read one result.
   shapefileDiscovery: PropTypes.shape({
@@ -665,6 +696,7 @@ StylePane.propTypes = {
   setRasterStyle: PropTypes.func,
   layerProps: PropTypes.shape({
     name: PropTypes.string, // name of the layer
+    layerId: PropTypes.string, // a dynamic layer's id, which its read names
     opacity: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // opacity of the layer (0-1)
     minResolution: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     maxResolution: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),

@@ -8,6 +8,12 @@ import * as layerExtent from "components/map/layerExtent";
 import { SIZE_SETTLE_MS } from "components/visualizations/zoomOnChange";
 import { GeoTIFFError } from "components/map/ModuleLoader";
 import Source from "ol/source/Source.js";
+import {
+  AppContext,
+  EditingContext,
+  LayoutContext,
+} from "components/contexts/Contexts";
+import { secretPlaceKey } from "components/visualizations/utilities";
 
 // Minimal fake OL Map + VectorLayer that exposes the surface the orchestrator
 // interacts with: getLayers().getArray().find(l => l.get("layerId") === id),
@@ -199,6 +205,71 @@ describe("useRuntimeLayerFetcher", () => {
     expect(swapSpy.mock.calls[0][0]).toBe(olLayer);
     expect(swapSpy.mock.calls[0][1]).toBe(validFc);
     expect(swapSpy.mock.calls[0][2]).toBe("EPSG:3857");
+  });
+
+  test("each request names the dashboard, the map tile and the layer, and a newer one still cancels it", async () => {
+    const cancelled = [];
+    getFeaturesMock.mockImplementation(
+      ({ cancelToken, layer }) =>
+        new Promise((_, reject) => {
+          cancelToken.promise.then((reason) => {
+            cancelled.push(layer);
+            reject(reason);
+          });
+        }),
+    );
+    const mapRef = { current: fakeOlMap([fakeOlLayer("layer-7")]) };
+    // eslint-disable-next-line no-template-curly-in-string
+    const args = { station: "${Station}" };
+    const layers = [runtimeLayerConfig({ layerId: "layer-7", args })];
+
+    const { rerender } = renderHook(
+      ({ variableInputValues }) =>
+        useRuntimeLayerFetcher({
+          layers,
+          dashboardUUID: "dash-uuid",
+          gridItemUUID: "map-uuid",
+          sessionNonce: "n",
+          mapRef,
+          variableInputValues,
+          variableInputDateFormats: noDateFormats,
+        }),
+      { initialProps: { variableInputValues: { Station: "ABC" } } },
+    );
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    rerender({ variableInputValues: { Station: "DEF" } });
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    // Resolved args only: the raw template stays with the layer's config.
+    expect(getFeaturesMock.mock.calls.map(([request]) => request)).toEqual([
+      {
+        dashboard: "dash-uuid",
+        tile: "map-uuid",
+        layer: "layer-7",
+        source: "my_plugin",
+        args: { station: "ABC" },
+        requestId: "n:map-uuid:layer-7",
+        cancelToken: expect.any(axios.CancelToken),
+      },
+      {
+        dashboard: "dash-uuid",
+        tile: "map-uuid",
+        layer: "layer-7",
+        source: "my_plugin",
+        args: { station: "DEF" },
+        requestId: "n:map-uuid:layer-7",
+        cancelToken: expect.any(axios.CancelToken),
+      },
+    ]);
+    // eslint-disable-next-line no-template-curly-in-string
+    expect(args).toEqual({ station: "${Station}" });
+    expect(cancelled).toEqual(["layer-7"]);
   });
 
   test("rapid variable-input changes within debounce only fire once", async () => {
@@ -1796,6 +1867,7 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
     dateFormats = noDateFormats,
     map,
     mapExtentVariable,
+    editable = false,
   }) => {
     let props = {
       layers,
@@ -1805,6 +1877,10 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
       mapExtentVariable,
       refreshTick: 0,
     };
+    const layout = { editable };
+    const wrapper = ({ children }) => (
+      <LayoutContext.Provider value={layout}>{children}</LayoutContext.Provider>
+    );
     const view = renderHook(
       (p) =>
         useRuntimeLayerFetcher({
@@ -1812,7 +1888,7 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
           sessionNonce: "n",
           ...p,
         }),
-      { initialProps: props },
+      { initialProps: props, wrapper },
     );
     const update = (changes) => {
       props = { ...props, ...changes };
@@ -2049,6 +2125,27 @@ describe("useRuntimeLayerFetcher with zoomToLayerOnChange", () => {
     update({ variableInputValues: { Network: "a", Region: "south" } });
     await flush();
     expect(zoomSpy).toHaveBeenCalledTimes(2);
+  });
+
+  // The request carries only resolved args, so this is what proves the stamp
+  // still reads the raw ones: the edit below, by someone who may edit and so
+  // sends every arg, changes what is sent exactly as a variable change would,
+  // and only the raw args tell the two apart.
+  test("an edit that sends the same args a variable change would does not zoom", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const { update } = setup({ map, editable: true });
+    await flush();
+    expect(getFeaturesMock.mock.calls[0][0].args).toEqual({ network: "a" });
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    update({ layers: [layerFor({ args: { network: "b" } })] });
+    await flush();
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+    expect(getFeaturesMock.mock.calls[1][0].args).toEqual({ network: "b" });
+    expect(swapSpy).toHaveBeenCalledTimes(2);
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
   });
 
   test("a layer added after the map loaded zooms only once a variable it uses changes", async () => {
@@ -3503,5 +3600,199 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     expect(resolveSpy).not.toHaveBeenCalled();
     expect(buildSpy).not.toHaveBeenCalled();
     expect(result.current.rasterLegendByLayerId).toEqual({});
+  });
+});
+
+describe("a dynamic layer's secrets", () => {
+  const SECRET = "typed-layer-s3cret";
+  const layerPlace = { tile: "map-uuid", layer: "layer-1", arg: "token" };
+  let getFeaturesMock;
+  let zoomSpy;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    getFeaturesMock = jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockResolvedValue({
+        success: true,
+        viz_type: "features",
+        data: validFc,
+      });
+    jest
+      .spyOn(mapUtilities, "swapVectorLayerFeatures")
+      .mockImplementation(() => {});
+    zoomSpy = jest.spyOn(layerExtent, "zoomToLayer").mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  const flush = async () => {
+    for (const advance of [250, SIZE_SETTLE_MS]) {
+      await act(async () => {
+        jest.advanceTimersByTime(advance);
+        for (let i = 0; i < 10; i += 1) {
+          await Promise.resolve();
+        }
+      });
+    }
+  };
+
+  const pendingSet = (value) => ({
+    [secretPlaceKey(layerPlace)]: {
+      ...layerPlace,
+      source: "secret_layer",
+      value,
+    },
+  });
+
+  // The hook under the dashboard's contexts, which `update` changes.
+  const setup = ({ isEditing, pendingSecrets = {}, storedSecrets = [] }) => {
+    const contexts = {
+      app: {
+        dynamicMapLayers: [
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "secret_layer",
+                args: { station: "text", token: "secret" },
+              },
+            ],
+          },
+        ],
+      },
+      // An editor here is in edit mode, and may edit; a viewer may not.
+      layout: { pendingSecrets, storedSecrets, editable: isEditing },
+      editing: { isEditing },
+    };
+    const wrapper = ({ children }) => (
+      <AppContext.Provider value={contexts.app}>
+        <EditingContext.Provider value={contexts.editing}>
+          <LayoutContext.Provider value={contexts.layout}>
+            {children}
+          </LayoutContext.Provider>
+        </EditingContext.Provider>
+      </AppContext.Provider>
+    );
+    const args = { station: "A", token: "" };
+    const layers = [
+      runtimeLayerConfig({
+        source: "secret_layer",
+        args,
+        zoomToLayerOnChange: true,
+      }),
+    ];
+    const mapRef = { current: fakeOlMap([fakeOlLayer("layer-1")]) };
+    const view = renderHook(
+      () =>
+        useRuntimeLayerFetcher({
+          layers,
+          dashboardUUID: "dash-uuid",
+          gridItemUUID: "map-uuid",
+          sessionNonce: "n",
+          mapRef,
+          variableInputValues: noVariableInputs,
+          variableInputDateFormats: noDateFormats,
+        }),
+      { wrapper },
+    );
+    const update = (changes) => {
+      contexts.layout = { ...contexts.layout, ...changes };
+      view.rerender();
+    };
+    return { args, update };
+  };
+
+  // The secret arg as each request sent it. It is never sent blank, in edit
+  // mode or out of it: the server holds the value.
+  const LEFT_OUT = "(left out)";
+  const sentTokens = () =>
+    getFeaturesMock.mock.calls.map(([request]) =>
+      "token" in request.args ? request.args.token : LEFT_OUT,
+    );
+
+  test("an editor's request sends the secret entered for the layer, which refetches it without zooming", async () => {
+    const { args, update } = setup({ isEditing: true });
+    await flush();
+    expect(sentTokens()).toEqual([LEFT_OUT]);
+    // The first load's zoom.
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+
+    update({ pendingSecrets: pendingSet(SECRET) });
+    await flush();
+
+    expect(getFeaturesMock.mock.calls[1][0]).toMatchObject({
+      dashboard: "dash-uuid",
+      tile: "map-uuid",
+      layer: "layer-1",
+      source: "secret_layer",
+      args: { station: "A", token: SECRET },
+      allArgs: true,
+    });
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
+    // The layer's own args never hold it.
+    expect(args).toEqual({ station: "A", token: "" });
+  });
+
+  test("an editor's request leaves out a secret entered for another layer or plugin", async () => {
+    const { update } = setup({ isEditing: true });
+    await flush();
+
+    update({
+      pendingSecrets: {
+        [secretPlaceKey({ ...layerPlace, layer: "layer-2" })]: {
+          ...layerPlace,
+          layer: "layer-2",
+          source: "secret_layer",
+          value: SECRET,
+        },
+        [secretPlaceKey(layerPlace)]: {
+          ...layerPlace,
+          source: "previous_plugin",
+          value: SECRET,
+        },
+      },
+    });
+    await flush();
+
+    expect(sentTokens()).toEqual([LEFT_OUT]);
+  });
+
+  test("a viewer's request never sends a pending secret", async () => {
+    const { update } = setup({
+      isEditing: false,
+      pendingSecrets: pendingSet(SECRET),
+    });
+    await flush();
+    update({ pendingSecrets: pendingSet(`${SECRET}-2`) });
+    await flush();
+
+    expect(sentTokens()).toEqual([LEFT_OUT]);
+    // Nor any arg not wired to a variable input: the station is the saved one.
+    expect(getFeaturesMock.mock.calls[0][0]).toMatchObject({
+      args: {},
+      allArgs: false,
+    });
+  });
+
+  test("a save that stores or clears the layer's secret refetches it with what is stored", async () => {
+    const { update } = setup({ isEditing: false });
+    await flush();
+
+    update({ storedSecrets: [layerPlace] });
+    await flush();
+    // Another place's secret changes nothing here.
+    update({
+      storedSecrets: [layerPlace, { ...layerPlace, layer: "layer-2" }],
+    });
+    await flush();
+    update({ storedSecrets: [] });
+    await flush();
+
+    expect(sentTokens()).toEqual([LEFT_OUT, LEFT_OUT, LEFT_OUT]);
+    expect(zoomSpy).toHaveBeenCalledTimes(1);
   });
 });

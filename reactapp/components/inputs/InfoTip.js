@@ -1,3 +1,4 @@
+import { useId } from "react";
 import PropTypes from "prop-types";
 import OverlayTrigger from "react-bootstrap/OverlayTrigger";
 import Tooltip from "react-bootstrap/Tooltip";
@@ -15,17 +16,23 @@ const Icon = styled(BsInfoCircle)`
  * focus, placed to the left of the setting's label instead of a paragraph
  * under the field.
  */
-const InfoTip = ({ label, children }) => (
-  <OverlayTrigger
-    placement="bottom"
-    trigger={["hover", "focus"]}
-    overlay={<Tooltip id={`${label} help tooltip`}>{children}</Tooltip>}
-  >
-    <span tabIndex={0} role="button" aria-label={`${label} help`}>
-      <Icon size="0.95rem" />
-    </span>
-  </OverlayTrigger>
-);
+const InfoTip = ({ label, children }) => {
+  // The icon names its tooltip in aria-describedby, which splits on spaces,
+  // so the id must have none: one built from the label described the icon
+  // with nothing. useId is also unique to each icon.
+  const tooltipId = useId();
+  return (
+    <OverlayTrigger
+      placement="bottom"
+      trigger={["hover", "focus"]}
+      overlay={<Tooltip id={tooltipId}>{children}</Tooltip>}
+    >
+      <span tabIndex={0} role="button" aria-label={`${label} help`}>
+        <Icon size="0.95rem" />
+      </span>
+    </OverlayTrigger>
+  );
+};
 
 InfoTip.propTypes = {
   // The setting it explains; names the icon for assistive tech.

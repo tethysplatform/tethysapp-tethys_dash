@@ -121,14 +121,11 @@ test("Permissions Modal add user and update", async () => {
   const saveButton = screen.getByLabelText("Save Permissions Button");
   fireEvent.click(saveButton);
 
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      id: userDashboard.id,
-      permissions: newPermissions,
-      public: userDashboard.publicDashboard,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    id: userDashboard.id,
+    permissions: newPermissions,
+    public: userDashboard.publicDashboard,
+  });
 
   expect(
     await screen.findByText("Successfully updated dashboard settings"),
@@ -204,14 +201,11 @@ test("Permissions Modal add group and update", async () => {
   const saveButton = screen.getByLabelText("Save Permissions Button");
   fireEvent.click(saveButton);
 
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      id: userDashboard.id,
-      permissions: newPermissions,
-      public: userDashboard.publicDashboard,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    id: userDashboard.id,
+    permissions: newPermissions,
+    public: userDashboard.publicDashboard,
+  });
 
   expect(
     await screen.findByText("Successfully updated dashboard settings"),
@@ -375,14 +369,11 @@ test("Permissions Modal, delete user", async () => {
   const saveButton = screen.getByLabelText("Save Permissions Button");
   fireEvent.click(saveButton);
 
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      id: adminDashboard.id,
-      permissions: newPermissions,
-      public: adminDashboard.publicDashboard,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith({
+    id: adminDashboard.id,
+    permissions: newPermissions,
+    public: adminDashboard.publicDashboard,
+  });
 });
 
 test("Permissions Modal, admin permission, not owner", async () => {

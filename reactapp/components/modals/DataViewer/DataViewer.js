@@ -11,6 +11,7 @@ import {
   AppContext,
   TabContext,
   GridItemContext,
+  LayoutContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import CustomAlert from "components/dashboard/CustomAlert";
@@ -19,12 +20,14 @@ import SettingsPane from "components/modals/DataViewer/SettingsPane";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 import TextEditor from "components/inputs/TextEditor";
+import { useDiscardSecretsEntered } from "components/inputs/SecretInput";
 import { Visualization } from "components/visualizations/Base";
 import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
 import {
   findVisualizationBySource,
+  secretArgNames,
   updateObjectWithVariableInputs,
 } from "components/visualizations/utilities";
 import {
@@ -173,8 +176,11 @@ export function DataViewerContent({
     gridItemArgsString,
     gridItemMetadataString,
     gridItemIndex,
+    gridItemUUID,
   } = useContext(GridItemContext);
   const { visualizations } = useContext(AppContext);
+  const { discardPendingSecrets } = useContext(LayoutContext) ?? {};
+  const discardSecretsEntered = useDiscardSecretsEntered();
   const { tabs, getActiveTab, updateTab, updateTabs } = useContext(TabContext);
   // --- Initialization logic for visualization states ---
   let initialSelectedVizTypeOption = findVisualizationBySource(
@@ -289,11 +295,15 @@ export function DataViewerContent({
       const skipInitialValueCheck = ["slider", "csv-uploader"].includes(
         vizInputsValues.variable_options_source,
       );
-      const valuesToValidate = skipInitialValueCheck
-        ? Object.entries(vizInputsValues)
-            .filter(([key]) => key !== "initial_value")
-            .map(([, value]) => value)
-        : Object.values(vizInputsValues);
+      // A secret arg is saved blank: its value is entered apart from the args.
+      const secretArgs = secretArgNames(selectedVizTypeOption.args);
+      const valuesToValidate = Object.entries(vizInputsValues)
+        .filter(
+          ([key]) =>
+            !(skipInitialValueCheck && key === "initial_value") &&
+            !secretArgs.includes(key),
+        )
+        .map(([, value]) => value);
       if (valuesToValidate.every((value) => ![null, ""].includes(value))) {
         const { gridItems, id: activeTabId } = getActiveTab();
         let updatedGridItems = JSON.parse(JSON.stringify(gridItems));
@@ -380,6 +390,13 @@ export function DataViewerContent({
         } else {
           updateTab(activeTabId, { gridItems: updatedGridItems });
         }
+        // The secrets entered here stay pending until the dashboard is saved,
+        // but for those entered for a plugin the tile no longer has.
+        discardPendingSecrets?.({
+          tile: gridItemUUID,
+          layer: "",
+          keepSource: selectedVizTypeOption.source,
+        });
         setShowGridItemMessage(true);
         handleModalClose();
       } else {
@@ -392,15 +409,22 @@ export function DataViewerContent({
     }
   }
 
-  function closeAndSetAppTour() {
+  // Closing without saving discards every setting changed here, the secrets
+  // entered with them.
+  function closeWithoutSaving() {
+    discardSecretsEntered();
     handleModalClose();
+  }
+
+  function closeAndSetAppTour() {
+    closeWithoutSaving();
     setAppTourStep(23);
   }
 
   return (
     <Modal
       show={showModal}
-      onHide={activeAppTour ? closeAndSetAppTour : handleModalClose}
+      onHide={activeAppTour ? closeAndSetAppTour : closeWithoutSaving}
       keyboard={!editingOnMap}
       className="dataviewer"
       dialogClassName="semiWideModalDialog"
@@ -534,7 +558,7 @@ export function DataViewerContent({
           />
           <Button
             variant="secondary"
-            onClick={activeAppTour ? closeAndSetAppTour : handleModalClose}
+            onClick={activeAppTour ? closeAndSetAppTour : closeWithoutSaving}
             aria-label="dataviewer-close-button"
             className="dataviewer-close-button"
           >

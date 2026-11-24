@@ -16,9 +16,8 @@ jest.mock("components/map/utilities", () => {
   return {
     ...originalModule,
     getLayerAttributes: jest.fn(),
-    // StylePane's own field discovery fires on mount for every pane the Tabs
-    // render. It is not what these tests are about, and left real it reaches
-    // the network on every case.
+    // StylePane reads its fields whenever the Style tab shows. It is not what
+    // these tests are about, and left real it reaches the network.
     getStyleFields: jest.fn().mockResolvedValue([]),
   };
 });
@@ -47,9 +46,7 @@ const mountModal = ({
   dynamicMapLayers = [],
 } = {}) => {
   render(
-    <AppContext.Provider
-      value={{ csrf: "csrf", mapLayerTemplates: [], dynamicMapLayers }}
-    >
+    <AppContext.Provider value={{ mapLayerTemplates: [], dynamicMapLayers }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <TabContext.Provider value={{ activeTabId }}>
           <VariableInputsContext.Provider

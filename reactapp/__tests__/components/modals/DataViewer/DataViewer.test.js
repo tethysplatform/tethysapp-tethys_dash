@@ -1,6 +1,6 @@
 import Proptypes from "prop-types";
 import userEvent from "@testing-library/user-event";
-import { act, useEffect, useContext } from "react";
+import { act, useEffect, useContext, useState } from "react";
 import {
   render,
   screen,
@@ -27,8 +27,11 @@ import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
 import selectEvent from "react-select-event";
+import { rest } from "msw";
+import { server } from "__tests__/utilities/server";
 import {
   GridItemContext,
+  LayoutContext,
   TabContext,
   AppTourContext,
 } from "components/contexts/Contexts";
@@ -1936,4 +1939,332 @@ test("saving a grouped map falls back to the single-tab write when updateTabs is
   expect(mapExtentOf(updates.gridItems[0])).toStrictEqual(
     flaggedExtent("Basin"),
   );
+});
+
+test("a tile with a secret arg saves it blank, with the secret entered left pending", async () => {
+  const SECRET = "typed-tile-s3cret";
+  const argsString = JSON.stringify({ station: "A", api_key: "" });
+  const dashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const gridItem = {
+    id: 1,
+    uuid: "secret-tile-uuid",
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "secret_plugin",
+    args_string: argsString,
+    metadata_string: "{}",
+  };
+  dashboards.dashboards[0].tabs[0].gridItems = [gridItem];
+  const onTabUpdate = jest.fn();
+  const handleModalClose = jest.fn();
+
+  const Tabs = () => {
+    const { tabs } = useContext(TabContext);
+    useEffect(() => onTabUpdate(tabs), [tabs]);
+    const { pendingSecrets } = useContext(LayoutContext);
+    return (
+      <p data-testid="pending">
+        {JSON.stringify(
+          Object.values(pendingSecrets).map(({ tile, arg }) => [tile, arg]),
+        )}
+      </p>
+    );
+  };
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <Tabs />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemUUID: gridItem.uuid,
+              gridItemIndex: 0,
+            }}
+          >
+            <DataViewerModal
+              showModal={true}
+              handleModalClose={handleModalClose}
+              setGridItemMessage={jest.fn()}
+              setShowGridItemMessage={jest.fn()}
+            />
+          </GridItemContext.Provider>
+        </>
+      ),
+      options: {
+        dashboards,
+        visualizations: [
+          {
+            label: "Secret Group",
+            options: [
+              {
+                source: "secret_plugin",
+                value: "secret_value",
+                label: "Secret Plugin",
+                args: { station: "text", api_key: "secret" },
+                type: "text",
+                tags: [],
+                description: "",
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
+
+  await userEvent.type(await screen.findByLabelText("Api Key Input"), SECRET);
+  // Pressing Save takes the focus, which commits the secret typed.
+  await userEvent.click(await screen.findByLabelText("dataviewer-save-button"));
+
+  await waitFor(() => expect(handleModalClose).toHaveBeenCalledTimes(1));
+  expect(
+    screen.queryByText("All arguments must be filled out before saving"),
+  ).not.toBeInTheDocument();
+  const savedTile = onTabUpdate.mock.calls.at(-1)[0][0].gridItems[0];
+  expect(JSON.parse(savedTile.args_string)).toEqual({
+    station: "A",
+    api_key: "",
+  });
+  expect(JSON.stringify(onTabUpdate.mock.calls)).not.toContain(SECRET);
+  expect(screen.getByTestId("pending")).toHaveTextContent(
+    JSON.stringify([["secret-tile-uuid", "api_key"]]),
+  );
+});
+
+describe("a secret entered in a tile's editor follows the editor", () => {
+  const SECRET = "typed-tile-s3cret";
+  const secretPlugin = (source, label, args) => ({
+    source,
+    value: `${source}_value`,
+    label,
+    args,
+    type: "text",
+    tags: [],
+    description: "",
+  });
+  const visualizations = [
+    {
+      label: "Secret Group",
+      options: [
+        secretPlugin("secret_plugin", "Secret Plugin", {
+          station: "text",
+          api_key: "secret",
+        }),
+        secretPlugin("other_secret_plugin", "Other Secret Plugin", {
+          api_key: "secret",
+        }),
+      ],
+    },
+  ];
+  const secretTile = {
+    id: 1,
+    uuid: "secret-tile-uuid",
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "secret_plugin",
+    args_string: JSON.stringify({ station: "A", api_key: "" }),
+    metadata_string: "{}",
+  };
+
+  // The dashboard's first tile, a button opening its editor and one saving
+  // the dashboard, and what is pending, as [plugin, set or clear].
+  const Dashboard = () => {
+    const [editing, setEditing] = useState(false);
+    const { tabs } = useContext(TabContext);
+    const { pendingSecrets, saveLayoutContext } = useContext(LayoutContext);
+    const tile = tabs[0].gridItems[0];
+    return (
+      <>
+        <p data-testid="pending">
+          {JSON.stringify(
+            Object.values(pendingSecrets).map(({ source, value }) => [
+              source,
+              value === null ? "clear" : "set",
+            ]),
+          )}
+        </p>
+        <button onClick={() => setEditing(true)}>Edit tile</button>
+        <button onClick={() => saveLayoutContext({ tabs })}>
+          Save dashboard
+        </button>
+        {editing && (
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: tile.source,
+              gridItemI: tile.i,
+              gridItemMetadataString: tile.metadata_string,
+              gridItemArgsString: tile.args_string,
+              gridItemUUID: tile.uuid,
+              gridItemIndex: 0,
+            }}
+          >
+            <DataViewerModal
+              showModal={true}
+              handleModalClose={() => setEditing(false)}
+              setGridItemMessage={jest.fn()}
+              setShowGridItemMessage={jest.fn()}
+            />
+          </GridItemContext.Provider>
+        )}
+      </>
+    );
+  };
+
+  const pending = () => JSON.parse(screen.getByTestId("pending").textContent);
+
+  const showDashboard = async () => {
+    const dashboards = JSON.parse(JSON.stringify(mockedDashboards));
+    const dashboard = dashboards.dashboards[0];
+    dashboard.tabs[0].gridItems = [secretTile];
+    const saves = [];
+    server.use(
+      rest.post(
+        "http://api.test/apps/tethysdash/dashboards/update/",
+        async (req, res, ctx) => {
+          const body = await req.json();
+          saves.push(body);
+          return res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              updated_dashboard: {
+                ...dashboard,
+                tabs: body.tabs,
+                storedSecrets: [],
+              },
+            }),
+          );
+        },
+      ),
+    );
+    render(
+      createLoadedComponent({
+        children: <Dashboard />,
+        options: { dashboards, visualizations },
+      }),
+    );
+    await screen.findByText("Edit tile");
+    return saves;
+  };
+
+  const openEditor = async () => {
+    await userEvent.click(screen.getByText("Edit tile"));
+    return await screen.findByLabelText("DataViewer Modal");
+  };
+
+  const enterSecret = async () => {
+    await userEvent.type(await screen.findByLabelText("Api Key Input"), SECRET);
+    await userEvent.click(screen.getByLabelText("Apply Api Key"));
+    expect(pending()).toEqual([["secret_plugin", "set"]]);
+  };
+
+  const switchPlugin = async () => {
+    const comboboxes = await screen.findAllByRole("combobox");
+    await userEvent.click(comboboxes[0]);
+    fireEvent.click(await screen.findByText("Other Secret Plugin"));
+    // The other plugin has no secret yet: an empty field.
+    expect(
+      await screen.findByPlaceholderText("Enter the secret"),
+    ).toBeInTheDocument();
+  };
+
+  const closeEditor = async () => {
+    await userEvent.click(screen.getByLabelText("dataviewer-close-button"));
+    await waitFor(() =>
+      expect(
+        screen.queryByLabelText("DataViewer Modal"),
+      ).not.toBeInTheDocument(),
+    );
+  };
+
+  const saveEditor = async () => {
+    await userEvent.click(screen.getByLabelText("dataviewer-save-button"));
+    await waitFor(() =>
+      expect(
+        screen.queryByLabelText("DataViewer Modal"),
+      ).not.toBeInTheDocument(),
+    );
+  };
+
+  test("closing the editor without saving discards it, and the dashboard's save sends none", async () => {
+    const saves = await showDashboard();
+    await openEditor();
+    await enterSecret();
+
+    await closeEditor();
+    expect(pending()).toEqual([]);
+
+    await userEvent.click(screen.getByText("Save dashboard"));
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0]).not.toHaveProperty("secretChanges");
+    expect(JSON.stringify(saves)).not.toContain(SECRET);
+  });
+
+  test("saving the editor keeps it pending until the dashboard's save sends it", async () => {
+    const saves = await showDashboard();
+    await openEditor();
+    await enterSecret();
+
+    await saveEditor();
+    expect(pending()).toEqual([["secret_plugin", "set"]]);
+
+    await userEvent.click(screen.getByText("Save dashboard"));
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0].secretChanges).toEqual([
+      { tile: "secret-tile-uuid", layer: "", arg: "api_key", value: SECRET },
+    ]);
+    await waitFor(() => expect(pending()).toEqual([]));
+  });
+
+  test("switching the plugin and closing the editor keeps the secret entered before", async () => {
+    await showDashboard();
+    await openEditor();
+    await enterSecret();
+    await saveEditor();
+
+    await openEditor();
+    await switchPlugin();
+    await closeEditor();
+
+    expect(pending()).toEqual([["secret_plugin", "set"]]);
+  });
+
+  test("a secret entered for the plugin the tile had is discarded when the tile is saved with another", async () => {
+    await showDashboard();
+    await openEditor();
+    await enterSecret();
+    await saveEditor();
+
+    await openEditor();
+    await switchPlugin();
+    expect(pending()).toEqual([["secret_plugin", "set"]]);
+    await saveEditor();
+
+    expect(pending()).toEqual([]);
+  });
+
+  test("closing the editor brings back a secret its Undo discarded", async () => {
+    await showDashboard();
+    await openEditor();
+    await enterSecret();
+    await saveEditor();
+
+    await openEditor();
+    await userEvent.click(await screen.findByLabelText("Undo Api Key"));
+    expect(pending()).toEqual([]);
+    await closeEditor();
+
+    expect(pending()).toEqual([["secret_plugin", "set"]]);
+  });
 });

@@ -223,13 +223,10 @@ test("LandingPageHeader, import dashboard with grid_items", async () => {
 
   // The dashboard is created from the file's metadata alone; its uuid is the
   // server's to mint.
-  expect(mockAddDashboard).toHaveBeenCalledWith(
-    {
-      name: importedDashboard.name,
-      description: importedDashboard.description,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockAddDashboard).toHaveBeenCalledWith({
+    name: importedDashboard.name,
+    description: importedDashboard.description,
+  });
 });
 
 test("LandingPageHeader, import dashboard with tabs", async () => {
@@ -289,13 +286,10 @@ test("LandingPageHeader, import dashboard with tabs", async () => {
 
   // The dashboard is created from the file's metadata alone; its uuid is the
   // server's to mint.
-  expect(mockAddDashboard).toHaveBeenCalledWith(
-    {
-      name: importedDashboard.name,
-      description: importedDashboard.description,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-  );
+  expect(mockAddDashboard).toHaveBeenCalledWith({
+    name: importedDashboard.name,
+    description: importedDashboard.description,
+  });
 });
 
 test("LandingPageHeader, show info", async () => {
@@ -758,52 +752,49 @@ test("DashboardHeader, import gridItem", async () => {
   await userEvent.click(saveButton);
 
   await waitFor(() => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        id: 1,
-        tabs: [
-          {
-            gridItems: [
-              {
-                id: null,
-                uuid: "12345678",
-                i: "2",
-                x: 0,
-                y: 0,
-                w: 20,
-                h: 20,
-                source: "Variable Input",
-                args_string: JSON.stringify({
-                  initial_value: "",
-                  variable_name: "Test Variable",
-                  variable_options_source: "text",
-                }),
-                metadata_string: JSON.stringify({
-                  refreshRate: 0,
-                }),
-              },
-              {
-                id: 1,
-                uuid: "some-uuid-1",
-                i: "1",
-                x: 0,
-                y: 0,
-                w: 20,
-                h: 20,
-                source: "",
-                args_string: "{}",
-                metadata_string: JSON.stringify({
-                  refreshRate: 0,
-                }),
-              },
-            ],
-            id: 1,
-            name: "Tab 1",
-          },
-        ],
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: 1,
+      tabs: [
+        {
+          gridItems: [
+            {
+              id: null,
+              uuid: "12345678",
+              i: "2",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "Variable Input",
+              args_string: JSON.stringify({
+                initial_value: "",
+                variable_name: "Test Variable",
+                variable_options_source: "text",
+              }),
+              metadata_string: JSON.stringify({
+                refreshRate: 0,
+              }),
+            },
+            {
+              id: 1,
+              uuid: "some-uuid-1",
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "",
+              args_string: "{}",
+              metadata_string: JSON.stringify({
+                refreshRate: 0,
+              }),
+            },
+          ],
+          id: 1,
+          name: "Tab 1",
+        },
+      ],
+    });
   });
 });
 
@@ -1393,6 +1384,49 @@ test("DashboardHeader, editable, edit, save and error", async () => {
   ).toBeInTheDocument();
 });
 
+test("DashboardHeader, editable, a refused save shows the server's reason", async () => {
+  // SECRET_SETTING_GONE in exceptions.py.
+  const reason =
+    "A secret was entered for a setting this dashboard no longer has as a secret one. Reload the dashboard and enter it again.";
+  server.use(
+    rest.post(
+      "http://api.test/apps/tethysdash/dashboards/update/",
+      (req, res, ctx) =>
+        res(
+          ctx.status(200),
+          ctx.json({ success: false, message: reason }),
+          ctx.set("Content-Type", "application/json"),
+        ),
+    ),
+  );
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+            <DashboardLayoutAlerts />
+            <DashboardTabs />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    }),
+  );
+
+  await userEvent.click(await screen.findByLabelText("editButton"));
+  await userEvent.click(await screen.findByLabelText("saveButton"));
+
+  expect(await screen.findByText(reason)).toBeInTheDocument();
+  expect(
+    screen.queryByText(
+      "Failed to save changes. Check server logs for more information.",
+    ),
+  ).not.toBeInTheDocument();
+  // The edit stays open, so the author can correct it.
+  expect(screen.getByLabelText("saveButton")).toBeInTheDocument();
+});
+
 test("DashboardHeader, editable, edit and save", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
@@ -1849,48 +1883,45 @@ test("DashboardHeader, import gridItem with unrestrictedPlacement", async () => 
   await userEvent.click(saveButton);
 
   await waitFor(() => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        id: 1,
-        tabs: [
-          {
-            gridItems: [
-              {
-                id: 1,
-                uuid: "some-uuid-1",
-                i: "1",
-                x: 0,
-                y: 0,
-                w: 20,
-                h: 20,
-                source: "",
-                args_string: "{}",
-                metadata_string: JSON.stringify({ refreshRate: 0 }),
-              },
-              {
-                id: null,
-                uuid: "12345678",
-                i: "2",
-                x: 0,
-                y: 0,
-                w: 20,
-                h: 20,
-                source: "Variable Input",
-                args_string: JSON.stringify({
-                  initial_value: "",
-                  variable_name: "Test Variable",
-                  variable_options_source: "text",
-                }),
-                metadata_string: JSON.stringify({ refreshRate: 0 }),
-              },
-            ],
-            id: 1,
-            name: "Tab 1",
-          },
-        ],
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: 1,
+      tabs: [
+        {
+          gridItems: [
+            {
+              id: 1,
+              uuid: "some-uuid-1",
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "",
+              args_string: "{}",
+              metadata_string: JSON.stringify({ refreshRate: 0 }),
+            },
+            {
+              id: null,
+              uuid: "12345678",
+              i: "2",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "Variable Input",
+              args_string: JSON.stringify({
+                initial_value: "",
+                variable_name: "Test Variable",
+                variable_options_source: "text",
+              }),
+              metadata_string: JSON.stringify({ refreshRate: 0 }),
+            },
+          ],
+          id: 1,
+          name: "Tab 1",
+        },
+      ],
+    });
   });
 });
 
@@ -1991,36 +2022,33 @@ test("DashboardHeader, import tab", async () => {
   await userEvent.click(saveButton);
 
   await waitFor(() => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        id: 1,
-        tabs: expect.arrayContaining([
-          expect.objectContaining({
-            id: 1,
-            name: "Tab 1",
-          }),
-          expect.objectContaining({
-            id: "imported-12345678",
-            name: "New Tab",
-            gridItems: [
-              {
-                uuid: "12345678",
-                id: null,
-                i: "1",
-                x: 0,
-                y: 0,
-                w: 20,
-                h: 20,
-                source: "Text",
-                args_string: JSON.stringify({ text: "hello" }),
-                metadata_string: JSON.stringify({ refreshRate: 0 }),
-              },
-            ],
-          }),
-        ]),
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    );
+    expect(mockUpdateDashboard).toHaveBeenCalledWith({
+      id: 1,
+      tabs: expect.arrayContaining([
+        expect.objectContaining({
+          id: 1,
+          name: "Tab 1",
+        }),
+        expect.objectContaining({
+          id: "imported-12345678",
+          name: "New Tab",
+          gridItems: [
+            {
+              uuid: "12345678",
+              id: null,
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "Text",
+              args_string: JSON.stringify({ text: "hello" }),
+              metadata_string: JSON.stringify({ refreshRate: 0 }),
+            },
+          ],
+        }),
+      ]),
+    });
   });
 });
 
@@ -2147,7 +2175,6 @@ test("DashboardHeader, import multiple gridItems with non-sequential i values", 
           }),
         ],
       }),
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
 });
@@ -2251,7 +2278,6 @@ test("DashboardHeader, import tab without name uses fallback", async () => {
           }),
         ]),
       }),
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
 });

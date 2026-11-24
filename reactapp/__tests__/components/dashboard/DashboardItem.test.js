@@ -30,7 +30,8 @@ import {
   exampleStyle,
 } from "__tests__/utilities/constants";
 import * as utils from "components/visualizations/utilities";
-import { GridItemContext } from "components/contexts/Contexts";
+import { GridItemContext, LayoutContext } from "components/contexts/Contexts";
+import { useContext, useEffect } from "react";
 
 // eslint-disable-next-line
 jest.mock("components/modals/DataViewer/VisualizationPane", () => () => (
@@ -3036,10 +3037,12 @@ describe("handleGridItemImport identity normalization", () => {
     // walk, not inside it -- while a plugin layer's data stays inline: its
     // plugin's features replace it at run time.
     expect(mockUploadJSON).toHaveBeenCalledTimes(1);
-    expect(mockUploadJSON.mock.calls[0][0].data).toBe(
-      JSON.stringify(exampleStyle),
-    );
-    expect(mockUploadJSON.mock.calls[0][1]).toBe("123456789");
+    expect(mockUploadJSON.mock.calls[0]).toEqual([
+      {
+        data: JSON.stringify(exampleStyle),
+        dashboard_uuid: "123456789",
+      },
+    ]);
     expect(normalizedLayer.configuration.props.source.geojson).toStrictEqual(
       exampleGeoJSON,
     );
@@ -3265,7 +3268,11 @@ const makeGroupedMapGridItem = ({ i, mapExtent, layers = [] }) => ({
   metadata_string: JSON.stringify({ refreshRate: 0 }),
 });
 
-const copyGridItemAndReadTabs = async (mapExtent, layers = []) => {
+const copyGridItemAndReadTabs = async (
+  mapExtent,
+  layers = [],
+  extraOptions = {},
+) => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
   const gridItem = makeGroupedMapGridItem({ i: "1", mapExtent, layers });
@@ -3293,6 +3300,7 @@ const copyGridItemAndReadTabs = async (mapExtent, layers = []) => {
         dashboards: updatedMockedDashboards,
         initialDashboard: mockedDashboard,
         inEditing: true,
+        ...extraOptions,
       },
     }),
   );
@@ -3429,7 +3437,6 @@ describe("handleGridItemImport raster styles", () => {
 
       const response = await handleGridItemImport(
         rasterGridItem(sourceType, style),
-        "csrf",
         "dash-uuid",
       );
 
@@ -3453,7 +3460,6 @@ describe("handleGridItemImport raster styles", () => {
 
       const response = await handleGridItemImport(
         rasterGridItem(sourceType, style),
-        "csrf",
         "dash-uuid",
       );
 
@@ -3472,7 +3478,6 @@ describe("handleGridItemImport raster styles", () => {
 
     const response = await handleGridItemImport(
       rasterGridItem("GeoTIFF", { color: ["band", 1] }),
-      "csrf",
       "dash-uuid",
     );
 
@@ -3496,7 +3501,6 @@ test("handleGridItemImport reports an unparseable args_string", async () => {
       args_string: "{this is not json",
       metadata_string: { refreshRate: 0 },
     },
-    "csrf",
     "dash-uuid",
   );
 
@@ -3520,7 +3524,6 @@ test("handleGridItemImport reports an args_string that is not a JSON object", as
       args_string: "null",
       metadata_string: { refreshRate: 0 },
     },
-    "csrf",
     "dash-uuid",
   );
 
@@ -3546,7 +3549,6 @@ test("handleGridItemImport parses a string metadata_string instead of double-enc
       args_string: { text: "hello" },
       metadata_string: JSON.stringify({ refreshRate: 0 }),
     },
-    "csrf",
     "dash-uuid",
   );
 
@@ -3568,7 +3570,6 @@ test("handleGridItemImport reports an unparseable metadata_string", async () => 
       args_string: { text: "hello" },
       metadata_string: "{not json",
     },
-    "csrf",
     "dash-uuid",
   );
 
@@ -3624,4 +3625,232 @@ test("Dashboard Item copy re-mints popup-nested grid item uuids", async () => {
   expect(copiedLayer.popupConfig.gridItems[0].uuid).not.toBe(nestedUUID);
   // ...and the top-level rules still ran on the same layer.
   expect(copiedLayer.configuration.props.layerId).toBe("12345678");
+});
+
+// --- Secret args on import, copy and export (U12) --------------------------
+
+// A secret is stored encrypted on the server for one tile or layer of one
+// dashboard and never sits in args, so none may ride an import, a copy or an
+// export. The rule itself is exercised in importIdentity.test.js; these cases
+// pin that each path runs it, or, for export, that nothing carries one.
+describe("secret args", () => {
+  const SECRET = "fixture-s3cret-value";
+  const visualizations = [
+    {
+      label: "Secret Group",
+      options: [
+        {
+          source: "secret_plugin",
+          value: "Secret Plugin",
+          label: "Secret Plugin",
+          args: { station: "text", api_key: "secret" },
+          type: "text",
+          tags: [],
+          description: "",
+        },
+        {
+          source: "secret_layer",
+          value: "Secret Layer",
+          label: "Secret Layer",
+          args: { token: "secret" },
+          type: "map_layer",
+          dynamic_map_layer: true,
+          dynamic_map_layer_source: "GeoJSON",
+          tags: [],
+          description: "",
+        },
+      ],
+    },
+  ];
+  const secretArgsOf = new Map([
+    ["secret_plugin", new Set(["api_key"])],
+    ["secret_layer", new Set(["token"])],
+  ]);
+
+  const secretTile = (args, overrides = {}) => ({
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "secret_plugin",
+    args_string: args,
+    metadata_string: { refreshRate: 0 },
+    ...overrides,
+  });
+
+  const secretLayer = (token, extra = {}) => ({
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "Gages",
+        layerId: "layer-from-the-file",
+        pluginSource: { source: "secret_layer", args: { token } },
+        source: { type: "GeoJSON", props: {} },
+      },
+    },
+    ...extra,
+  });
+
+  // A static layer whose click popup shows a tile that takes a secret.
+  const popupLayer = (gridItems) => ({
+    configuration: {
+      type: "WebGLTileLayer",
+      props: {
+        name: "Basemap",
+        source: { type: "ImageTile", props: { url: "https://example.com" } },
+      },
+    },
+    popupConfig: { mode: "modal", gridItems },
+  });
+
+  const argsOf = (response) =>
+    JSON.parse(response.importedGridItem.args_string);
+
+  test("import blanks a hand-written file's secret value, keeping the key", async () => {
+    const response = await handleGridItemImport(
+      secretTile({ station: "A", api_key: SECRET }),
+      "123456789",
+      secretArgsOf,
+    );
+
+    expect(response.success).toBe(true);
+    expect(argsOf(response)).toEqual({ station: "A", api_key: "" });
+    expect(JSON.stringify(response)).not.toContain(SECRET);
+  });
+
+  test("import blanks a dynamic layer's and a popup tile's secret args", async () => {
+    const response = await handleGridItemImport(
+      secretTile(
+        {
+          layers: [
+            secretLayer(SECRET),
+            popupLayer([
+              secretTile(JSON.stringify({ station: "B", api_key: SECRET }), {
+                uuid: "popup-tile",
+              }),
+            ]),
+          ],
+        },
+        { source: "Map" },
+      ),
+      "123456789",
+      secretArgsOf,
+    );
+
+    expect(response.success).toBe(true);
+    const [layer, popup] = argsOf(response).layers;
+    expect(layer.configuration.props.pluginSource.args).toEqual({ token: "" });
+    expect(JSON.parse(popup.popupConfig.gridItems[0].args_string)).toEqual({
+      station: "B",
+      api_key: "",
+    });
+    expect(JSON.stringify(response)).not.toContain(SECRET);
+  });
+
+  test("a copy's secret args start blank, its popup tiles' included", async () => {
+    const { copyArgs } = await copyGridItemAndReadTabs(
+      { extent: "-10686671.12,4721671.57,4.5" },
+      [
+        secretLayer(SECRET),
+        popupLayer([
+          {
+            uuid: "popup-tile",
+            ...secretTile(JSON.stringify({ station: "B", api_key: SECRET })),
+            metadata_string: JSON.stringify({ refreshRate: 0 }),
+          },
+        ]),
+      ],
+      { visualizations },
+    );
+
+    const [layer, popup] = copyArgs.layers;
+    expect(layer.configuration.props.pluginSource.args).toEqual({ token: "" });
+    expect(JSON.parse(popup.popupConfig.gridItems[0].args_string)).toEqual({
+      station: "B",
+      api_key: "",
+    });
+    expect(JSON.stringify(copyArgs)).not.toContain(SECRET);
+  });
+
+  test("a tile export holds blank secret args and no pending secret", async () => {
+    const updatedMockedDashboards = JSON.parse(
+      JSON.stringify(mockedDashboards),
+    );
+    const mockedDashboard = updatedMockedDashboards.dashboards[0];
+    const gridItem = {
+      ...secretTile(JSON.stringify({ station: "A", api_key: "" })),
+      id: 1,
+      uuid: "secret-tile-uuid",
+      metadata_string: JSON.stringify({ refreshRate: 0 }),
+    };
+    mockedDashboard.tabs[0].gridItems = [gridItem];
+    mockedDashboard.storedSecrets = [
+      { tile: "secret-tile-uuid", layer: "", arg: "api_key" },
+    ];
+    const spyDownloadJSONFile = jest
+      .spyOn(utils, "downloadJSONFile")
+      .mockImplementation(jest.fn());
+
+    // An editor has typed a new secret that is not saved yet.
+    const PendingSecret = () => {
+      const { pendingSecrets, setPendingSecret } = useContext(LayoutContext);
+      useEffect(() => {
+        setPendingSecret({
+          tile: "secret-tile-uuid",
+          arg: "api_key",
+          source: "secret_plugin",
+          value: SECRET,
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+      return (
+        <p data-testid="pending-count">{Object.keys(pendingSecrets).length}</p>
+      );
+    };
+
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: gridItem.source,
+                gridItemI: gridItem.i,
+                gridItemUUID: gridItem.uuid,
+                gridItemMetadataString: gridItem.metadata_string,
+                gridItemArgsString: gridItem.args_string,
+                gridItemIndex: 0,
+              }}
+            >
+              <DashboardItem />
+            </GridItemContext.Provider>
+            <PendingSecret />
+          </>
+        ),
+        options: {
+          dashboards: updatedMockedDashboards,
+          initialDashboard: mockedDashboard,
+          inEditing: true,
+          visualizations,
+        },
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("pending-count")).toHaveTextContent("1"),
+    );
+    await userEvent.click(
+      await screen.findByLabelText("dashboard-item-dropdown-toggle"),
+    );
+    await userEvent.click(await screen.findByText("Export"));
+
+    await waitFor(() => expect(spyDownloadJSONFile).toHaveBeenCalledTimes(1));
+    const [exported] = spyDownloadJSONFile.mock.calls[0];
+    expect(exported.args_string).toEqual({ station: "A", api_key: "" });
+    expect(exported).not.toHaveProperty("storedSecrets");
+    expect(JSON.stringify(spyDownloadJSONFile.mock.calls)).not.toContain(
+      SECRET,
+    );
+  });
 });

@@ -1,5 +1,6 @@
 import appAPI from "services/api/app";
 import {
+  dataRequestArgs,
   findSelectOptionByValue,
   findUnresolvedVariableInputTokens,
   hasVariableInputValue,
@@ -77,6 +78,9 @@ function isRunnable({ args }, values) {
  * running when the budget ran out, which would otherwise run twice and
  * stream progress from both runs to the same tile.
  *
+ * Each request names `dashboardUUID` and its grid item's uuid, as the tile's
+ * own request would.
+ *
  * Returns only what the preload adds: `values` to merge into the variable
  * input values, normalized exactly as VariableInput would publish them, the
  * `dateFormats` those variable inputs would self-register, and `owners`, the
@@ -84,6 +88,7 @@ function isRunnable({ args }, values) {
  * dashboard can release them when that grid item goes away.
  */
 export async function preloadPluginVariableInputs({
+  dashboardUUID,
   tabs,
   visualizations,
   variableInputValues = {},
@@ -91,6 +96,7 @@ export async function preloadPluginVariableInputs({
   budgetMs = VARIABLE_INPUT_PRELOAD_BUDGET_MS,
   onProgress = () => {},
   isAbandoned = () => false,
+  allArgs = false,
 }) {
   let pending = collectPluginVariableInputs(tabs, visualizations);
   const values = {};
@@ -116,18 +122,26 @@ export async function preloadPluginVariableInputs({
     // The request getVisualization builds for this grid item.
     let response;
     try {
-      const itemData = {
+      const request = appAPI.getVisualizationData({
+        dashboard: dashboardUUID,
+        tile: gridItem.uuid,
         source: gridItem.source,
-        args: updateObjectWithVariableInputs({
-          args,
-          variableInputs: knownValues,
-          variableInputDateFormats: knownDateFormats,
-          sourceArgs,
-          returnDatesAsLocalISO: true,
+        args: dataRequestArgs({
+          rawArgs: args,
+          resolvedArgs: updateObjectWithVariableInputs({
+            args,
+            variableInputs: knownValues,
+            variableInputDateFormats: knownDateFormats,
+            sourceArgs,
+            returnDatesAsLocalISO: true,
+          }),
+          argTypes: sourceArgs,
+          kind: "tile",
+          allArgs,
         }),
         requestId: gridItem.uuid,
-      };
-      const request = appAPI.getVisualizationData(itemData);
+        allArgs,
+      });
       // Cached before it settles, keyed by what it was built from, so the
       // tile shares it even if the budget runs out first.
       setPreloadedVisualization(

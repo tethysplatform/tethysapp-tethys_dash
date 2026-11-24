@@ -52,7 +52,6 @@ test("New Dashboard Modal creates a dashboard with no description", async () => 
   await waitFor(() => {
     expect(mockAddDashboard).toHaveBeenCalledWith(
       expect.objectContaining({ name: "new_name", description: "" }),
-      expect.anything(),
     );
   });
   expect(

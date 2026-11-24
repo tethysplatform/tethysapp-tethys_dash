@@ -13,7 +13,11 @@ import StylePane, {
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
-import { LayoutContext, AppContext } from "components/contexts/Contexts";
+import {
+  LayoutContext,
+  AppContext,
+  GridItemContext,
+} from "components/contexts/Contexts";
 import * as utilities from "components/map/utilities";
 import { fromUrl } from "geotiff";
 
@@ -85,6 +89,7 @@ const TestingComponent = ({
     <AppContext.Provider value={{ dynamicMapLayers: [] }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
+          tabKey="style"
           style={style}
           setStyle={setStyle}
           setErrorMessage={setErrorMessage}
@@ -150,6 +155,7 @@ const GeoTIFFTestHarness = ({
     <AppContext.Provider value={{ dynamicMapLayers }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
+          tabKey="style"
           style={undefined}
           setStyle={() => {}}
           setErrorMessage={() => {}}
@@ -178,6 +184,7 @@ test("StylePane GeoTIFF ramp/min/max handlers no-op when setSourceProps is missi
     <AppContext.Provider value={{ dynamicMapLayers: [] }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
+          tabKey="style"
           style={undefined}
           setStyle={() => {}}
           setErrorMessage={() => {}}
@@ -818,6 +825,7 @@ test("StylePane calls getStyleFields for URL-based GeoJSON (no early bail-out)",
     <AppContext.Provider value={{ dynamicMapLayers: [] }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
+          tabKey="style"
           style={{}}
           setStyle={() => {}}
           setErrorMessage={() => {}}
@@ -838,6 +846,47 @@ test("StylePane calls getStyleFields for URL-based GeoJSON (no early bail-out)",
         sourceProps: expect.objectContaining({
           geojson: "https://example.com/data.geojson",
         }),
+      }),
+    );
+  });
+
+  getStyleFieldsSpy.mockRestore();
+});
+
+test("StylePane asks for fields under the layer's dashboard and map tile", async () => {
+  const getStyleFieldsSpy = jest
+    .spyOn(utilities, "getStyleFields")
+    .mockResolvedValue([]);
+  const layerProps = { name: "gauges", layerId: "layer-9" };
+
+  render(
+    <AppContext.Provider value={{ dynamicMapLayers: [] }}>
+      <LayoutContext.Provider value={{ uuid: "123" }}>
+        <GridItemContext.Provider value={{ gridItemUUID: "map-tile-uuid" }}>
+          <StylePane
+            tabKey="style"
+            style={{}}
+            setStyle={() => {}}
+            setErrorMessage={() => {}}
+            sourceProps={{
+              type: "GeoJSON",
+              geojson: "https://example.com/data.geojson",
+            }}
+            setSourceProps={() => {}}
+            layerProps={layerProps}
+          />
+        </GridItemContext.Provider>
+      </LayoutContext.Provider>
+    </AppContext.Provider>,
+  );
+
+  // The layer's own id travels in layerProps.
+  await waitFor(() => {
+    expect(getStyleFieldsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        layerProps,
+        dashboard_uuid: "123",
+        tileUUID: "map-tile-uuid",
       }),
     );
   });
@@ -1142,6 +1191,7 @@ describe("StylePane categorical editing edges", () => {
       <AppContext.Provider value={{ dynamicMapLayers: [] }}>
         <LayoutContext.Provider value={{ uuid: "123" }}>
           <StylePane
+            tabKey="style"
             style={undefined}
             setStyle={() => {}}
             setErrorMessage={() => {}}
@@ -1206,6 +1256,7 @@ test("StylePane takes a shapefile's fields from the Source tab's read", async ()
     <AppContext.Provider value={{ dynamicMapLayers: [] }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
+          tabKey="style"
           style={undefined}
           setStyle={() => {}}
           setErrorMessage={() => {}}
@@ -1324,6 +1375,7 @@ test("StylePane offers no fields when the field read fails", async () => {
       <AppContext.Provider value={{ dynamicMapLayers: [] }}>
         <LayoutContext.Provider value={{ uuid: "123" }}>
           <StylePane
+            tabKey="style"
             style={undefined}
             setStyle={() => {}}
             setErrorMessage={() => {}}

@@ -37,6 +37,14 @@
 // the app reads. It runs on import only, ahead of the file walk, and mirrors the
 // 09d4203a610a data migration that converted the saved dashboards.
 //
+// And one blanks: `applySecretArgRules` sets every secret-typed arg to "", on
+// import and on copy. A secret is stored encrypted on the server for one tile
+// or layer of one dashboard, never in args, so a value found in args -- a
+// hand-written file is the usual source -- is never one to keep. The key stays,
+// because the server refuses to set a secret for an arg the args do not hold.
+// It mirrors `blank_secret_args` (saved_settings.py), which the server applies
+// to every save anyway; this keeps the value from reaching the request at all.
+//
 // Nothing here touches React or OpenLayers, so the rules are testable without
 // mounting anything.
 
@@ -71,7 +79,18 @@ const isPlainObject = (value) =>
  *   missing or uninterpretable, which leaves the grid item untouched
  */
 function readArgs(gridItem) {
-  const raw = gridItem?.args_string;
+  return readArgsValue(gridItem?.args_string);
+}
+
+/**
+ * Read args held as JSON text or as an object: a grid item's `args_string`, or
+ * a dynamic layer's `pluginSource.args`.
+ *
+ * @param {*} raw
+ * @returns {{args: object, wasString: boolean}|null} null when they are missing
+ *   or uninterpretable
+ */
+export function readArgsValue(raw) {
   if (typeof raw === "string") {
     const parsed = parseGridItemArgs(raw);
     return parsed ? { args: parsed, wasString: true } : null;
@@ -292,22 +311,26 @@ export function convertLegacyRasterLayer(layer) {
 
 /**
  * Apply a layer rule to every layer of a Map grid item, and to the layers of
- * every Map grid item nested in those layers' popup layouts.
+ * every Map grid item nested in those layers' popup layouts, at any depth.
+ * An item rule, when given, is applied to the grid item itself and to every
+ * grid item nested in those popup layouts, Map or not, before its layers are.
  *
  * Reference-preserving at every level: a grid item, layer list or popup subtree
- * the rule leaves alone comes back as the same object, and `args_string` comes
+ * the rules leave alone comes back as the same object, and `args_string` comes
  * back in whichever representation it arrived in.
  *
  * @param {*} gridItem
  * @param {(layer: *) => *} layerRule returns the layer, or a replacement
+ * @param {(gridItem: object) => object} [itemRule] returns the grid item, or a
+ *   replacement
  * @returns {*} the converted grid item, or the original reference
  */
-function mapGridItemLayers(gridItem, layerRule) {
-  if (!isPlainObject(gridItem) || gridItem.source !== BUILT_IN_MAP_SOURCE) {
-    return gridItem;
-  }
-  const read = readArgs(gridItem);
-  if (!read || !Array.isArray(read.args.layers)) return gridItem;
+function mapGridItemLayers(gridItem, layerRule, itemRule = null) {
+  if (!isPlainObject(gridItem)) return gridItem;
+  const item = itemRule ? itemRule(gridItem) : gridItem;
+  if (item.source !== BUILT_IN_MAP_SOURCE) return item;
+  const read = readArgs(item);
+  if (!read || !Array.isArray(read.args.layers)) return item;
 
   let changed = false;
   const layers = read.args.layers.map((layer) => {
@@ -315,9 +338,9 @@ function mapGridItemLayers(gridItem, layerRule) {
     const nestedItems = next?.popupConfig?.gridItems;
     if (Array.isArray(nestedItems)) {
       let nestedChanged = false;
-      const nested = nestedItems.map((item) => {
-        const converted = mapGridItemLayers(item, layerRule);
-        if (converted !== item) nestedChanged = true;
+      const nested = nestedItems.map((nestedItem) => {
+        const converted = mapGridItemLayers(nestedItem, layerRule, itemRule);
+        if (converted !== nestedItem) nestedChanged = true;
         return converted;
       });
       if (nestedChanged) {
@@ -330,11 +353,11 @@ function mapGridItemLayers(gridItem, layerRule) {
     if (next !== layer) changed = true;
     return next;
   });
-  if (!changed) return gridItem;
+  if (!changed) return item;
 
   const nextArgs = { ...read.args, layers };
   return {
-    ...gridItem,
+    ...item,
     args_string: read.wasString ? JSON.stringify(nextArgs) : nextArgs,
   };
 }
@@ -352,6 +375,95 @@ function mapGridItemLayers(gridItem, layerRule) {
  */
 export function applyLegacyRasterStyleRules(gridItem) {
   return mapGridItemLayers(gridItem, convertLegacyRasterLayer);
+}
+
+/**
+ * Blank the secret args of one plugin's args.
+ *
+ * @param {*} source the plugin source the args are for
+ * @param {*} rawArgs the args, as JSON text or an object
+ * @param {Map<string, Set<string>>} secretArgsOf plugin source -> its secret
+ *   arg names (`secretArgsBySource`)
+ * @returns {*} the args with each secret arg holding a value set to "", in the
+ *   form they arrived in, or the original reference when none held one
+ */
+function blankSecretValues(source, rawArgs, secretArgsOf) {
+  const names = secretArgsOf?.get?.(source);
+  if (!names || names.size === 0) return rawArgs;
+  const read = readArgsValue(rawArgs);
+  if (!read) return rawArgs;
+
+  const held = Object.keys(read.args).filter(
+    (name) =>
+      names.has(name) && read.args[name] !== "" && read.args[name] != null,
+  );
+  if (held.length === 0) return rawArgs;
+
+  const args = { ...read.args };
+  held.forEach((name) => {
+    args[name] = "";
+  });
+  return read.wasString ? JSON.stringify(args) : args;
+}
+
+/** Blank a grid item's own secret args (see blankSecretValues). */
+function blankTileSecrets(gridItem, secretArgsOf) {
+  const args = blankSecretValues(
+    gridItem.source,
+    gridItem.args_string,
+    secretArgsOf,
+  );
+  return args === gridItem.args_string
+    ? gridItem
+    : { ...gridItem, args_string: args };
+}
+
+/** Blank a dynamic layer's secret plugin args (see blankSecretValues). */
+function blankLayerSecrets(layer, secretArgsOf) {
+  const props = layer?.configuration?.props;
+  const pluginSource = props?.pluginSource;
+  if (!isPlainObject(pluginSource)) return layer;
+
+  const args = blankSecretValues(
+    pluginSource.source,
+    pluginSource.args,
+    secretArgsOf,
+  );
+  if (args === pluginSource.args) return layer;
+  return {
+    ...layer,
+    configuration: {
+      ...layer.configuration,
+      props: { ...props, pluginSource: { ...pluginSource, args } },
+    },
+  };
+}
+
+/**
+ * Blank every secret-typed arg of a grid item to "": its own args, each dynamic
+ * layer's plugin args, and those of every grid item in a layer popup layout, at
+ * any depth.
+ *
+ * An arg is secret when the plugin the args are for declares it so in its
+ * metadata. A plugin `secretArgsOf` does not know is not installed, so nothing
+ * is known of its args and they are left as they are. The key is kept, and an
+ * arg already blank -- or null -- is left alone.
+ *
+ * Total and reference-preserving like the rules above: a grid item with no
+ * secret value anywhere is returned as it is, `args_string` comes back in the
+ * representation it arrived in, and it never throws.
+ *
+ * @param {*} gridItem the grid item to blank
+ * @param {Map<string, Set<string>>} secretArgsOf plugin source -> its secret
+ *   arg names (`secretArgsBySource` in components/visualizations/utilities)
+ * @returns {*} the blanked grid item, or the original reference
+ */
+export function applySecretArgRules(gridItem, secretArgsOf) {
+  return mapGridItemLayers(
+    gridItem,
+    (layer) => blankLayerSecrets(layer, secretArgsOf),
+    (item) => blankTileSecrets(item, secretArgsOf),
+  );
 }
 
 /**

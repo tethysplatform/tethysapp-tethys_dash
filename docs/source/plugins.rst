@@ -50,7 +50,7 @@ Properties:
     - **group**: (required) Used to group visualizations in the dashboard app.
     - **label**: (required) The display name for the visualization in the dashboard app.
     - **type**: (required) The type of visualization. Must be "plotly", "table", "image", "imageCollection", "card", "text", "variable_input", "map", "map_layer", or "custom". See the `Plugin Visualization Types <Plugin Visualization Types_>`_ section for details.
-    - **args**: Dictionary of function arguments as keys and data types as values. Used to dynamically create HTML inputs. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list for dropdowns (e.g., `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`). Simple args are set as attributes of the plugin class and can be used in the run method using self (e.g., `self.year`, `self.location`, `self.available_colors`). Date args are parsed to ``datetime`` objects, and dropdown args may declare nested ``sub_args``. See `Accessing Arguments in run()`_ for how each kind reaches ``run()``. Argument names must not contain ``.`` (the reserved nested-argument path delimiter).
+    - **args**: Dictionary of function arguments as keys and data types as values. Used to dynamically create HTML inputs. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list for dropdowns (e.g., `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`). Simple args are set as attributes of the plugin class and can be used in the run method using self (e.g., `self.year`, `self.location`, `self.available_colors`). Date args are parsed to ``datetime`` objects, and dropdown args may declare nested ``sub_args``. See `Accessing Arguments in run()`_ for how each kind reaches ``run()``. An arg typed ``"secret"`` holds a credential such as an API key; see `Secret Arguments`_. Argument names must not contain ``.`` (the reserved nested-argument path delimiter).
     - **tags**: List of tags for search and discovery.
     - **description**: Description of the visualization.
     - **restricted**: Boolean to restrict access to the plugin. If true, the plugin will only be visible to users with permissions. Defaults to false.
@@ -126,6 +126,84 @@ level at a time for deeper nesting (e.g. ``self.sub_args("transect_location.loca
     nested-argument path delimiter. ``TethysDashPlugin`` raises a ``ValueError``
     at instantiation if a top-level argument name contains one. Sub-arg names
     declared inside dropdown options are subject to the same rule.
+
+================
+Secret Arguments
+================
+
+A plugin that needs a credential, such as an API key, a password or a
+database connection string, declares that argument with the type
+``"secret"``. The dashboard author enters its value once, in the dashboard
+item's settings or on a dynamic map layer's Source tab. TethysDash stores it
+encrypted, never shows it again and never sends it to a browser. When the
+plugin runs, it receives the plain value, read like a ``"text"`` argument::
+
+    import requests
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
+
+    class StationReadings(TethysDashPlugin):
+        name = "station_readings"
+        args = {"station": "text", "api_key": "secret"}
+        group = "Example"
+        label = "Station Readings"
+        type = "table"
+        description = "The latest readings at a station."
+
+        # Where the key goes is fixed here, never taken from an argument.
+        API_URL = "https://api.example.org/v1/readings"
+
+        def run(self):
+            response = requests.get(
+                self.API_URL,
+                params={"station": self.station},
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                timeout=30,
+            )
+            response.raise_for_status()
+            return {
+                "title": f"Station {self.station}",
+                "data": response.json()["readings"],
+            }
+
+Only top-level arguments can be secret, not ``sub_args``. A declared secret is
+required: until one has been entered, the plugin is not run, and the dashboard
+item tells editors to enter it and viewers that it is not set up yet.
+
+Follow these rules for every secret argument:
+
+    - **Keep its destination fixed.** The address the secret is sent to must be
+      fixed in the plugin, as ``API_URL`` is above, or contained in the secret
+      itself, as in a database connection string. Never take it from a separate
+      argument. An editor can change any argument, and a viewer can change any
+      argument the author connects to a variable input, so either could point
+      the plugin, and the secret, at a server of their own.
+    - **Never return it.** A result containing the secret in any form, including
+      URL-encoded or JSON-escaped, is refused with "The plugin returned a secret,
+      so its result was not sent." That includes a URL that carries the key in
+      its query string, such as an image URL or a dynamic layer's GeoTIFF URL,
+      which the browser would fetch. In a dynamic map layer's scaffold, pass the
+      secret argument's value to ``set_plugin_source`` as ``""``.
+    - **Never log it.** TethysDash scrubs the secret from the error messages it
+      returns and the lines it logs itself, but not from a plugin's own
+      ``print`` or ``logging`` calls, nor from what libraries log. Send a key in
+      a request header rather than in a URL where the service allows, since
+      URLs end up in logs.
+    - **Send progress through** ``self.send_update``. Progress messages are
+      scrubbed of the secret before they are sent, including messages sent from
+      a thread the plugin starts itself, but only when they go through
+      ``send_update``. Never call ``send_websocket_message`` directly from such
+      a thread. See `Sending Progress Updates`_.
+
+Scrubbing is a safety net, not a substitute for these rules: it skips values
+shorter than four characters, and it cannot recognize a secret the plugin has
+transformed, for example by encoding it in base64.
+
+To test the plugin on its own (see `Testing`_), pass the secret as a keyword
+argument read from an environment variable, rather than writing it in code::
+
+    import os
+
+    StationReadings(station="A1", api_key=os.environ["EXAMPLE_API_KEY"]).run()
 
 ==========================
 Plugin Visualization Types
@@ -1739,5 +1817,7 @@ In your plugin class, simply call `self.send_update` from within a class method.
             return {"result": "done"}
 
 The `percentage_complete` argument is optional and can be used to indicate progress as a percentage (0–100). You can call `send_update` as many times as needed during your process.
+
+Every message is scrubbed of the plugin's secret arguments before it is sent (see `Secret Arguments`_). If the plugin starts threads of its own, send progress from them through ``self.send_update`` as well: a thread does not inherit the request's context, and ``send_update`` is the only way to send there that still knows the plugin's secrets. Even so, keep progress text free of anything sensitive.
 
 This approach is recommended for all new plugins. If you are maintaining legacy plugins that do not subclass `TethysDashPlugin`, you may still use `send_websocket_message` directly, but new development should use `send_update` for clarity and maintainability.

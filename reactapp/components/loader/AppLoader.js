@@ -5,6 +5,8 @@ import {
   nonDropDownVariableInputTypes,
   baseMapLayers,
   downloadJSONFile,
+  SECRET_ARG_TYPE,
+  secretArgsBySource,
 } from "components/visualizations/utilities";
 import { DEFAULT_DYNAMIC_LAYER_SOURCE } from "components/modals/MapLayer/runtimeLayerSource";
 import tethysAPI from "services/api/tethys";
@@ -94,7 +96,6 @@ function Loader({ children }) {
         isAuthenticated: true,
         isStaff: false,
       };
-      let csrf = null;
       let tethysApp;
       let dashboards;
       let visualizations;
@@ -115,21 +116,14 @@ function Loader({ children }) {
 
       try {
         if (tethysSession) {
-          [
-            tethysApp,
-            user,
-            csrf,
-            dashboards,
-            visualizations,
-            userAppPermissions,
-          ] = await Promise.all([
-            tethysAPI.getAppData(APP_ID),
-            tethysAPI.getUserData(),
-            tethysAPI.getCSRF(),
-            appAPI.listDashboards(),
-            appAPI.listVisualizations(),
-            appAPI.getUserAppPermissions(),
-          ]);
+          [tethysApp, user, dashboards, visualizations, userAppPermissions] =
+            await Promise.all([
+              tethysAPI.getAppData(APP_ID),
+              tethysAPI.getUserData(),
+              appAPI.listDashboards(),
+              appAPI.listVisualizations(),
+              appAPI.getUserAppPermissions(),
+            ]);
         } else {
           [tethysApp, dashboards, visualizations] = await Promise.all([
             tethysAPI.getAppData(APP_ID),
@@ -194,6 +188,9 @@ function Loader({ children }) {
         for (let option of optionGroup.options) {
           let args = option.args;
           for (let arg in args) {
+            // A secret is entered once and stored on the server, and a
+            // variable input would put its value in the tile's args.
+            if (args[arg] === SECRET_ARG_TYPE) continue;
             visualizationArgs.push({
               label:
                 optionGroup.label +
@@ -296,7 +293,6 @@ function Loader({ children }) {
       setAppContext({
         tethysApp,
         user,
-        csrf,
         // Stable per-tab nonce used to scope composite WebSocket requestIds
         // for runtime map_layer plugins (${sessionNonce}:${gridItemUUID}:${layerId}).
         // Prevents progress/error messages from leaking between two tabs open
@@ -327,43 +323,40 @@ function Loader({ children }) {
   const copyDashboard = useCallback(
     async (id, name) => {
       // let the user input a new name
-      const apiResponse = await appAPI.copyDashboard(
-        { id, newName: `${name} - Copy` },
-        appContext.csrf,
-      );
+      const apiResponse = await appAPI.copyDashboard({
+        id,
+        newName: `${name} - Copy`,
+      });
       if (apiResponse.success) {
         const newDashboard = apiResponse.new_dashboard;
         setAvailableDashboards([...availableDashboards, newDashboard]);
       }
       return apiResponse;
     },
-    [appContext, availableDashboards],
+    [availableDashboards],
   );
 
   const addDashboard = useCallback(
     async (dashboardContext) => {
-      const apiResponse = await appAPI.addDashboard(
-        dashboardContext,
-        appContext.csrf,
-      );
+      const apiResponse = await appAPI.addDashboard(dashboardContext);
       if (apiResponse.success) {
         const newDashboard = apiResponse.new_dashboard;
         setAvailableDashboards([...availableDashboards, newDashboard]);
       }
       return apiResponse;
     },
-    [appContext, availableDashboards],
+    [availableDashboards],
   );
 
   const deleteDashboard = useCallback(
     async (id) => {
-      const apiResponse = await appAPI.deleteDashboard({ id }, appContext.csrf);
+      const apiResponse = await appAPI.deleteDashboard({ id });
       if (apiResponse["success"]) {
         setAvailableDashboards(availableDashboards.filter((d) => d.id !== id));
       }
       return apiResponse;
     },
-    [appContext, availableDashboards],
+    [availableDashboards],
   );
 
   const importDashboard = useCallback(
@@ -378,10 +371,9 @@ function Loader({ children }) {
         }
         let removed = false;
         try {
-          const deleteResponse = await appAPI.deleteDashboard(
-            { id: newDashboard.id },
-            appContext.csrf,
-          );
+          const deleteResponse = await appAPI.deleteDashboard({
+            id: newDashboard.id,
+          });
           removed = Boolean(deleteResponse?.success);
         } catch {
           // Reported below, with the import's own error.
@@ -414,21 +406,22 @@ function Loader({ children }) {
         // file only for a dashboard the caller can edit, under the uuid it
         // mints. `public` is passed on only as a literal `public` key, as
         // before; an export carries `publicDashboard`, so imports stay private.
-        const addResponse = await appAPI.addDashboard(
-          {
-            name: dashboardContext.name,
-            description: dashboardContext.description,
-            notes: dashboardContext.notes,
-            public: dashboardContext.public,
-            unrestrictedPlacement: dashboardContext.unrestrictedPlacement,
-          },
-          appContext.csrf,
-        );
+        const addResponse = await appAPI.addDashboard({
+          name: dashboardContext.name,
+          description: dashboardContext.description,
+          notes: dashboardContext.notes,
+          public: dashboardContext.public,
+          unrestrictedPlacement: dashboardContext.unrestrictedPlacement,
+        });
         if (!addResponse.success) {
           return addResponse;
         }
         newDashboard = addResponse.new_dashboard;
 
+        const secretArgsOf = secretArgsBySource(
+          appContext?.visualizations,
+          appContext?.dynamicMapLayers,
+        );
         const importedLooseItems = [];
         if (
           dashboardContext.gridItems &&
@@ -438,8 +431,8 @@ function Loader({ children }) {
             const { success, message, importedGridItem } =
               await handleGridItemImport(
                 gridItem,
-                appContext.csrf,
                 newDashboard.uuid,
+                secretArgsOf,
               );
             if (success) {
               importedLooseItems.push(importedGridItem);
@@ -457,8 +450,8 @@ function Loader({ children }) {
               const { success, message, importedGridItem } =
                 await handleGridItemImport(
                   gridItem,
-                  appContext.csrf,
                   newDashboard.uuid,
+                  secretArgsOf,
                 );
               if (success) {
                 updatedGridItems.push(importedGridItem);
@@ -524,10 +517,10 @@ function Loader({ children }) {
           },
         );
 
-        const updateResponse = await appAPI.updateDashboard(
-          { id: newDashboard.id, tabs },
-          appContext.csrf,
-        );
+        const updateResponse = await appAPI.updateDashboard({
+          id: newDashboard.id,
+          tabs,
+        });
         if (!updateResponse.success) {
           return await abandon(updateResponse);
         }
@@ -541,15 +534,22 @@ function Loader({ children }) {
         });
       }
     },
-    [appContext],
+    [setAvailableDashboards, appContext],
   );
 
   const exportDashboard = useCallback(
     async (id) => {
       const apiResponse = await appAPI.getDashboard({ id });
       if (apiResponse.success) {
-        const { id, tabs, uuid, ...dashboardProperties } =
-          apiResponse.dashboard;
+        // `storedSecrets` names the places this dashboard holds a secret,
+        // which belong to it alone: an import stores none.
+        const {
+          id,
+          tabs,
+          uuid,
+          storedSecrets: _storedSecrets,
+          ...dashboardProperties
+        } = apiResponse.dashboard;
 
         const exportedTabs = [];
         for (const tab of tabs) {
@@ -581,10 +581,10 @@ function Loader({ children }) {
 
   const updateDashboard = useCallback(
     async ({ id, newProperties }) => {
-      const apiResponse = await appAPI.updateDashboard(
-        { ...newProperties, id },
-        appContext.csrf,
-      );
+      const apiResponse = await appAPI.updateDashboard({
+        ...newProperties,
+        id,
+      });
       if (apiResponse.success) {
         const updatedDashboard = apiResponse.updated_dashboard;
         setAvailableDashboards(
@@ -595,14 +595,13 @@ function Loader({ children }) {
       }
       return apiResponse;
     },
-    [appContext, availableDashboards],
+    [availableDashboards],
   );
 
   const updatePermissionGroup = useCallback(
     async (updatedPermissionGroup) => {
       const apiResponse = await appAPI.updatePermissionGroup(
         updatedPermissionGroup,
-        appContext.csrf,
       );
       if (apiResponse.success) {
         const responsePermissionGroup = apiResponse.updated_permission_group;
@@ -618,15 +617,12 @@ function Loader({ children }) {
       }
       return apiResponse;
     },
-    [appContext],
+    [setPermissionGroups],
   );
 
   const deletePermissionGroup = useCallback(
     async (id) => {
-      const apiResponse = await appAPI.deletePermissionGroup(
-        { id },
-        appContext.csrf,
-      );
+      const apiResponse = await appAPI.deletePermissionGroup({ id });
       if (apiResponse.success) {
         setPermissionGroups((existingPermissionGroups) =>
           existingPermissionGroups.filter((g) => g.id !== id),
@@ -634,7 +630,7 @@ function Loader({ children }) {
       }
       return apiResponse;
     },
-    [appContext],
+    [setPermissionGroups],
   );
 
   // Always call hooks in the same order

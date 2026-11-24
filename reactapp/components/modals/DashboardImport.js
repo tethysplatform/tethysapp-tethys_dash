@@ -4,8 +4,8 @@ import Form from "react-bootstrap/Form";
 import { useState, useContext } from "react";
 import PropTypes from "prop-types";
 import {
-  AvailableDashboardsContext,
   AppContext,
+  AvailableDashboardsContext,
   LayoutContext,
 } from "components/contexts/Contexts";
 import Alert from "react-bootstrap/Alert";
@@ -17,6 +17,7 @@ import {
   validateGridItemBatch,
 } from "components/dashboard/DashboardItem";
 import { applyBatchIdentityRules } from "components/dashboard/importIdentity";
+import { secretArgsBySource } from "components/visualizations/utilities";
 
 const StyledAlert = styled(Alert)`
   margin-top: 0.5rem;
@@ -43,8 +44,8 @@ function DashboardImportModal({
   const { importDashboard } = useContext(AvailableDashboardsContext);
   const { setSuccessMessage, setShowSuccessMessage } =
     useLayoutSuccessAlertContext();
-  const { csrf } = useContext(AppContext);
   const layoutContext = useContext(LayoutContext);
+  const { visualizations, dynamicMapLayers } = useContext(AppContext) ?? {};
 
   // The flatten below and the re-association further down must agree on how
   // many items a tab contributes. flatMap only spreads a real array, so reading
@@ -104,9 +105,14 @@ function DashboardImportModal({
       return;
     }
 
+    const secretArgsOf = secretArgsBySource(visualizations, dynamicMapLayers);
     const processedGridItems = [];
     for (const item of allGridItems) {
-      const result = await handleGridItemImport(item, csrf, layoutContext.uuid);
+      const result = await handleGridItemImport(
+        item,
+        layoutContext.uuid,
+        secretArgsOf,
+      );
       if (!result.success) {
         setErrorMessage(result.message ?? "Failed to import grid item");
         return;

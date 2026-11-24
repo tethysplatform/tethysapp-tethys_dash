@@ -52,7 +52,7 @@ const annotationsLayerInfo = (annotations) => ({
 const mountModal = ({ layerInfo, addMapLayer = jest.fn() } = {}) => {
   render(
     <AppContext.Provider
-      value={{ csrf: "csrf", mapLayerTemplates: [], dynamicMapLayers: [] }}
+      value={{ mapLayerTemplates: [], dynamicMapLayers: [] }}
     >
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <TabContext.Provider value={{ activeTabId: "tab-1" }}>
@@ -183,7 +183,7 @@ const mountInDataViewer = ({ layerInfo, handleModalClose = jest.fn() }) => {
   const addMapLayer = jest.fn();
   render(
     <AppContext.Provider
-      value={{ csrf: "csrf", mapLayerTemplates: [], dynamicMapLayers: [] }}
+      value={{ mapLayerTemplates: [], dynamicMapLayers: [] }}
     >
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <TabContext.Provider value={{ activeTabId: "tab-1" }}>

@@ -13,7 +13,9 @@ import NormalInput from "components/inputs/NormalInput";
 import CheckboxInput from "components/inputs/CheckboxInput";
 import DatePicker from "components/inputs/DatePicker";
 import DateRange from "components/inputs/DateRange";
+import SecretInput from "components/inputs/SecretInput";
 import * as customInputs from "components/inputs/Custom";
+import { SECRET_ARG_TYPE } from "components/visualizations/utilities";
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
@@ -128,6 +130,15 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
         onChange={onChange}
         values={value}
         {...inputProps}
+      />
+    );
+  } else if (type === SECRET_ARG_TYPE) {
+    return (
+      <SecretInput
+        label={label}
+        onChange={onChange}
+        value={value}
+        place={inputProps?.secretPlace}
       />
     );
   } else if (typeof type === "string" && type.includes("custom-")) {

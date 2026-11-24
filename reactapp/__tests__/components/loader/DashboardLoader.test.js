@@ -1,4 +1,7 @@
-import DashboardLoader from "components/loader/DashboardLoader";
+import DashboardLoader, {
+  secretChangesToSave,
+} from "components/loader/DashboardLoader";
+import { handleGridItemExport } from "components/dashboard/DashboardItem";
 import { screen, render, waitFor, act } from "@testing-library/react";
 import appAPI from "services/api/app";
 import * as variableInputPreload from "components/loader/variableInputPreload";
@@ -35,6 +38,7 @@ import {
   AppContext,
   GridItemContext,
 } from "components/contexts/Contexts";
+import { secretPlaceKey } from "components/visualizations/utilities";
 import PropTypes from "prop-types";
 
 const TestingComponent = ({
@@ -1609,10 +1613,15 @@ describe("DashboardLoader plugin variable input preload", () => {
       ),
     );
     expect(screen.queryByTestId("input-variables")).not.toBeInTheDocument();
+    // The user may edit the dashboard, so the request carries every arg and
+    // says so.
     expect(spy).toHaveBeenCalledWith({
+      dashboard: "user-uuid",
+      tile: "plugin-vi-uuid",
       source: "station_picker",
       args: { basin: "willamette" },
       requestId: "plugin-vi-uuid",
+      allArgs: true,
     });
 
     await act(async () => resolvePlugin(stationResponse));
@@ -2105,6 +2114,529 @@ test("keeps a map attribute variable another tab still uses when one tab is upda
     JSON.stringify({ "Shared LID": null }),
   );
   jest.restoreAllMocks();
+});
+
+describe("DashboardLoader pending secrets", () => {
+  const SECRET = "pending-s3cret-value";
+  const visualizations = [
+    {
+      label: "Plugins",
+      options: [
+        {
+          source: "secret_plugin",
+          value: "Secret Plugin",
+          label: "Secret Plugin",
+          type: "text",
+          args: { station: "text", api_key: "secret" },
+        },
+        {
+          source: "other_secret_plugin",
+          value: "Other Secret Plugin",
+          label: "Other Secret Plugin",
+          type: "text",
+          args: { api_key: "secret" },
+        },
+      ],
+    },
+  ];
+  const dynamicMapLayers = [
+    {
+      label: "Dynamic Map Layers",
+      options: [
+        {
+          source: "secret_layer",
+          value: "Secret Layer",
+          label: "Secret Layer",
+          type: "map_layer",
+          dynamic_map_layer: true,
+          args: { token: "secret" },
+        },
+      ],
+    },
+  ];
+  const secretArgsOf = new Map([
+    ["secret_plugin", new Set(["api_key"])],
+    ["other_secret_plugin", new Set(["api_key"])],
+    ["secret_layer", new Set(["token"])],
+    ["plain_plugin", new Set()],
+  ]);
+
+  const pluginTile = {
+    id: 1,
+    uuid: "tile-uuid",
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "secret_plugin",
+    args_string: JSON.stringify({ station: "A", api_key: "" }),
+    metadata_string: "{}",
+  };
+  const popupTile = {
+    uuid: "popup-uuid",
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 4,
+    h: 4,
+    source: "secret_plugin",
+    args_string: JSON.stringify({ station: "P", api_key: "" }),
+    metadata_string: "{}",
+  };
+  const mapTile = {
+    id: 2,
+    uuid: "map-uuid",
+    i: "2",
+    x: 20,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: JSON.stringify({
+      layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "Live",
+              layerId: "layer-1",
+              pluginSource: { source: "secret_layer", args: { token: "" } },
+            },
+          },
+          popupConfig: { gridItems: [popupTile] },
+        },
+      ],
+    }),
+    metadata_string: "{}",
+  };
+  const secretDashboard = {
+    ...userDashboard,
+    tabs: [{ id: 1, name: "Tab 1", gridItems: [pluginTile, mapTile] }],
+    storedSecrets: [{ tile: "tile-uuid", layer: "", arg: "api_key" }],
+  };
+
+  const tilePlace = { tile: "tile-uuid", layer: "", arg: "api_key" };
+  const layerPlace = { tile: "map-uuid", layer: "layer-1", arg: "token" };
+  const popupPlace = { tile: "popup-uuid", layer: "", arg: "api_key" };
+
+  // The latest LayoutContext and TabContext values the dashboard provides.
+  let contexts;
+  const Capture = () => {
+    contexts = {
+      layout: useContext(LayoutContext),
+      tab: useContext(TabContext),
+    };
+    return (
+      <p data-testid="pending-count">
+        {Object.keys(contexts.layout.pendingSecrets).length}
+      </p>
+    );
+  };
+
+  const savedResponse = (newProperties, storedSecrets) => ({
+    success: true,
+    updated_dashboard: {
+      ...secretDashboard,
+      ...newProperties,
+      storedSecrets,
+    },
+  });
+
+  const renderLoader = async (updateDashboard) => {
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/dashboards/get/",
+        (req, res, ctx) =>
+          res(
+            ctx.status(200),
+            ctx.json({ success: true, dashboard: secretDashboard }),
+          ),
+      ),
+    );
+    render(
+      <AppContext.Provider value={{ visualizations, dynamicMapLayers }}>
+        <AvailableDashboardsContext.Provider value={{ updateDashboard }}>
+          <DashboardLoader {...secretDashboard}>
+            <Capture />
+          </DashboardLoader>
+        </AvailableDashboardsContext.Provider>
+      </AppContext.Provider>,
+    );
+    await screen.findByTestId("pending-count");
+  };
+
+  const setPending = (place, source, value) =>
+    act(() => contexts.layout.setPendingSecret({ ...place, source, value }));
+
+  const saveTabs = () =>
+    act(() => contexts.layout.saveLayoutContext({ tabs: contexts.tab.tabs }));
+
+  test("a save of the tabs sends each pending secret as one change, the tabs carry none, and the stored list follows the response", async () => {
+    const updateDashboard = jest.fn(async ({ newProperties }) =>
+      savedResponse(newProperties, [
+        { tile: "map-uuid", layer: "layer-1", arg: "token" },
+        { tile: "popup-uuid", layer: "", arg: "api_key" },
+      ]),
+    );
+    await renderLoader(updateDashboard);
+
+    expect(
+      contexts.layout.isSecretStored({ ...tilePlace, source: "secret_plugin" }),
+    ).toBe(true);
+    expect(
+      contexts.layout.isSecretStored({ ...layerPlace, source: "secret_layer" }),
+    ).toBe(false);
+
+    setPending(layerPlace, "secret_layer", SECRET);
+    setPending(popupPlace, "secret_plugin", `${SECRET}-popup`);
+    setPending(tilePlace, "secret_plugin", null);
+    expect(screen.getByTestId("pending-count")).toHaveTextContent("3");
+
+    await saveTabs();
+
+    expect(updateDashboard).toHaveBeenCalledTimes(1);
+    const { id, newProperties } = updateDashboard.mock.calls[0][0];
+    expect(id).toBe(1);
+    expect(newProperties.secretChanges).toEqual([
+      { ...layerPlace, value: SECRET },
+      { ...popupPlace, value: `${SECRET}-popup` },
+      { ...tilePlace, value: null },
+    ]);
+    // Nothing but the changes carries a secret.
+    const { secretChanges, ...rest } = newProperties;
+    expect(JSON.stringify(rest)).not.toContain(SECRET);
+    expect(JSON.stringify(contexts.tab.tabs)).not.toContain(SECRET);
+
+    expect(screen.getByTestId("pending-count")).toHaveTextContent("0");
+    expect(contexts.layout.storedSecrets).toEqual([
+      { tile: "map-uuid", layer: "layer-1", arg: "token" },
+      { tile: "popup-uuid", layer: "", arg: "api_key" },
+    ]);
+    expect(
+      contexts.layout.isSecretStored({ ...layerPlace, source: "secret_layer" }),
+    ).toBe(true);
+    expect(
+      contexts.layout.isSecretStored({ ...tilePlace, source: "secret_plugin" }),
+    ).toBe(false);
+  });
+
+  test("a thumbnail save or a settings save leaves pending secrets in place and sends none", async () => {
+    const updateDashboard = jest.fn(async ({ newProperties }) =>
+      savedResponse(newProperties, secretDashboard.storedSecrets),
+    );
+    await renderLoader(updateDashboard);
+    setPending(layerPlace, "secret_layer", SECRET);
+
+    await act(() =>
+      contexts.layout.saveLayoutContext({ image: "data:image/png;base64,AA" }),
+    );
+    await act(() => contexts.layout.saveLayoutContext({ name: "Renamed" }));
+
+    expect(
+      updateDashboard.mock.calls.map(([call]) => call.newProperties),
+    ).toEqual([{ image: "data:image/png;base64,AA" }, { name: "Renamed" }]);
+    expect(screen.getByTestId("pending-count")).toHaveTextContent("1");
+
+    await saveTabs();
+    expect(
+      updateDashboard.mock.calls[2][0].newProperties.secretChanges,
+    ).toEqual([{ ...layerPlace, value: SECRET }]);
+  });
+
+  test("Cancel discards pending secrets", async () => {
+    const updateDashboard = jest.fn(async ({ newProperties }) =>
+      savedResponse(newProperties, secretDashboard.storedSecrets),
+    );
+    await renderLoader(updateDashboard);
+    setPending(layerPlace, "secret_layer", SECRET);
+
+    act(() => contexts.tab.resetTabs());
+    expect(screen.getByTestId("pending-count")).toHaveTextContent("0");
+
+    await saveTabs();
+    expect(updateDashboard.mock.calls[0][0].newProperties).not.toHaveProperty(
+      "secretChanges",
+    );
+  });
+
+  test("a pending secret for a tile deleted before the save is dropped, and the save goes ahead", async () => {
+    const updateDashboard = jest.fn(async ({ newProperties }) =>
+      savedResponse(newProperties, []),
+    );
+    await renderLoader(updateDashboard);
+    setPending(tilePlace, "secret_plugin", SECRET);
+
+    act(() => contexts.tab.updateTab(1, { gridItems: [mapTile] }));
+    await saveTabs();
+
+    const { newProperties } = updateDashboard.mock.calls[0][0];
+    expect(newProperties).not.toHaveProperty("secretChanges");
+    expect(JSON.stringify(newProperties)).not.toContain(SECRET);
+    // Done with: it can never be sent.
+    expect(screen.getByTestId("pending-count")).toHaveTextContent("0");
+  });
+
+  test("a save that fails keeps the pending secrets for the next", async () => {
+    const updateDashboard = jest.fn(async () => ({
+      success: false,
+      message: "The dashboard could not be saved.",
+    }));
+    await renderLoader(updateDashboard);
+    setPending(layerPlace, "secret_layer", SECRET);
+
+    await saveTabs();
+
+    expect(
+      updateDashboard.mock.calls[0][0].newProperties.secretChanges,
+    ).toEqual([{ ...layerPlace, value: SECRET }]);
+    expect(screen.getByTestId("pending-count")).toHaveTextContent("1");
+  });
+
+  test("a secret entered while a save is out waits for the next save", async () => {
+    let answer;
+    const updateDashboard = jest.fn(
+      ({ newProperties }) =>
+        new Promise((resolve) => {
+          answer = () =>
+            resolve(
+              savedResponse(newProperties, secretDashboard.storedSecrets),
+            );
+        }),
+    );
+    await renderLoader(updateDashboard);
+    setPending(layerPlace, "secret_layer", SECRET);
+
+    let saved;
+    act(() => {
+      saved = contexts.layout.saveLayoutContext({ tabs: contexts.tab.tabs });
+    });
+    setPending(popupPlace, "secret_plugin", `${SECRET}-later`);
+    await act(async () => {
+      answer();
+      await saved;
+    });
+
+    expect(screen.getByTestId("pending-count")).toHaveTextContent("1");
+    expect(contexts.layout.pendingSecrets).toEqual({
+      [secretPlaceKey(popupPlace)]: {
+        ...popupPlace,
+        source: "secret_plugin",
+        value: `${SECRET}-later`,
+      },
+    });
+  });
+
+  test("a secret is stored only for the plugin its tile was saved with", async () => {
+    await renderLoader(jest.fn());
+
+    expect(
+      contexts.layout.isSecretStored({ ...tilePlace, source: "secret_plugin" }),
+    ).toBe(true);
+    expect(
+      contexts.layout.isSecretStored({
+        ...tilePlace,
+        tile: "TILE-UUID",
+        source: "secret_plugin",
+      }),
+    ).toBe(true);
+    expect(
+      contexts.layout.isSecretStored({
+        ...tilePlace,
+        source: "other_secret_plugin",
+      }),
+    ).toBe(false);
+  });
+
+  test("discarding a place's pending secrets leaves every other place's", async () => {
+    await renderLoader(jest.fn());
+    setPending(tilePlace, "secret_plugin", SECRET);
+    setPending({ ...tilePlace, arg: "station" }, "secret_plugin", SECRET);
+    setPending(layerPlace, "secret_layer", SECRET);
+
+    act(() =>
+      contexts.layout.discardPendingSecrets({
+        tile: "TILE-UUID",
+        layer: "",
+        arg: "station",
+      }),
+    );
+    expect(screen.getByTestId("pending-count")).toHaveTextContent("2");
+
+    act(() => contexts.layout.discardPendingSecrets({ tile: "tile-uuid" }));
+    expect(Object.values(contexts.layout.pendingSecrets)).toEqual([
+      { ...layerPlace, source: "secret_layer", value: SECRET },
+    ]);
+
+    // Nothing to discard changes nothing.
+    const before = contexts.layout.pendingSecrets;
+    act(() => contexts.layout.discardPendingSecrets({ tile: "tile-uuid" }));
+    expect(contexts.layout.pendingSecrets).toBe(before);
+  });
+
+  test("discarding keeps a place's pending secrets entered for the plugin named", async () => {
+    await renderLoader(jest.fn());
+    setPending(tilePlace, "secret_plugin", SECRET);
+    setPending({ ...tilePlace, arg: "station" }, "other_secret_plugin", SECRET);
+    setPending(layerPlace, "secret_layer", SECRET);
+
+    act(() =>
+      contexts.layout.discardPendingSecrets({
+        tile: "tile-uuid",
+        layer: "",
+        keepSource: "secret_plugin",
+      }),
+    );
+    expect(Object.values(contexts.layout.pendingSecrets)).toEqual([
+      { ...tilePlace, source: "secret_plugin", value: SECRET },
+      { ...layerPlace, source: "secret_layer", value: SECRET },
+    ]);
+
+    // Keeping no plugin's discards the place's every one.
+    act(() =>
+      contexts.layout.discardPendingSecrets({
+        tile: "tile-uuid",
+        layer: "",
+        keepSource: null,
+      }),
+    );
+    expect(Object.values(contexts.layout.pendingSecrets)).toEqual([
+      { ...layerPlace, source: "secret_layer", value: SECRET },
+    ]);
+  });
+
+  test("restoring puts the pending secrets back as an editor opened with them", async () => {
+    await renderLoader(jest.fn());
+    setPending(tilePlace, "secret_plugin", SECRET);
+    const atOpen = contexts.layout.pendingSecrets;
+
+    setPending(layerPlace, "secret_layer", SECRET);
+    setPending(popupPlace, "secret_plugin", SECRET);
+    act(() => contexts.layout.discardPendingSecrets({ tile: "tile-uuid" }));
+    act(() => contexts.layout.restorePendingSecrets(atOpen));
+
+    expect(contexts.layout.pendingSecrets).toEqual(atOpen);
+    expect(screen.getByTestId("pending-count")).toHaveTextContent("1");
+  });
+
+  test("restoring never brings back a pending secret a save has read since", async () => {
+    const updateDashboard = jest.fn(async ({ newProperties }) =>
+      savedResponse(newProperties, secretDashboard.storedSecrets),
+    );
+    await renderLoader(updateDashboard);
+    setPending(layerPlace, "secret_layer", SECRET);
+    setPending({ ...tilePlace, tile: "deleted-uuid" }, "secret_plugin", SECRET);
+    const atOpen = contexts.layout.pendingSecrets;
+
+    // A save sent while the editor was opening reads both: one sent, one
+    // dropped as stale.
+    await saveTabs();
+    expect(
+      updateDashboard.mock.calls[0][0].newProperties.secretChanges,
+    ).toEqual([{ ...layerPlace, value: SECRET }]);
+    act(() => contexts.layout.restorePendingSecrets(atOpen));
+
+    expect(contexts.layout.pendingSecrets).toEqual({});
+  });
+
+  test("what an export reads holds no pending secret", async () => {
+    await renderLoader(jest.fn());
+    setPending(tilePlace, "secret_plugin", SECRET);
+
+    const exported = await handleGridItemExport(
+      contexts.tab.tabs[0].gridItems[0],
+      contexts.layout.uuid,
+    );
+
+    expect(exported.args_string).toEqual({ station: "A", api_key: "" });
+    expect(JSON.stringify(exported)).not.toContain(SECRET);
+    expect(JSON.stringify(contexts.tab.tabs)).not.toContain(SECRET);
+    // The PNG export names its file from these.
+    expect(contexts.layout.uuid).toBe("user-uuid");
+    expect(contexts.layout.name).toBe("User Dashboard");
+  });
+
+  describe("secretChangesToSave", () => {
+    const tabsWith = (...gridItems) => [{ id: 1, name: "Tab 1", gridItems }];
+    const pendingFor = (...entries) =>
+      Object.fromEntries(
+        entries.map((entry) => [secretPlaceKey(entry), entry]),
+      );
+
+    test("keeps a pending secret for a secret arg of a tile, a dynamic layer or a popup tile", () => {
+      const pending = pendingFor(
+        {
+          ...tilePlace,
+          tile: "TILE-UUID",
+          source: "secret_plugin",
+          value: SECRET,
+        },
+        { ...layerPlace, source: "secret_layer", value: null },
+        { ...popupPlace, source: "secret_plugin", value: SECRET },
+      );
+
+      expect(
+        secretChangesToSave(
+          pending,
+          tabsWith(pluginTile, mapTile),
+          secretArgsOf,
+        ),
+      ).toEqual([
+        { ...tilePlace, tile: "TILE-UUID", value: SECRET },
+        { ...layerPlace, value: null },
+        { ...popupPlace, value: SECRET },
+      ]);
+    });
+
+    test.each([
+      [
+        "its tile is gone",
+        tabsWith(mapTile),
+        { ...tilePlace, source: "secret_plugin" },
+      ],
+      [
+        "its layer is gone",
+        tabsWith(pluginTile, { ...mapTile, args_string: "{}" }),
+        { ...layerPlace, source: "secret_layer" },
+      ],
+      [
+        "its tile has another plugin since",
+        tabsWith({ ...pluginTile, source: "other_secret_plugin" }),
+        { ...tilePlace, source: "secret_plugin" },
+      ],
+      [
+        "the arg is not in the tile's args",
+        tabsWith({
+          ...pluginTile,
+          args_string: JSON.stringify({ station: "A" }),
+        }),
+        { ...tilePlace, source: "secret_plugin" },
+      ],
+      [
+        "the plugin does not declare the arg secret",
+        tabsWith(pluginTile),
+        { ...tilePlace, arg: "station", source: "secret_plugin" },
+      ],
+      [
+        "no installed plugin has the source",
+        tabsWith({ ...pluginTile, source: "gone_plugin" }),
+        { ...tilePlace, source: "gone_plugin" },
+      ],
+      [
+        "more than one tile has the uuid",
+        tabsWith(pluginTile, { ...pluginTile, id: 3 }),
+        { ...tilePlace, source: "secret_plugin" },
+      ],
+    ])("drops a pending secret when %s", (_, tabs, entry) => {
+      expect(
+        secretChangesToSave(
+          pendingFor({ ...entry, value: SECRET }),
+          tabs,
+          secretArgsOf,
+        ),
+      ).toEqual([]);
+    });
+  });
 });
 
 TestingComponent.propTypes = {

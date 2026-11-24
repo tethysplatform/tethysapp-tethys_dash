@@ -41,14 +41,22 @@ function valueContainsPreset(value) {
   return false;
 }
 
+/**
+ * Whether an arg type is a date the browser resolves: every type containing
+ * "date" ("date", "date-hour", "date-range"), as DataInput renders a date
+ * picker for each.
+ */
+export function isDateArgType(argType) {
+  return typeof argType === "string" && argType.includes("date");
+}
+
 export function argsContainPreset(args, sourceArgs = {}) {
   if (!args || typeof args !== "object") return false;
   // Only date-typed args can legitimately hold a preset sentinel. Scoping to
   // them avoids disabling the cache when an unrelated arg's value happens to
   // equal "latest". date-range endpoints are nested, so recurse into values.
   return Object.entries(args).some(([key, value]) => {
-    const argType = sourceArgs[key];
-    if (typeof argType !== "string" || !argType.includes("date")) return false;
+    if (!isDateArgType(sourceArgs[key])) return false;
     return valueContainsPreset(value);
   });
 }
@@ -270,11 +278,190 @@ export function getDependentVariableInputs(args) {
 }
 
 /**
+ * The arg type a plugin declares for a secret: a credential the author enters
+ * once and the server stores encrypted, outside the tile's args. The arg keeps
+ * its key in the saved args with the value "", which is all the browser is ever
+ * served for it, and a typed value travels only in a pending entry (see
+ * DashboardLoader) and in an editor's own requests.
+ */
+export const SECRET_ARG_TYPE = "secret";
+
+/** The names of the args an args declaration types as secret. */
+export function secretArgNames(argTypes) {
+  if (!argTypes || typeof argTypes !== "object") return [];
+  return Object.entries(argTypes)
+    .filter(([, argType]) => argType === SECRET_ARG_TYPE)
+    .map(([name]) => name);
+}
+
+/**
+ * The plugin sources the visualization lists declare, each with the names of
+ * its secret args: `AppContext`'s `visualizations` and `dynamicMapLayers`. A
+ * source missing from the map is a plugin that is not installed, of whose args
+ * nothing is known.
+ *
+ * @param {...Array} visualizationGroupLists Lists of `{label, options}` groups.
+ * @returns {Map<string, Set<string>>} Plugin source -> its secret arg names.
+ */
+export function secretArgsBySource(...visualizationGroupLists) {
+  const bySource = new Map();
+  for (const groups of visualizationGroupLists) {
+    for (const group of Array.isArray(groups) ? groups : []) {
+      for (const option of group?.options ?? []) {
+        if (typeof option?.source === "string") {
+          bySource.set(option.source, new Set(secretArgNames(option.args)));
+        }
+      }
+    }
+  }
+  return bySource;
+}
+
+/** A tile uuid as secrets are matched by it: in any case, null as "". */
+export function normalizeTileUuid(tile) {
+  return String(tile ?? "").toLowerCase();
+}
+
+/**
+ * The key a secret goes by in the pending map: the tile's uuid, in any case,
+ * the dynamic layer's `layerId` ("" for an arg of the tile itself), and the
+ * arg's name. JSON, so no uuid, layer id or arg name can run into another.
+ */
+export function secretPlaceKey({ tile, layer, arg }) {
+  return JSON.stringify([normalizeTileUuid(tile), layer || "", arg]);
+}
+
+/**
+ * The pending secret values an editor's request for one tile or dynamic layer
+ * adds to its args: each pending set entered there for its plugin `source`.
+ * A pending clear adds nothing, since a blank secret arg already means "the
+ * stored secret" to the server.
+ *
+ * @param {object} pendingSecrets The pending map (see DashboardLoader).
+ * @param {object} place `{tile, layer, source}`.
+ * @returns {object} `{argName: value}`, empty when none is pending.
+ */
+export function pendingSecretArgs(pendingSecrets, { tile, layer, source }) {
+  const args = {};
+  const wantedTile = normalizeTileUuid(tile);
+  for (const entry of Object.values(pendingSecrets ?? {})) {
+    if (
+      typeof entry?.value === "string" &&
+      entry.value !== "" &&
+      normalizeTileUuid(entry.tile) === wantedTile &&
+      (entry.layer || "") === (layer || "") &&
+      entry.source === source
+    ) {
+      args[entry.arg] = entry.value;
+    }
+  }
+  return args;
+}
+
+/**
+ * Where a secret arg stands in an editor: "unset", "pendingSet" (one entered
+ * and not saved yet), "pendingClear" (the stored one, to be cleared by the
+ * next save) or "stored". A pending entry counts only for the plugin it was
+ * entered for, and a stored secret only for the plugin it was stored for.
+ *
+ * @param {object} layout `pendingSecrets` and `isSecretStored`, from
+ *   LayoutContext.
+ * @param {object} place `{tile, layer, arg, source}`.
+ * @returns {string} The status.
+ */
+export function secretArgStatus(
+  { pendingSecrets, isSecretStored } = {},
+  { tile, layer = "", arg, source } = {},
+) {
+  const pending = pendingSecrets?.[secretPlaceKey({ tile, layer, arg })];
+  const pendingForPlugin = pending?.source === source ? pending : undefined;
+  const stored = !!isSecretStored?.({ tile, layer, arg, source });
+  if (typeof pendingForPlugin?.value === "string") return "pendingSet";
+  if (pendingForPlugin && stored) return "pendingClear";
+  if (stored) return "stored";
+  return "unset";
+}
+
+// Whether a saved value holds a `${...}` token anywhere: the variable-input
+// syntax the server's overlay of a viewer's request recognizes
+// (saved_settings.TOKEN).
+const HAS_TOKEN_RE = /\$\{[^}]+\}/;
+
+/**
+ * The args a data request for a tile or dynamic layer sends.
+ *
+ * For a caller who may edit the dashboard (`allArgs`), every arg: such a
+ * caller's request, sent with `allArgs`, runs as sent, work not saved yet
+ * included. Anyone else's request runs the saved value of every arg but those
+ * wired to a variable input and, on a tile, the date args the browser
+ * resolves (tethysapp/tethysdash/saved_settings.py), so only those are sent:
+ * an arg whose saved value holds a `${...}` token anywhere, and a tile's
+ * date-typed arg. A secret arg is never sent blank, as it always is in the
+ * args: the server holds its value. It goes only with a value an editor typed
+ * (pendingSecretArgs), which only an editor's args hold.
+ *
+ * @param {object} options
+ * @param {object} options.rawArgs The args as saved, tokens unresolved.
+ * @param {object} options.resolvedArgs The same args, variable inputs filled in.
+ * @param {object} [options.argTypes] The plugin's arg types, by name.
+ * @param {string} options.kind "tile", or "layer" for a dynamic layer, which
+ *   resolves no dates.
+ * @param {boolean} options.allArgs Whether the caller may edit the dashboard.
+ * @returns {object} The args to send.
+ */
+export function dataRequestArgs({
+  rawArgs,
+  resolvedArgs,
+  argTypes,
+  kind,
+  allArgs,
+}) {
+  const secrets = secretArgNames(argTypes);
+  const sent = {};
+  for (const [name, value] of Object.entries(resolvedArgs ?? {})) {
+    if (secrets.includes(name) && (value ?? "") === "") continue;
+    if (
+      allArgs ||
+      HAS_TOKEN_RE.test(JSON.stringify(rawArgs?.[name] ?? null)) ||
+      (kind === "tile" && isDateArgType(argTypes?.[name]))
+    ) {
+      sent[name] = value;
+    }
+  }
+  return sent;
+}
+
+/**
+ * The names of the args a tile or dynamic layer holds a stored secret for, as
+ * the dashboard's `storedSecrets` list them, sorted. Lets a request that
+ * relies on the stored secret tell when a save has stored or cleared one.
+ */
+export function storedSecretArgs(storedSecrets, { tile, layer }) {
+  const wantedTile = normalizeTileUuid(tile);
+  return (Array.isArray(storedSecrets) ? storedSecrets : [])
+    .filter(
+      (path) =>
+        normalizeTileUuid(path?.tile) === wantedTile &&
+        (path.layer || "") === (layer || ""),
+    )
+    .map((path) => path.arg)
+    .sort();
+}
+
+/**
  * Fetches visualization data from the backend and updates viz state via the
  * provided `setVizType` / `setVizData` callbacks. Handles all built-in source
  * types (Map, Text, Custom Image) locally before calling the API. Emits
  * `vizWarning` when required variable inputs are empty and `vizError` on API
  * failure.
+ *
+ * `secretArgs` are the pending secret values an editor's request adds (see
+ * pendingSecretArgs). They go into the request's args only: never into
+ * `itemData.args`, which the caller keeps, nor into the image cache, which
+ * no response of a plugin that declares a secret enters.
+ *
+ * `allArgs` says whether the caller may edit the dashboard: only then does
+ * the request send every arg, and say so (see dataRequestArgs).
  */
 export async function getVisualization({
   setVizType,
@@ -282,6 +469,8 @@ export async function getVisualization({
   sourceType,
   sourceArgs,
   itemData,
+  dashboardUUID,
+  tileUUID,
   argsString,
   metadataString,
   variableInputValues,
@@ -290,6 +479,8 @@ export async function getVisualization({
   variableInputDateFormats = {},
   variableInputSliderMeta = {},
   refresh = false,
+  secretArgs = null,
+  allArgs,
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
@@ -421,7 +612,13 @@ export async function getVisualization({
   // stored, so a hit is guaranteed to be an image. `refresh` (manual
   // refresh/retry) bypasses the cache and repopulates it below.
   const imageCacheKey = buildImageVizCacheKey(itemData);
-  const skipImageCache = argsContainPreset(itemData.args, sourceArgs);
+  // A plugin that takes a secret answers for the secret it ran with, which
+  // the cache key cannot see: a cached image could have come from another
+  // secret, or another dashboard's.
+  const skipImageCache =
+    argsContainPreset(itemData.args, sourceArgs) ||
+    secretArgNames(sourceArgs).length > 0;
+  const sendsSecrets = !!secretArgs && Object.keys(secretArgs).length > 0;
   if (!refresh && !skipImageCache) {
     const cachedImage = getCachedImageViz(imageCacheKey);
     if (cachedImage !== undefined) {
@@ -452,7 +649,8 @@ export async function getVisualization({
         }),
       )
     : undefined;
-  const usePreloaded = preloaded !== undefined && !refresh;
+  // A preloaded response ran with no pending secret.
+  const usePreloaded = preloaded !== undefined && !refresh && !sendsSecrets;
 
   // No loader flash for a response that is already here; one still on its
   // way shows the loader like any other fetch.
@@ -466,7 +664,23 @@ export async function getVisualization({
 
   const apiResponse = usePreloaded
     ? await preloaded.promise
-    : await appAPI.getVisualizationData(itemData);
+    : await appAPI.getVisualizationData({
+        dashboard: dashboardUUID,
+        tile: tileUUID,
+        source: itemData.source,
+        args: {
+          ...dataRequestArgs({
+            rawArgs: JSON.parse(argsString),
+            resolvedArgs: itemData.args,
+            argTypes: sourceArgs,
+            kind: "tile",
+            allArgs,
+          }),
+          ...(sendsSecrets ? secretArgs : {}),
+        },
+        requestId: itemData.requestId,
+        allArgs,
+      });
   if (apiResponse.success === true) {
     let responseData = JSON.parse(JSON.stringify(apiResponse.data));
     if (typeof apiResponse.data === "string") {
@@ -705,7 +919,7 @@ export function updateObjectWithVariableInputs({
     // (e.g. "date", "date-hour", "date-range"), so the resolver must cover them
     // all — not just exactly "date" — or relative dates leak to the API raw.
     const argType = sourceArgs[gridItemsArg];
-    if (typeof argType === "string" && argType.includes("date")) {
+    if (isDateArgType(argType)) {
       const dateFormat = variableInputDateFormats?.[gridItemsArg];
 
       if (argType === "date-range") {
