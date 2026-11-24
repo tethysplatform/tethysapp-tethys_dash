@@ -1160,6 +1160,7 @@ const MapLayerModal = ({
                     rasterStyle={rasterStyle}
                     setRasterStyle={setRasterStyle}
                     shapefileDiscovery={shapefileDiscovery}
+                    tabKey={tabKey}
                   />
                 </div>
               </Tab>

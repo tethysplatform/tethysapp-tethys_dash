@@ -89,6 +89,7 @@ const TestingComponent = ({
     <AppContext.Provider value={{ dynamicMapLayers: [] }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
+          tabKey="style"
           style={style}
           setStyle={setStyle}
           setErrorMessage={setErrorMessage}
@@ -154,6 +155,7 @@ const GeoTIFFTestHarness = ({
     <AppContext.Provider value={{ dynamicMapLayers }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
+          tabKey="style"
           style={undefined}
           setStyle={() => {}}
           setErrorMessage={() => {}}
@@ -182,6 +184,7 @@ test("StylePane GeoTIFF ramp/min/max handlers no-op when setSourceProps is missi
     <AppContext.Provider value={{ dynamicMapLayers: [] }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
+          tabKey="style"
           style={undefined}
           setStyle={() => {}}
           setErrorMessage={() => {}}
@@ -822,6 +825,7 @@ test("StylePane calls getStyleFields for URL-based GeoJSON (no early bail-out)",
     <AppContext.Provider value={{ dynamicMapLayers: [] }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
+          tabKey="style"
           style={{}}
           setStyle={() => {}}
           setErrorMessage={() => {}}
@@ -860,6 +864,7 @@ test("StylePane asks for fields under the layer's dashboard and map tile", async
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <GridItemContext.Provider value={{ gridItemUUID: "map-tile-uuid" }}>
           <StylePane
+            tabKey="style"
             style={{}}
             setStyle={() => {}}
             setErrorMessage={() => {}}
@@ -1186,6 +1191,7 @@ describe("StylePane categorical editing edges", () => {
       <AppContext.Provider value={{ dynamicMapLayers: [] }}>
         <LayoutContext.Provider value={{ uuid: "123" }}>
           <StylePane
+            tabKey="style"
             style={undefined}
             setStyle={() => {}}
             setErrorMessage={() => {}}
@@ -1250,6 +1256,7 @@ test("StylePane takes a shapefile's fields from the Source tab's read", async ()
     <AppContext.Provider value={{ dynamicMapLayers: [] }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
+          tabKey="style"
           style={undefined}
           setStyle={() => {}}
           setErrorMessage={() => {}}
@@ -1368,6 +1375,7 @@ test("StylePane offers no fields when the field read fails", async () => {
       <AppContext.Provider value={{ dynamicMapLayers: [] }}>
         <LayoutContext.Provider value={{ uuid: "123" }}>
           <StylePane
+            tabKey="style"
             style={undefined}
             setStyle={() => {}}
             setErrorMessage={() => {}}

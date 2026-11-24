@@ -1330,7 +1330,7 @@ export async function getStyleFields({
   // Shapefile is deliberately absent: both panes take their fields from the
   // author-triggered read in the Source tab (see useShapefileDiscovery) and
   // return before reaching this function, because a discovery pass here would
-  // download and parse the whole archive on every source-props change.
+  // download and parse the whole archive for every source change it read.
   if (isDynamicMapLayer || sourceProps.type === "PMTiles Vector") {
     const attributes = await getLayerAttributes({
       sourceProps,
@@ -1378,9 +1378,9 @@ export async function getStyleFields({
     // sqlite/wasm and parquet chains behind them -- into every one of them.
     //
     // Both readers memoize per url and evict rejections, which is what makes
-    // them safe to call from an effect that re-runs on every keystroke: a url
-    // still being typed fails fast and is not kept, and the finished one is
-    // read once. That is the concern the Shapefile note above describes.
+    // them safe to call for every source change: a url that fails is not
+    // kept, and a good one is read once. That is the concern the Shapefile
+    // note above describes.
     try {
       const { listGeoParquetColumns, listGeoPackageFields } =
         await import("components/map/ModuleLoader");

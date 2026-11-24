@@ -5702,20 +5702,16 @@ describe("a dynamic layer's secret arg", () => {
   const settle = () => advance(ARGS_SETTLE_MS + 100);
   const fetched = (count) =>
     waitFor(() => expect(fetchDefaults).toHaveBeenCalledTimes(count));
-  // Fetch defaults' requests, on a fake clock. The Style tab reads a dynamic
-  // layer's fields through the same endpoint on every change, so it is
-  // stubbed while this spy is on: the spy then counts Fetch defaults alone.
+  // Every data request, on a fake clock. On the Source tab those are Fetch
+  // defaults' alone: the Style tab reads a dynamic layer's fields through the
+  // same endpoint, but only while it is showing.
   let fetchDefaults;
   let restoreFetchDefaults = () => {};
   const spyOnFetchDefaults = () => {
     jest.useFakeTimers();
-    const styleFields = jest
-      .spyOn(jest.requireMock("components/map/utilities"), "getStyleFields")
-      .mockResolvedValue([]);
     fetchDefaults = jest.spyOn(appAPI, "getVisualizationData");
     restoreFetchDefaults = () => {
       fetchDefaults.mockRestore();
-      styleFields.mockRestore();
       jest.useRealTimers();
       restoreFetchDefaults = () => {};
     };
@@ -5771,6 +5767,58 @@ describe("a dynamic layer's secret arg", () => {
     expect(fetchDefaults).toHaveBeenCalledTimes(1);
     expect(fetchDefaults).toHaveBeenLastCalledWith(
       expect.objectContaining({ args: { station: "USGS01", token: SECRET } }),
+    );
+  });
+
+  test("the Style tab reads a plugin layer's fields only while it shows, and only after a change", async () => {
+    spyOnFetchDefaults();
+    // Fetch defaults' requests and the Style tab's field reads alike.
+    const requests = fetchDefaults;
+    await renderEditor({ layerInfo: {} });
+    const station = await pickSecretLayer();
+    await enterSecret();
+
+    // Typing on the Source tab reads no fields: each keystroke used to run
+    // the plugin for the Style tab, hidden behind it.
+    for (const value of ["U", "US", "USGS"]) {
+      fireEvent.change(station, { target: { value } });
+      await advance(ARGS_SETTLE_MS / 2);
+    }
+    expect(requests).not.toHaveBeenCalled();
+    await settle();
+    await waitFor(() => expect(requests).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.queryByText(/Fetching/)).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByText("Style"));
+    await waitFor(() => expect(requests).toHaveBeenCalledTimes(2));
+    expect(requests).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        source: "secret_layer",
+        args: { station: "USGS", token: SECRET },
+      }),
+    );
+
+    // Back and forth with nothing changed reads nothing more.
+    fireEvent.click(screen.getByText("Source"));
+    fireEvent.click(screen.getByText("Style"));
+    await settle();
+    expect(requests).toHaveBeenCalledTimes(2);
+
+    // A change is read the next time the tab shows, and not before.
+    fireEvent.click(screen.getByText("Source"));
+    fireEvent.change(await screen.findByLabelText("Station Input"), {
+      target: { value: "USGS01" },
+    });
+    await settle();
+    expect(requests).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByText("Style"));
+    await waitFor(() => expect(requests).toHaveBeenCalledTimes(3));
+    expect(requests).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        args: { station: "USGS01", token: SECRET },
+      }),
     );
   });
 
