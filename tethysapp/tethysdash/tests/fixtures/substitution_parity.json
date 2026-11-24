@@ -6,7 +6,15 @@
     {
       "name": "exact tokens keep the variable's own type",
       "kind": "tile",
-      "viewer_sent_keys": ["count", "flag", "items", "label", "off", "options", "zero"],
+      "viewer_sent_keys": [
+        "count",
+        "flag",
+        "items",
+        "label",
+        "off",
+        "options",
+        "zero"
+      ],
       "saved_args": {
         "count": "${Count}",
         "flag": "${Flag}",
