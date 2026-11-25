@@ -257,8 +257,9 @@ What changes for an optional argument:
 Only top-level arguments can be optional, not ``sub_args``, and a secret
 argument cannot be optional. ``TethysDashPlugin`` raises a ``ValueError`` at
 instantiation if ``optional_args`` names an argument the plugin does not
-declare, names a secret argument, or is a single string. Optional arguments
-apply to dashboard items: a dynamic map layer's arguments are all required.
+declare, names a secret argument, or is not a list or tuple of names (a single
+string included); ``None`` declares none. Optional arguments apply to
+dashboard items: a dynamic map layer's arguments are all required.
 
 A dropdown argument has no blank choice once a value is picked, so make an
 argument that is often left empty a ``"text"`` one, or have the author connect
