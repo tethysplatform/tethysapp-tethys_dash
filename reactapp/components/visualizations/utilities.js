@@ -395,6 +395,11 @@ export function secretArgStatus(
 // (saved_settings.TOKEN).
 const HAS_TOKEN_RE = /\$\{[^}]+\}/;
 
+// A value that is exactly one `${name}`. updateObjectWithVariableInputs gives
+// such a value the variable's own type, or "" when the variable is empty, and
+// findGatingVariableInputTokens exempts it in an optional arg for that reason.
+const EXACT_VARIABLE_INPUT_TOKEN_RE = /^\$\{([^}]+)\}$/;
+
 /**
  * The args a data request for a tile or dynamic layer sends.
  *
@@ -890,7 +895,7 @@ export function updateObjectWithVariableInputs({
 
     // If value is exactly a variable input, preserve its type.
     // Matches the full string "${variableName}" with no surrounding text.
-    const exactVarMatch = value.match(/^\$\{([^}]+)\}$/);
+    const exactVarMatch = value.match(EXACT_VARIABLE_INPUT_TOKEN_RE);
     let updatedValuesWithVariableInputs;
     if (exactVarMatch) {
       const key = exactVarMatch[1];
@@ -1140,11 +1145,6 @@ export function findUnresolvedFeatureTokens(value) {
 export function findUnresolvedVariableInputTokens(value) {
   return collectTokens(value, VARIABLE_INPUT_TOKEN_RE, FEATURE_SCAN_SKIP_KEYS);
 }
-
-// A value that is exactly one `${name}`, the same test
-// updateObjectWithVariableInputs uses to substitute a value's own type. An
-// empty variable substitutes there to "".
-const EXACT_VARIABLE_INPUT_TOKEN_RE = /^\$\{([^}]+)\}$/;
 
 /**
  * The variable inputs whose emptiness holds a tile back: the tokens
