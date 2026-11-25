@@ -114,41 +114,31 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
 
     let drawEndHandler;
 
-    if (mapDrawing.limit) {
+    if (mapDrawing.limit || mapDrawing.variable) {
       drawEndHandler = ({ feature, target }) => {
         const source = vectorSourceRef.current;
 
-        const features = source.getFeatures();
-
-        if (features.length >= mapDrawing.limit) {
-          // Remove the oldest feature (first in the array)
-          source.removeFeature(features[0]);
+        // OpenLayers adds the drawn feature to the source only after drawend,
+        // so here it is one more than the source holds.
+        if (mapDrawing.limit) {
+          const features = source.getFeatures();
+          if (features.length >= mapDrawing.limit) {
+            // Remove the oldest feature (first in the array)
+            source.removeFeature(features[0]);
+          }
         }
 
-        if (
-          mapDrawing.variable &&
-          source.getFeatures().length + 1 === mapDrawing.limit
-        ) {
-          const geometries = [];
-          source.getFeatures().forEach((existingFeature) => {
-            const existingFeaturegeometry = existingFeature.getGeometry();
-            const existingFeatureGeojson = JSON.parse(
-              new GeoJSON().writeGeometry(existingFeaturegeometry),
-            );
-            geometries.push(existingFeatureGeojson);
-          });
-
-          const geometry = feature.getGeometry();
-          const geojson = JSON.parse(new GeoJSON().writeGeometry(geometry));
-          geometries.push(geojson);
-
+        // The variable holds every shape on the map once this one is added.
+        if (mapDrawing.variable) {
+          const format = new GeoJSON();
+          const geometries = [...source.getFeatures(), feature].map((drawn) =>
+            JSON.parse(format.writeGeometry(drawn.getGeometry())),
+          );
           setVariableInputValues((previousVariableInputValues) => ({
             ...previousVariableInputValues,
-            ...{
-              [mapDrawing.variable]: {
-                projection: target.getMap().getView().getProjection().getCode(),
-                geometries: geometries,
-              },
+            [mapDrawing.variable]: {
+              projection: target.getMap().getView().getProjection().getCode(),
+              geometries,
             },
           }));
         }
@@ -183,8 +173,19 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
     }
   }, [mapDrawing.limit]);
 
+  // Clearing the map empties its variable: with no shapes there is no value,
+  // which every tile bound to it reads as it did before anything was drawn.
   const clearAll = () => {
     vectorSourceRef.current?.clear();
+    if (!mapDrawing.variable) return;
+    setVariableInputValues((previousVariableInputValues) => {
+      if (!(mapDrawing.variable in previousVariableInputValues)) {
+        return previousVariableInputValues;
+      }
+      const nextVariableInputValues = { ...previousVariableInputValues };
+      delete nextVariableInputValues[mapDrawing.variable];
+      return nextVariableInputValues;
+    });
   };
 
   if (!mapDrawing.options) return;
