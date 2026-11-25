@@ -2271,7 +2271,10 @@ describe("a secret entered in a tile's editor follows the editor", () => {
 
 /* eslint-disable no-template-curly-in-string */
 describe("a tile with an optional arg", () => {
-  const visualizations = [
+  const chartOptions = ({
+    args = { network: "text", area: "text" },
+    optionalArgs = ["area"],
+  } = {}) => [
     {
       label: "Charts",
       options: [
@@ -2279,8 +2282,8 @@ describe("a tile with an optional arg", () => {
           source: "network_chart",
           value: "network_chart_value",
           label: "Network Chart",
-          args: { network: "text", area: "text" },
-          optional_args: ["area"],
+          args,
+          optional_args: optionalArgs,
           type: "text",
           tags: [],
           description: "",
@@ -2290,8 +2293,10 @@ describe("a tile with an optional arg", () => {
   ];
 
   // Opens the editor on a saved network chart tile, recording each data
-  // request's body and each save of the tabs.
-  const renderEditor = (args) => {
+  // request's body and each save of the tabs. `plugin` overrides the chart
+  // plugin's args and optional args.
+  const renderEditor = (args, plugin) => {
+    const visualizations = chartOptions(plugin);
     const dashboards = JSON.parse(JSON.stringify(mockedDashboards));
     const gridItem = {
       id: 1,
@@ -2397,6 +2402,49 @@ describe("a tile with an optional arg", () => {
       await screen.findByText("All arguments must be filled out before saving"),
     ).toBeInTheDocument();
     expect(handleModalClose).not.toHaveBeenCalled();
+  });
+
+  test("refuses to save a required date the author cleared", async () => {
+    const { onTabUpdate, handleModalClose } = renderEditor(
+      { network: "Willamette", area: "", start_date: "2026-11-01" },
+      { args: { network: "text", area: "text", start_date: "date" } },
+    );
+
+    await userEvent.clear(await screen.findByLabelText("Start Date"));
+    await userEvent.click(
+      await screen.findByLabelText("dataviewer-save-button"),
+    );
+
+    expect(
+      await screen.findByText("All arguments must be filled out before saving"),
+    ).toBeInTheDocument();
+    expect(handleModalClose).not.toHaveBeenCalled();
+    const savedTile = onTabUpdate.mock.calls.at(-1)[0][0].gridItems[0];
+    expect(JSON.parse(savedTile.args_string).start_date).toBe("2026-11-01");
+  });
+
+  test("saves an optional date the author cleared as blank", async () => {
+    const { onTabUpdate, handleModalClose } = renderEditor(
+      { network: "Willamette", start_date: "2026-11-01" },
+      {
+        args: { network: "text", start_date: "date" },
+        optionalArgs: ["start_date"],
+      },
+    );
+
+    await userEvent.clear(
+      await screen.findByLabelText("Start Date (optional)"),
+    );
+    await userEvent.click(
+      await screen.findByLabelText("dataviewer-save-button"),
+    );
+
+    await waitFor(() => expect(handleModalClose).toHaveBeenCalledTimes(1));
+    const savedTile = onTabUpdate.mock.calls.at(-1)[0][0].gridItems[0];
+    expect(JSON.parse(savedTile.args_string)).toEqual({
+      network: "Willamette",
+      start_date: "",
+    });
   });
 });
 /* eslint-enable no-template-curly-in-string */

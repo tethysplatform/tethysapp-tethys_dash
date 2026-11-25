@@ -378,14 +378,15 @@ test("DatePicker relative date in dataviewer mode", async () => {
       target: { value: null },
     });
 
-    expect(mockOnChange).toHaveBeenCalledTimes(1);
+    expect(mockOnChange).toHaveBeenLastCalledWith("");
+    expect(mockOnChange).toHaveBeenCalledTimes(2);
 
     fireEvent.change(input, {
       target: { value: "now+1H+1D" },
     });
 
     expect(mockOnChange).toHaveBeenLastCalledWith("now+1H+1D");
-    expect(mockOnChange).toHaveBeenCalledTimes(2);
+    expect(mockOnChange).toHaveBeenCalledTimes(3);
   } finally {
     jest.useRealTimers();
   }
@@ -456,4 +457,42 @@ test("DatePicker passes a typed preset sentinel through verbatim", async () => {
 
   expect(mockOnChange).toHaveBeenLastCalledWith("latest");
   expect(input.value).toBe("latest");
+});
+
+test("DatePicker reports an emptied field as a blank value", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
+      <DatePicker
+        label="Test DatePicker"
+        value="2026-11-01"
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>,
+  );
+
+  const input = screen.getByRole("textbox");
+  await userEvent.clear(input);
+
+  expect(mockOnChange).toHaveBeenLastCalledWith("");
+  expect(input.value).toBe("");
+
+  // Blank space alone is still an empty field.
+  fireEvent.change(input, { target: { value: "   " } });
+  expect(mockOnChange).toHaveBeenLastCalledWith("");
+});
+
+test("DatePicker does not report text that is not yet a date", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
+      <DatePicker label="Test DatePicker" value="" onChange={mockOnChange} />
+    </DataViewerModeContext.Provider>,
+  );
+
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "11/0" } });
+
+  expect(mockOnChange).not.toHaveBeenCalled();
 });
