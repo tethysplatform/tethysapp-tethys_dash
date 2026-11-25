@@ -160,7 +160,7 @@ The following options are available for the metadata_string key:
    
    * **customMessaging** (object)
       * **error**: Custom error message for visualization errors.
-      * **<Variable Input Name>**: Custom message when a Variable Input has no value.
+      * **<Variable Input Name>**: Custom message when a Variable Input has no value. A Variable Input used only in a plugin's optional arguments shows no message, since the plugin decides what to show, and is not offered here.
    
    * **refreshRate** (integer): Time interval (in minutes) to refresh the visualization. ``0`` disables automatic refreshing.
 
