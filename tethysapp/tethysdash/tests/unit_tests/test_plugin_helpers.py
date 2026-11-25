@@ -1208,8 +1208,9 @@ def test_plugin_without_optional_args_is_unchanged():
         (("area", "missing"), "args the plugin does not have: missing"),
         (("key",), "cannot name secret args: key"),
         ("area", "not the string 'area'"),
+        (5, "a list or tuple of arg names, not int"),
     ],
-    ids=["unknown", "secret", "bare-string"],
+    ids=["unknown", "secret", "bare-string", "not-a-sequence"],
 )
 def test_optional_args_declaration_is_checked(declared, message):
     class Declared(TethysDashPlugin):
@@ -1222,6 +1223,21 @@ def test_optional_args_declaration_is_checked(declared, message):
 
     with pytest.raises(ValueError, match=re.escape(message)):
         Declared()
+
+
+def test_optional_args_none_declares_none():
+    class NoneDeclared(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"area": "text"}
+        optional_args = None
+
+    plugin = NoneDeclared(area="")
+
+    assert plugin.optional_args == ()
+    assert plugin.area == ""
 
 
 def test_arg_named_optional_args_is_reserved():

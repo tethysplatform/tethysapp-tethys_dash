@@ -806,6 +806,26 @@ def test_build_plugin_metadata_lists_optional_args():
     assert undeclared["optional_args"] == []
 
 
+@pytest.mark.parametrize(
+    ("declared", "listed"),
+    [(None, []), ("area", []), (5, []), (["area", 3], ["area"])],
+    ids=["none", "bare-string", "not-a-sequence", "non-string-name"],
+)
+def test_build_plugin_metadata_lists_a_malformed_declaration_safely(declared, listed):
+    """One plugin's malformed optional_args must not break the plugin list."""
+    from tethysapp.tethysdash.visualizations import build_plugin_metadata
+
+    class Malformed(TethysDashPlugin):
+        name = "malformed"
+        group = "Test"
+        label = "Malformed"
+        type = "table"
+        args = {"area": "text"}
+        optional_args = declared
+
+    assert build_plugin_metadata(Malformed, "malformed")["optional_args"] == listed
+
+
 @pytest.mark.django_db
 def test_viewer_request_with_an_empty_optional_token_runs_with_none(
     db_session, dashboard, optional_echo_intake, mock_app_get_ps_db, test_member_user

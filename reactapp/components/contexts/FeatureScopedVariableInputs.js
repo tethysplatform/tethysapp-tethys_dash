@@ -83,20 +83,34 @@ const FeatureScopedVariableInputs = ({ feature, children }) => {
 
   const setVariableInputValues = useCallback(
     (updater) => {
-      const next =
-        typeof updater === "function" ? updater(mergedValues) : updater;
+      const isUpdater = typeof updater === "function";
+      const next = isUpdater ? updater(mergedValues) : updater;
       if (!next || typeof next !== "object") return;
 
       const { featureUpdates, parentUpdates, hasFeatureKey, hasParentKey } =
         splitChanges(next);
+      // An updater returns the whole next state, as React's own setter takes
+      // it, so a parent key it leaves out was removed: a popup map's Clear
+      // All Features empties its drawing variable this way. A plain object
+      // is a partial update and removes nothing. feature.* keys belong to the
+      // feature, never to the parent.
+      const parentRemovals = isUpdater
+        ? Object.keys(mergedValues).filter(
+            (key) =>
+              key !== FEATURE_SCOPE_MARKER &&
+              !key.startsWith(FEATURE_PREFIX) &&
+              !(key in next),
+          )
+        : [];
       if (hasFeatureKey) {
         setScopedState((prevScoped) => ({ ...prevScoped, ...featureUpdates }));
       }
-      if (hasParentKey) {
-        parentSetVariableInputValues((prevParent) => ({
-          ...prevParent,
-          ...parentUpdates,
-        }));
+      if (hasParentKey || parentRemovals.length > 0) {
+        parentSetVariableInputValues((prevParent) => {
+          const nextParent = { ...prevParent, ...parentUpdates };
+          for (const key of parentRemovals) delete nextParent[key];
+          return nextParent;
+        });
       }
     },
     [mergedValues, parentSetVariableInputValues, splitChanges],

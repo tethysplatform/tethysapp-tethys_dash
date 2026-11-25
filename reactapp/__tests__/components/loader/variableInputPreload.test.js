@@ -337,6 +337,38 @@ it("runs a plugin variable input whose only empty variable is an optional arg", 
   expect(result.values).toEqual({ Gauge: "g" });
 });
 
+it("waits for an optional variable that another plugin variable input publishes", async () => {
+  const spy = mockPlugins({
+    picker_b: viResponse({ variable_name: "Area", initial_value: "basin" }),
+    picker_optional: (request) =>
+      viResponse({
+        variable_name: "Gauge",
+        initial_value: request.args.region,
+      }),
+  });
+
+  const result = await preloadPluginVariableInputs({
+    tabs: [
+      {
+        id: 1,
+        gridItems: [
+          gridItem("picker_optional", { region: "${Area}" }),
+          gridItem("picker_b", {}),
+        ],
+      },
+    ],
+    visualizations,
+  });
+
+  expect(
+    spy.mock.calls.map(([request]) => [request.source, request.args]),
+  ).toEqual([
+    ["picker_b", {}],
+    ["picker_optional", { region: "basin" }],
+  ]);
+  expect(result.values).toEqual({ Area: "basin", Gauge: "basin" });
+});
+
 it("leaves a failing plugin to its tile and keeps going", async () => {
   // One plugin reports a failure and another throws.
   mockPlugins({

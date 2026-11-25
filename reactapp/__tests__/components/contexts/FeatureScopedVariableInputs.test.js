@@ -456,4 +456,86 @@ describe("FeatureScopedVariableInputs", () => {
     );
     expect(featureKeys).toHaveLength(0);
   });
+
+  describe("removing a variable", () => {
+    // Removes `keys` the way Clear All Features does: an updater returning
+    // the values without them.
+    const Remover = ({ keys }) => {
+      const { setVariableInputValues } = useContext(VariableInputsContext);
+      return (
+        <button
+          type="button"
+          data-testid="remover"
+          onClick={() =>
+            setVariableInputValues((prev) => {
+              const next = { ...prev };
+              for (const key of keys) delete next[key];
+              return next;
+            })
+          }
+        >
+          remove
+        </button>
+      );
+    };
+    Remover.propTypes = { keys: PropTypes.arrayOf(PropTypes.string) };
+
+    test("an updater that leaves out a host variable removes it from the parent", () => {
+      render(
+        <ParentProvider
+          initialValues={{ Area: { geometries: [] }, Network: "W" }}
+        >
+          <FeatureScopedVariableInputs
+            feature={{ layerName: "X", attributes: { a: 1 } }}
+          >
+            <ContextProbe />
+            <Remover keys={["Area"]} />
+          </FeatureScopedVariableInputs>
+        </ParentProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("remover"));
+
+      expect(readParent()).toEqual({ Network: "W" });
+      expect(readMerged()).not.toHaveProperty("Area");
+      expect(readMerged()["feature.a"]).toBe(1);
+    });
+
+    test("an updater cannot remove the feature's attributes or the scope marker", () => {
+      render(
+        <ParentProvider initialValues={{ Network: "W" }}>
+          <FeatureScopedVariableInputs
+            feature={{ layerName: "X", attributes: { a: 1 } }}
+          >
+            <ContextProbe />
+            <Remover keys={["feature.a", FEATURE_SCOPE_MARKER]} />
+          </FeatureScopedVariableInputs>
+        </ParentProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("remover"));
+
+      expect(readParent()).toEqual({ Network: "W" });
+      expect(readMerged()["feature.a"]).toBe(1);
+      expect(readMerged()[FEATURE_SCOPE_MARKER]).toBe(true);
+    });
+
+    test("a plain object is a partial update and removes nothing", () => {
+      render(
+        <ParentProvider
+          initialValues={{ Area: { geometries: [] }, Network: "W" }}
+        >
+          <FeatureScopedVariableInputs
+            feature={{ layerName: "X", attributes: { a: 1 } }}
+          >
+            <ContextWriter nextValue={JSON.stringify({ Network: "E" })} />
+          </FeatureScopedVariableInputs>
+        </ParentProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("writer"));
+
+      expect(readParent()).toEqual({ Area: { geometries: [] }, Network: "E" });
+    });
+  });
 });

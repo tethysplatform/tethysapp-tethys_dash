@@ -1,6 +1,8 @@
-import { act } from "react";
+import { act, useState } from "react";
+import PropTypes from "prop-types";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import DrawInteractions from "components/map/DrawInteractions";
+import FeatureScopedVariableInputs from "components/contexts/FeatureScopedVariableInputs";
 import VectorSource from "ol/source/Vector";
 import Feature from "ol/Feature";
 import Point from "ol/geom/Point";
@@ -709,6 +711,75 @@ describe("the drawing variable follows the shapes on the map", () => {
 
     expect(setVariableInputValues).not.toHaveBeenCalled();
   });
+
+  test("in a map popup, drawing sets the dashboard's variable and Clear All Features empties it", async () => {
+    // The dashboard's own variable state, with a map popup's scope inside it.
+    const DashboardValues = ({ children }) => {
+      const [values, setValues] = useState({ Network: "W" });
+      return (
+        <VariableInputsContext.Provider
+          value={{
+            variableInputValues: values,
+            setVariableInputValues: setValues,
+            variableInputDateFormats: {},
+            setVariableInputDateFormats: () => {},
+            variableInputSliderMeta: {},
+            setVariableInputSliderMeta: () => {},
+          }}
+        >
+          <p data-testid="dashboard-values">{JSON.stringify(values)}</p>
+          {children}
+        </VariableInputsContext.Provider>
+      );
+    };
+    DashboardValues.propTypes = { children: PropTypes.node };
+    const interactions = [];
+    let layer;
+    const mockMap = {
+      addLayer: (added) => {
+        layer = added;
+      },
+      addInteraction: (interaction) => interactions.push(interaction),
+      removeInteraction: () => {},
+      getView: () => ({
+        getProjection: () => ({ getCode: () => "EPSG:3857" }),
+      }),
+    };
+    const dashboardValues = () =>
+      JSON.parse(screen.getByTestId("dashboard-values").textContent);
+
+    render(
+      <DashboardValues>
+        <FeatureScopedVariableInputs
+          feature={{ layerName: "Stations", attributes: { id: 1 } }}
+        >
+          <DrawInteractions
+            mapDrawing={{ options: ["Point"], variable: "Area" }}
+            visualizationRef={{ current: mockMap }}
+            drawing={{ current: false }}
+          />
+        </FeatureScopedVariableInputs>
+      </DashboardValues>,
+    );
+    fireEvent.click(await screen.findByTitle("Draw Point"));
+    const feature = new Feature({ geometry: new Point([1, 2]) });
+    act(() => {
+      interactions.at(-1).dispatchEvent({
+        type: "drawend",
+        feature,
+        target: { getMap: () => mockMap },
+      });
+    });
+    layer.getSource().addFeature(feature);
+
+    expect(dashboardValues().Area.geometries).toEqual([
+      { type: "Point", coordinates: [1, 2] },
+    ]);
+
+    fireEvent.click(screen.getByTitle("Clear All Features"));
+
+    expect(dashboardValues()).toEqual({ Network: "W" });
+  });
 });
 
 describe("Escape stops drawing", () => {
@@ -856,6 +927,35 @@ describe("Escape stops drawing", () => {
 
     expect(onHide).toHaveBeenCalledTimes(1);
   });
+
+  test.each(["checkbox", "radio", "range"])(
+    "stops drawing, and keeps the tile editor open, from a focused %s in the map",
+    async (inputType) => {
+      const onHide = jest.fn();
+      render(
+        <Modal show={true} onHide={onHide} animation={false}>
+          <Modal.Body>
+            <div data-testid="map-host" />
+          </Modal.Body>
+        </Modal>,
+      );
+      const { drawing, mapElement } = await renderDrawing(
+        { options: ["Point"] },
+        "Point",
+        screen.getByTestId("map-host"),
+      );
+      // A layer control's toggle, inside the map.
+      const toggle = document.createElement("input");
+      toggle.type = inputType;
+      mapElement.appendChild(toggle);
+      toggle.focus();
+
+      escapeOn(toggle);
+
+      expect(drawing.current).toBe(false);
+      expect(onHide).not.toHaveBeenCalled();
+    },
+  );
 
   test("keeps a map popup open while drawing, and lets it close once drawing has stopped", async () => {
     const onClose = jest.fn();

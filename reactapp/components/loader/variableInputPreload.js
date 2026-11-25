@@ -3,6 +3,7 @@ import {
   dataRequestArgs,
   findGatingVariableInputTokens,
   findSelectOptionByValue,
+  findUnresolvedVariableInputTokens,
   hasVariableInputValue,
   updateObjectWithVariableInputs,
   normalizeVariableInputValue,
@@ -61,6 +62,25 @@ function isRunnable({ args, optionalArgs }, values) {
   return findGatingVariableInputTokens(args, optionalArgs).every((token) =>
     hasVariableInputValue(values[token]),
   );
+}
+
+// Every `${...}` its args reference holds a value, optional ones included.
+function hasEveryValue({ args }, values) {
+  return findUnresolvedVariableInputTokens(args).every((token) =>
+    hasVariableInputValue(values[token]),
+  );
+}
+
+// The next wave: the inputs whose every variable has a value, or, once none
+// is left, those runnable only because an optional variable is empty. An
+// optional variable may be one another pending input is about to publish, so
+// it is waited for while anything else can run; one that nothing in the
+// preload sets (a map's drawn area) never blocks.
+function nextWave(pending, values) {
+  const resolved = pending.filter((item) => hasEveryValue(item, values));
+  return resolved.length > 0
+    ? resolved
+    : pending.filter((item) => isRunnable(item, values));
 }
 
 /**
@@ -216,7 +236,7 @@ export async function preloadPluginVariableInputs({
   onProgress({ completed, total });
   try {
     while (!isOver()) {
-      const wave = pending.filter((item) => isRunnable(item, knownValues));
+      const wave = nextWave(pending, knownValues);
       if (wave.length === 0) break;
       pending = pending.filter((item) => !wave.includes(item));
       await Promise.race([Promise.all(wave.map(run)), deadline]);

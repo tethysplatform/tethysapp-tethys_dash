@@ -346,11 +346,18 @@ class TethysDashPlugin(base.DataSource):
                 does not have, or names a secret arg.
         """
         declared = get_plugin_prop(self, "optional_args", ())
+        if declared is None:
+            return ()
         # ("area") is the string "area", not a one-name tuple.
         if isinstance(declared, str):
             raise ValueError(
                 "Plugin optional_args must be a list or tuple of arg names, "
                 f"not the string {declared!r}."
+            )
+        if not isinstance(declared, (list, tuple, set, frozenset)):
+            raise ValueError(
+                "Plugin optional_args must be a list or tuple of arg names, "
+                f"not {type(declared).__name__}."
             )
         names = tuple(declared)
         unknown = sorted(name for name in names if name not in self.args)

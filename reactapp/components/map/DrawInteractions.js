@@ -58,6 +58,25 @@ export const drawTypes = {
   Rectangle: <BiRectangle />,
 };
 
+// Inputs nobody types into. Escape from one, such as a layer's checkbox in
+// the map's own layer control, still stops drawing; were it left alone, the
+// tile editor would close on it instead and lose its unsaved changes.
+const NON_TYPING_INPUT_TYPES = new Set([
+  "button",
+  "checkbox",
+  "color",
+  "file",
+  "image",
+  "radio",
+  "range",
+  "reset",
+  "submit",
+]);
+
+const isTyping = (element) =>
+  isEditableTarget(element) &&
+  !(element.tagName === "INPUT" && NON_TYPING_INPUT_TYPES.has(element.type));
+
 const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
   const [drawType, setDrawType] = useState(null);
   const drawInteractionRef = useRef(null);
@@ -171,7 +190,7 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
   useEffect(() => {
     if (!drawType) return undefined;
     const onKeyDown = (event) => {
-      if (event.key !== "Escape" || isEditableTarget(event.target)) return;
+      if (event.key !== "Escape" || isTyping(event.target)) return;
       const mapElement = visualizationRef.current?.getTargetElement?.();
       const fromMapArea =
         !mapElement ||
