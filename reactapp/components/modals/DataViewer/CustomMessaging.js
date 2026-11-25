@@ -1,8 +1,23 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import styled from "styled-components";
 import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
-import { getDependentVariableInputs } from "components/visualizations/utilities";
+import { findGatingVariableInputTokens } from "components/visualizations/utilities";
+import { argsAsSaved } from "components/modals/utilities";
+
+/**
+ * The variables a tile can show an empty-variable message for: those that
+ * can hold it back on the dashboard, read from the args as they will be
+ * saved. That leaves out variables used only as an optional arg, `feature.*`
+ * tokens, and variables inside a popup layout or a map layer's labels, none
+ * of which ever shows a message.
+ */
+function messageableVariableInputs(vizInputsValues, optionalArgs) {
+  return findGatingVariableInputTokens(
+    argsAsSaved(vizInputsValues),
+    optionalArgs,
+  ).filter((name) => !name.startsWith("feature."));
+}
 
 const WideLabel = styled.label`
   width: 100%;
@@ -26,25 +41,22 @@ const StyledDiv = styled.div`
 
 const CustomMessaging = ({
   vizInputsValues,
+  optionalArgs,
   initialCustomMessaging,
   onChange,
 }) => {
   const [customMessaging, setCustomMessaging] = useState(
     initialCustomMessaging ?? {},
   );
-  const [dependentVariableInputs, setDependentVariableInputs] = useState(
-    getDependentVariableInputs(vizInputsValues),
+  const dependentVariableInputs = useMemo(
+    () => messageableVariableInputs(vizInputsValues, optionalArgs),
+    [vizInputsValues, optionalArgs],
   );
 
   useEffect(() => {
     onChange(customMessaging);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customMessaging]);
-
-  useEffect(() => {
-    setDependentVariableInputs(getDependentVariableInputs(vizInputsValues));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vizInputsValues]);
 
   function onCustomMessageChange(type, message) {
     setCustomMessaging((prevValue) => ({ ...prevValue, [type]: message }));
@@ -102,6 +114,7 @@ const CustomMessaging = ({
 
 CustomMessaging.propTypes = {
   vizInputsValues: PropTypes.object,
+  optionalArgs: PropTypes.arrayOf(PropTypes.string), // the plugin's optional args
   initialCustomMessaging: PropTypes.objectOf(PropTypes.string),
   onChange: PropTypes.func,
 };

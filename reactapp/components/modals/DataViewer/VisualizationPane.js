@@ -26,6 +26,7 @@ import {
 } from "components/contexts/Contexts";
 import {
   ARGS_SETTLE_MS,
+  argsAsSaved,
   getInitialInputValue,
   spaceAndCapitalize,
   valuesEqual,
@@ -79,10 +80,11 @@ export const VisualizationArguments = ({
         }
       }
 
+      const optional = selectedVizTypeOption?.optional_args?.includes(key);
       return (
         <DataInput
           key={key}
-          label={spaceAndCapitalize(obj.label)}
+          label={`${spaceAndCapitalize(obj.label)}${optional ? " (optional)" : ""}`}
           type={vizArgType}
           value={value}
           onChange={handleInputChange(key)}
@@ -105,6 +107,7 @@ export const VisualizationArguments = ({
       );
     },
     [
+      selectedVizTypeOption,
       vizInputsValues,
       handleInputChange,
       gridItemIndex,
@@ -374,13 +377,16 @@ function VisualizationPane({
         vizInputsValues.variable_options_source,
       );
       // A secret arg is always blank here; its value is entered apart from
-      // the args, and the server answers for one that is missing.
+      // the args, and the server answers for one that is missing. An optional
+      // arg may be left blank: its plugin gets None for it.
       const secretArgs = secretArgNames(selectedVizTypeOption.args);
+      const optionalArgs = selectedVizTypeOption.optional_args ?? [];
       const inputsToCheck = Object.entries(vizInputsValues)
         .filter(
           ([key]) =>
             !(skipInitialValueCheck && key === "initial_value") &&
-            !secretArgs.includes(key),
+            !secretArgs.includes(key) &&
+            !optionalArgs.includes(key),
         )
         .map(([, value]) => value);
       const allFilled = inputsToCheck.every(
@@ -408,13 +414,11 @@ function VisualizationPane({
   async function previewVisualization() {
     const itemData = {
       source: selectedVizTypeOption["source"],
-      args: Object.fromEntries(
-        Object.entries(vizInputsValues).map(([key, val]) => [
-          key,
-          val?.value ?? val,
-        ]),
-      ),
+      args: argsAsSaved(vizInputsValues),
     };
+    // The args as the dashboard will read them back, before anything below
+    // fills them in, for the preview to check and resolve exactly as a tile does.
+    const savedArgsString = JSON.stringify(itemData.args);
     const sourceType = selectedVizTypeOption.type;
     const sourceArgs = selectedVizTypeOption?.args;
 
@@ -461,7 +465,7 @@ function VisualizationPane({
         itemData,
         dashboardUUID,
         tileUUID: gridItemUUID,
-        argsString: JSON.stringify(vizInputsValues),
+        argsString: savedArgsString,
         metadataString: JSON.stringify(settings),
         variableInputValues,
         vizLoadingIcon: true,
@@ -470,6 +474,7 @@ function VisualizationPane({
         // A preview runs the tile as configured here, saved or not: only a
         // caller who may edit the dashboard opens this editor.
         allArgs: true,
+        optionalArgs: selectedVizTypeOption?.optional_args ?? [],
       });
     }
   }

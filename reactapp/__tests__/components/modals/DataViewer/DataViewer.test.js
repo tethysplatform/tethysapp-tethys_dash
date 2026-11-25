@@ -2268,3 +2268,135 @@ describe("a secret entered in a tile's editor follows the editor", () => {
     expect(pending()).toEqual([["secret_plugin", "set"]]);
   });
 });
+
+/* eslint-disable no-template-curly-in-string */
+describe("a tile with an optional arg", () => {
+  const visualizations = [
+    {
+      label: "Charts",
+      options: [
+        {
+          source: "network_chart",
+          value: "network_chart_value",
+          label: "Network Chart",
+          args: { network: "text", area: "text" },
+          optional_args: ["area"],
+          type: "text",
+          tags: [],
+          description: "",
+        },
+      ],
+    },
+  ];
+
+  // Opens the editor on a saved network chart tile, recording each data
+  // request's body and each save of the tabs.
+  const renderEditor = (args) => {
+    const dashboards = JSON.parse(JSON.stringify(mockedDashboards));
+    const gridItem = {
+      id: 1,
+      uuid: "chart-tile-uuid",
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "network_chart",
+      args_string: JSON.stringify(args),
+      metadata_string: "{}",
+    };
+    dashboards.dashboards[0].tabs[0].gridItems = [gridItem];
+    const requests = [];
+    server.use(
+      rest.post(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        async (req, res, ctx) => {
+          requests.push(await req.json());
+          return res(
+            ctx.status(200),
+            ctx.json({ success: true, viz_type: "text", data: { text: "t" } }),
+          );
+        },
+      ),
+    );
+    const onTabUpdate = jest.fn();
+    const handleModalClose = jest.fn();
+    const Tabs = () => {
+      const { tabs } = useContext(TabContext);
+      useEffect(() => onTabUpdate(tabs), [tabs]);
+      return null;
+    };
+
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <Tabs />
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: gridItem.source,
+                gridItemI: gridItem.i,
+                gridItemMetadataString: gridItem.metadata_string,
+                gridItemArgsString: gridItem.args_string,
+                gridItemUUID: gridItem.uuid,
+                gridItemIndex: 0,
+              }}
+            >
+              <DataViewerModal
+                showModal={true}
+                handleModalClose={handleModalClose}
+                setGridItemMessage={jest.fn()}
+                setShowGridItemMessage={jest.fn()}
+              />
+            </GridItemContext.Provider>
+          </>
+        ),
+        options: { dashboards, visualizations },
+      }),
+    );
+    return { requests, onTabUpdate, handleModalClose };
+  };
+
+  test("labels the optional arg, previews it empty, and saves it blank", async () => {
+    const { requests, onTabUpdate, handleModalClose } = renderEditor({
+      network: "Willamette",
+      area: "${Area}",
+    });
+
+    expect(
+      await screen.findByLabelText("Area (optional) Input"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Network Input")).toBeInTheDocument();
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].args).toEqual({ network: "Willamette", area: "" });
+
+    await userEvent.clear(screen.getByLabelText("Area (optional) Input"));
+    await userEvent.click(
+      await screen.findByLabelText("dataviewer-save-button"),
+    );
+
+    await waitFor(() => expect(handleModalClose).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByText("All arguments must be filled out before saving"),
+    ).not.toBeInTheDocument();
+    const savedTile = onTabUpdate.mock.calls.at(-1)[0][0].gridItems[0];
+    expect(JSON.parse(savedTile.args_string)).toEqual({
+      network: "Willamette",
+      area: "",
+    });
+  });
+
+  test("still refuses to save a blank required arg", async () => {
+    const { handleModalClose } = renderEditor({ network: "", area: "" });
+
+    await userEvent.click(
+      await screen.findByLabelText("dataviewer-save-button"),
+    );
+
+    expect(
+      await screen.findByText("All arguments must be filled out before saving"),
+    ).toBeInTheDocument();
+    expect(handleModalClose).not.toHaveBeenCalled();
+  });
+});
+/* eslint-enable no-template-curly-in-string */

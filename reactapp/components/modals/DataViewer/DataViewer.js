@@ -30,6 +30,7 @@ import {
   secretArgNames,
   updateObjectWithVariableInputs,
 } from "components/visualizations/utilities";
+import { argsAsSaved } from "components/modals/utilities";
 import {
   BUILT_IN_MAP_SOURCE,
   clearViewGroupSettings,
@@ -296,12 +297,15 @@ export function DataViewerContent({
         vizInputsValues.variable_options_source,
       );
       // A secret arg is saved blank: its value is entered apart from the args.
+      // An optional arg may be saved blank: its plugin gets None for it.
       const secretArgs = secretArgNames(selectedVizTypeOption.args);
+      const optionalArgs = selectedVizTypeOption.optional_args ?? [];
       const valuesToValidate = Object.entries(vizInputsValues)
         .filter(
           ([key]) =>
             !(skipInitialValueCheck && key === "initial_value") &&
-            !secretArgs.includes(key),
+            !secretArgs.includes(key) &&
+            !optionalArgs.includes(key),
         )
         .map(([, value]) => value);
       if (valuesToValidate.every((value) => ![null, ""].includes(value))) {
@@ -311,12 +315,7 @@ export function DataViewerContent({
           vizMetadata?.source ?? selectedVizTypeOption.source;
 
         updatedGridItems[gridItemIndex].args_string = JSON.stringify(
-          Object.fromEntries(
-            Object.entries(vizInputsValues).map(([key, val]) => [
-              key,
-              val?.value ?? val,
-            ]),
-          ),
+          argsAsSaved(vizInputsValues),
         );
 
         // R27: a map inside a popup layout can never join a view group, so the
@@ -500,6 +499,7 @@ export function DataViewerContent({
                       }
                       visualizationRef={visualizationRef}
                       vizInputsValues={vizInputsValues}
+                      optionalArgs={selectedVizTypeOption?.optional_args}
                     />
                   </Tab>
                 </Tabs>
