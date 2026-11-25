@@ -830,13 +830,32 @@ export function getGridItem(gridItems, gridItemI) {
   return result;
 }
 
+// Applies `replace` to every string in `value`, object keys included,
+// returning a copy.
+function replaceInlineThroughout(value, replace) {
+  if (typeof value === "string") return replace(value);
+  if (Array.isArray(value)) {
+    return value.map((item) => replaceInlineThroughout(item, replace));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        replace(key),
+        replaceInlineThroughout(item, replace),
+      ]),
+    );
+  }
+  return value;
+}
+
 /**
  * Substitutes `${variableName}` template placeholders in `args` with the
  * corresponding values from `variableInputs`. Date-typed variable inputs are
  * formatted according to `variableInputDateFormats` before substitution.
  * An exact match like `"${foo}"` preserves the original value type; inline
- * matches within a longer string are stringified. Returns a new object with
- * all substitutions applied.
+ * matches within a longer string are stringified, and so is every match
+ * inside an object or list arg, an object value as its JSON. Returns a new
+ * object with all substitutions applied.
  */
 export function updateObjectWithVariableInputs({
   args,
@@ -877,29 +896,55 @@ export function updateObjectWithVariableInputs({
     }
   }
 
-  for (let gridItemsArg in argsCopy) {
-    let value = argsCopy[gridItemsArg];
+  // FeatureScopedVariableInputs marks the merged context with this
+  // sentinel. When absent we're at host scope, so unresolved
+  // `${feature.<key>}` tokens must be PRESERVED for the popup to resolve
+  // later. When present we're inside the popup scope and there is no
+  // further resolution layer, so unresolved feature.* tokens fall back
+  // to "" like any other missing variable.
+  const inFeatureScope =
+    variableInputsCopy.__tethysdash_feature_scope__ === true;
 
-    if (typeof value !== "string") {
-      value = JSON.stringify(value);
-    }
-
-    // FeatureScopedVariableInputs marks the merged context with this
-    // sentinel. When absent we're at host scope, so unresolved
-    // `${feature.<key>}` tokens must be PRESERVED for the popup to resolve
-    // later. When present we're inside the popup scope and there is no
-    // further resolution layer, so unresolved feature.* tokens fall back
-    // to "" like any other missing variable.
-    const inFeatureScope =
-      variableInputsCopy.__tethysdash_feature_scope__ === true;
-
-    // If value is exactly a variable input, preserve its type.
-    // Matches the full string "${variableName}" with no surrounding text.
-    const exactVarMatch = value.match(EXACT_VARIABLE_INPUT_TOKEN_RE);
-    let updatedValuesWithVariableInputs;
-    if (exactVarMatch) {
-      const key = exactVarMatch[1];
+  // Replaces each ${variableName} placeholder in a string with its value as
+  // text.
+  const replaceInline = (text) =>
+    text.replace(/\$\{([^}]+)\}/g, (_, key) => {
       if (
+        variableInputsCopy[key] === undefined &&
+        key.startsWith("feature.") &&
+        !inFeatureScope
+      ) {
+        return "${" + key + "}";
+      }
+      if (typeof variableInputsCopy[key] === "object") {
+        return JSON.stringify(variableInputsCopy[key]);
+      }
+      return variableInputsCopy[key] ?? "";
+    });
+
+  for (let gridItemsArg in argsCopy) {
+    const value = argsCopy[gridItemsArg];
+
+    let updatedValuesWithVariableInputs;
+    if (typeof value !== "string") {
+      // An object or list is substituted one string at a time, keys included,
+      // and only then turned into JSON text, so each value is escaped where it
+      // lands. Spliced into the JSON text itself, an object value (a drawn
+      // area) or a quote broke the text, a popup tile's args_string included.
+      updatedValuesWithVariableInputs = JSON.stringify(
+        replaceInlineThroughout(value, replaceInline),
+      );
+    } else {
+      // If value is exactly a variable input, preserve its type.
+      // Matches the full string "${variableName}" with no surrounding text.
+      const exactVarMatch = value.match(EXACT_VARIABLE_INPUT_TOKEN_RE);
+      const key = exactVarMatch?.[1];
+      if (!exactVarMatch) {
+        // Value contains one or more inline ${variableName} placeholders mixed
+        // with other text. Replaces each placeholder with its string
+        // equivalent.
+        updatedValuesWithVariableInputs = replaceInline(value);
+      } else if (
         variableInputsCopy[key] === undefined &&
         key.startsWith("feature.") &&
         !inFeatureScope
@@ -908,28 +953,9 @@ export function updateObjectWithVariableInputs({
       } else {
         // Nullish, not falsy: this branch exists to PRESERVE the value's type,
         // so a numeric 0 or a false checkbox must survive rather than collapse
-        // to "". Matches the `?? ""` in the inline-replacement branch below.
+        // to "". Matches the `?? ""` in replaceInline.
         updatedValuesWithVariableInputs = variableInputsCopy[key] ?? "";
       }
-    } else {
-      // Value contains one or more inline ${variableName} placeholders mixed
-      // with other text. Replaces each placeholder with its string equivalent.
-      updatedValuesWithVariableInputs = value.replace(
-        /\$\{([^}]+)\}/g,
-        (_, key) => {
-          if (
-            variableInputsCopy[key] === undefined &&
-            key.startsWith("feature.") &&
-            !inFeatureScope
-          ) {
-            return "${" + key + "}";
-          }
-          if (typeof variableInputsCopy[key] === "object") {
-            return JSON.stringify(variableInputsCopy[key]);
-          }
-          return variableInputsCopy[key] ?? "";
-        },
-      );
     }
 
     // Resolve relative ("now-1D") and absolute dates for any date-typed arg.

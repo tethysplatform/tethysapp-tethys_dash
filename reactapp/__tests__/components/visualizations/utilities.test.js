@@ -1285,6 +1285,94 @@ test("updateObjectWithVariableInputs", async () => {
   }
 });
 
+describe("updateObjectWithVariableInputs inside an object or list arg", () => {
+  const drawnArea = {
+    projection: "EPSG:3857",
+    geometries: [
+      {
+        type: "Polygon",
+        coordinates: [
+          [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+            [0, 0],
+          ],
+        ],
+      },
+    ],
+  };
+
+  test("a drawn area named in a popup tile's args_string leaves the map's layers intact", () => {
+    const popupTile = {
+      i: "1",
+      source: "usace_nwd_network_chart",
+      args_string: JSON.stringify({ network: "${Network}", area: "${area}" }),
+    };
+    const args = {
+      layers: [{ name: "Gauges", popupConfig: { gridItems: [popupTile] } }],
+    };
+
+    const result = updateObjectWithVariableInputs({
+      args,
+      variableInputs: { area: drawnArea, Network: "willamette" },
+    });
+
+    // Each token is replaced as text, as before. The map restores its popup
+    // configs from the raw args (getVisualization), so this text is never
+    // read; it only must not break the layers around it.
+    expect(result).toStrictEqual({
+      layers: [
+        {
+          name: "Gauges",
+          popupConfig: {
+            gridItems: [
+              {
+                ...popupTile,
+                args_string: `{"network":"willamette","area":"${JSON.stringify(drawnArea)}"}`,
+              },
+            ],
+          },
+        },
+      ],
+    });
+  });
+
+  test("an object value deep in an arg arrives as its JSON text", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { layers: [{ source: { props: { area: "${area}" } } }] },
+      variableInputs: { area: drawnArea },
+    });
+
+    expect(result.layers[0].source.props.area).toBe(JSON.stringify(drawnArea));
+  });
+
+  test("a quote or backslash in a value stays part of the value", () => {
+    const value = 'Say "hi" \\ bye';
+    const result = updateObjectWithVariableInputs({
+      args: { layers: [{ title: "${Name} layer" }] },
+      variableInputs: { Name: value },
+    });
+
+    expect(result.layers[0].title).toBe(`${value} layer`);
+  });
+
+  test("keys, numbers and feature tokens are replaced as before", () => {
+    const result = updateObjectWithVariableInputs({
+      args: {
+        mapping: { "${Field}": "${Count}", label: "${feature.name}" },
+        list: ["${Missing}", 3, null, true],
+      },
+      variableInputs: { Field: "flow", Count: 5 },
+    });
+
+    expect(result).toStrictEqual({
+      mapping: { flow: "5", label: "${feature.name}" },
+      list: ["", 3, null, true],
+    });
+  });
+});
+
 describe("updateObjectWithVariableInputs date arg resolution", () => {
   // Mock Date so "now" math is deterministic and timezone-independent
   // assertions can be derived from the same parseDate/convertDatesToLocalISO

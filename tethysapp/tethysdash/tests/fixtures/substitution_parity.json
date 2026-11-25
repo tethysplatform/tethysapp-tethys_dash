@@ -226,7 +226,7 @@
       "saved_args": { "pair": ["${a", "b}"] },
       "arg_types": { "pair": "text" },
       "variables": {},
-      "sent_args": { "pair": [""] },
+      "sent_args": { "pair": ["${a", "b}"] },
       "expected_error": "mismatch"
     },
     {
