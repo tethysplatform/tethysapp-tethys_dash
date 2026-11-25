@@ -576,6 +576,7 @@ const BaseVisualization = () => {
         // never in edit mode, and an editor's request runs as sent only when
         // it carries every arg.
         allArgs: editable,
+        optionalArgs: visualization?.optional_args ?? [],
       });
     }
   }

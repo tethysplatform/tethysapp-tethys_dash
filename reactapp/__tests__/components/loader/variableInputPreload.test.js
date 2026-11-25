@@ -19,6 +19,12 @@ const visualizations = [
       { source: "picker_a", type: "variable_input", args: { region: "text" } },
       { source: "picker_b", type: "variable_input", args: { station: "text" } },
       { source: "picker_c", type: "variable_input", args: { other: "text" } },
+      {
+        source: "picker_optional",
+        type: "variable_input",
+        args: { region: "text" },
+        optional_args: ["region"],
+      },
       { source: "plot", type: "plotly", args: { station: "text" } },
     ],
   },
@@ -301,6 +307,34 @@ it("skips cyclic and unresolvable plugin variable inputs", async () => {
 
   expect(spy).not.toHaveBeenCalled();
   expect(result.values).toEqual({});
+});
+
+it("runs a plugin variable input whose only empty variable is an optional arg", async () => {
+  const spy = mockPlugins({
+    picker_optional: viResponse({ variable_name: "Gauge", initial_value: "g" }),
+    picker_a: viResponse({ variable_name: "A", initial_value: "a" }),
+  });
+
+  const result = await preloadPluginVariableInputs({
+    tabs: [
+      {
+        id: 1,
+        gridItems: [
+          gridItem("picker_optional", { region: "${Area}" }),
+          // The same empty variable in a required arg still waits.
+          gridItem("picker_a", { region: "${Area}" }),
+          // No feature is in scope before the dashboard renders.
+          gridItem("picker_optional", { region: "${feature.huc}" }, "feature"),
+        ],
+      },
+    ],
+    visualizations,
+  });
+
+  expect(
+    spy.mock.calls.map(([request]) => [request.source, request.args]),
+  ).toEqual([["picker_optional", { region: "" }]]);
+  expect(result.values).toEqual({ Gauge: "g" });
 });
 
 it("leaves a failing plugin to its tile and keeps going", async () => {

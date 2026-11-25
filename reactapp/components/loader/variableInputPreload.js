@@ -1,8 +1,8 @@
 import appAPI from "services/api/app";
 import {
   dataRequestArgs,
+  findGatingVariableInputTokens,
   findSelectOptionByValue,
-  findUnresolvedVariableInputTokens,
   hasVariableInputValue,
   updateObjectWithVariableInputs,
   normalizeVariableInputValue,
@@ -45,17 +45,20 @@ export function collectPluginVariableInputs(tabs, visualizations) {
         gridItem,
         args,
         sourceArgs: visualization.args,
+        optionalArgs: visualization.optional_args ?? [],
       });
     }
   }
   return pluginVariableInputs;
 }
 
-// Runnable once every `${...}` its args reference holds a value. Uses the
-// substituter's own tokenizer and emptiness test, so "runnable" means exactly
-// "getVisualization would not warn that a variable is empty".
-function isRunnable({ args }, values) {
-  return findUnresolvedVariableInputTokens(args).every((token) =>
+// Runnable once every `${...}` its args reference holds a value, less those
+// used only as an optional arg's whole value. Uses the gate's own token list
+// and emptiness test, so "runnable" means "getVisualization would not warn
+// that a variable is empty". A `feature.*` token still blocks it: no feature
+// is in scope before the dashboard renders.
+function isRunnable({ args, optionalArgs }, values) {
+  return findGatingVariableInputTokens(args, optionalArgs).every((token) =>
     hasVariableInputValue(values[token]),
   );
 }

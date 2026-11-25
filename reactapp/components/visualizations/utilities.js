@@ -194,11 +194,17 @@ export function buildPreloadedRequestKey({
  * Returns an array of warning messages when any variable inputs referenced by a
  * visualization's args have no value, or null if all inputs are populated.
  * Respects custom messaging configured in the grid item metadata.
+ *
+ * `optionalArgs` are the plugin's optional args (its metadata's
+ * `optional_args`). A variable used only as one of them, as its whole value,
+ * holds nothing back and shows no message: the plugin gets None for it and
+ * decides what to show (see findGatingVariableInputTokens).
  */
 export function checkForEmptyVariableInputs({
   metadataString,
   argsString,
   variableInputValues,
+  optionalArgs = [],
 }) {
   const metadata = JSON.parse(metadataString);
   // Walk the parsed args, NOT the JSON string, so the recursion can skip the
@@ -209,8 +215,10 @@ export function checkForEmptyVariableInputs({
   // FeatureScopedVariableInputs provider, not in the host context — and could
   // not tell a map layer's label template from an ordinary arg at all.
   const parsedArgs = JSON.parse(argsString);
-  const allDependentVariableInputs =
-    findUnresolvedVariableInputTokens(parsedArgs);
+  const allDependentVariableInputs = findGatingVariableInputTokens(
+    parsedArgs,
+    optionalArgs,
+  );
   // Skip feature-scoped keys: they're populated by the
   // FeatureScopedVariableInputs provider on a per-feature basis and are
   // unbinding-by-design when no feature is active. Warning on every render
@@ -462,6 +470,9 @@ export function storedSecretArgs(storedSecrets, { tile, layer }) {
  *
  * `allArgs` says whether the caller may edit the dashboard: only then does
  * the request send every arg, and say so (see dataRequestArgs).
+ *
+ * `optionalArgs` are the plugin's optional args, which an empty variable does
+ * not hold back (see checkForEmptyVariableInputs).
  */
 export async function getVisualization({
   setVizType,
@@ -481,12 +492,14 @@ export async function getVisualization({
   refresh = false,
   secretArgs = null,
   allArgs,
+  optionalArgs = [],
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
     metadataString,
     argsString,
     variableInputValues,
+    optionalArgs,
   });
   if (emptyVariableWarnings) {
     setVizType("vizWarning");
@@ -1126,6 +1139,47 @@ export function findUnresolvedFeatureTokens(value) {
  */
 export function findUnresolvedVariableInputTokens(value) {
   return collectTokens(value, VARIABLE_INPUT_TOKEN_RE, FEATURE_SCAN_SKIP_KEYS);
+}
+
+// A value that is exactly one `${name}`, the same test
+// updateObjectWithVariableInputs uses to substitute a value's own type. An
+// empty variable substitutes there to "".
+const EXACT_VARIABLE_INPUT_TOKEN_RE = /^\$\{([^}]+)\}$/;
+
+/**
+ * The variable inputs whose emptiness holds a tile back: the tokens
+ * `findUnresolvedVariableInputTokens` finds in `args`, less those used only
+ * as an optional arg's whole value.
+ *
+ * Only an optional arg that is exactly one `${name}` exempts that name, since
+ * only then does an empty variable reach the plugin as "", which it reads as
+ * None. A template ("prefix ${name}") or an object or list holding the token
+ * still holds the tile back. `feature.*` tokens are never exempt here: each
+ * caller keeps its own handling of them.
+ *
+ * Shared by the tile's gate (checkForEmptyVariableInputs), the dashboard's
+ * variable-input preload, and the editor's Custom Messaging list, so the three
+ * agree on which variables can hold a tile back.
+ *
+ * @param {object} args - A tile's raw args, as saved.
+ * @param {string[]} optionalArgs - The plugin's optional arg names.
+ * @returns {string[]} Variable input names, deduplicated, in encounter order.
+ */
+export function findGatingVariableInputTokens(args, optionalArgs = []) {
+  if (!optionalArgs?.length || !args || typeof args !== "object") {
+    return findUnresolvedVariableInputTokens(args);
+  }
+  const scanned = Object.fromEntries(
+    Object.entries(args).filter(([name, value]) => {
+      if (!optionalArgs.includes(name) || typeof value !== "string") {
+        return true;
+      }
+      const exact = value.match(EXACT_VARIABLE_INPUT_TOKEN_RE);
+      const exempt = exact !== null && !exact[1].startsWith("feature.");
+      return !exempt;
+    }),
+  );
+  return findUnresolvedVariableInputTokens(scanned);
 }
 
 export const nonDropDownVariableInputTypes = [

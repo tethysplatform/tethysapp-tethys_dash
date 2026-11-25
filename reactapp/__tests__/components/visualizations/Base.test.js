@@ -2156,6 +2156,19 @@ describe("plugin variable inputs preloaded before render", () => {
           tags: [],
           description: "",
         },
+        ...[
+          ["network_chart", ["area"]],
+          ["strict_chart", undefined],
+        ].map(([source, optional_args]) => ({
+          source,
+          value: source,
+          label: source,
+          type: "text",
+          args: { network: "text", area: "text" },
+          optional_args,
+          tags: [],
+          description: "",
+        })),
       ],
     },
   ];
@@ -2426,6 +2439,76 @@ describe("plugin variable inputs preloaded before render", () => {
     await userEvent.click(screen.getByTestId("setRegionButton"));
     await waitFor(() => expect(callsFor(spy, "picker_b")).toHaveLength(2));
     expect(callsFor(spy, "picker_b")[1].args).toEqual({ region: "east" });
+  });
+
+  describe("an optional arg bound to an empty variable", () => {
+    const AREA = { projection: "EPSG:3857", geometries: [] };
+
+    const DrawArea = () => {
+      const { setVariableInputValues } = useContext(VariableInputsContext);
+      return (
+        <button
+          type="button"
+          onClick={() =>
+            setVariableInputValues((previous) => ({ ...previous, Area: AREA }))
+          }
+        >
+          Draw area
+        </button>
+      );
+    };
+
+    const answerWithArea = () =>
+      jest
+        .spyOn(appAPI, "getVisualizationData")
+        .mockImplementation(({ args }) =>
+          Promise.resolve({
+            success: true,
+            viz_type: "text",
+            data: { text: `Area ${JSON.stringify(args.area)}` },
+          }),
+        );
+
+    it("runs the tile while the variable is empty, and again once it has a value", async () => {
+      const spy = answerWithArea();
+      const warnings = watchForEmptyVariableWarnings();
+
+      renderDashboard(
+        [
+          gridItem(1, "network_chart", {
+            network: "Willamette",
+            area: "${Area}",
+          }),
+        ],
+        <DrawArea />,
+      );
+      expect(await screen.findByText('Area ""')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Draw area" }));
+      expect(
+        await screen.findByText(`Area ${JSON.stringify(AREA)}`),
+      ).toBeInTheDocument();
+      warnings.stop();
+
+      expect(callsFor(spy, "network_chart").map(({ args }) => args)).toEqual([
+        { network: "Willamette", area: "" },
+        { network: "Willamette", area: AREA },
+      ]);
+      expect(warnings.seen).toEqual([]);
+    });
+
+    it("still warns for a plugin that does not declare the arg optional", async () => {
+      const spy = answerWithArea();
+
+      renderDashboard([
+        gridItem(1, "strict_chart", { network: "Willamette", area: "${Area}" }),
+      ]);
+
+      expect(
+        await screen.findByText("Area variable is empty"),
+      ).toBeInTheDocument();
+      expect(callsFor(spy, "strict_chart")).toEqual([]);
+    });
   });
 });
 
