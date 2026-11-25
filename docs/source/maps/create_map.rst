@@ -111,9 +111,11 @@ Map Drawing
 
 Map drawing lets you add features directly to the map:
 
-- **Drawn Feature Limit**: Maximum number of items that can be drawn.
+- **Drawn Feature Limit**: Maximum number of items that can be drawn. Once the limit is reached, each new shape replaces the oldest.
 - **Allowed Types**: Select which shapes can be drawn: **Point**, **LineString**, **Polygon**, **Rectangle**.
-- **Variable Name**: Save drawings under a variable name for use in other visualizations.
+- **Variable Name**: Save drawings under a variable name for use in other visualizations. The variable holds every shape on the map and is updated each time you finish a shape, whether or not a limit is set. **Clear All Features** empties it, so visualizations that use it go back to how they looked before anything was drawn.
+
+To stop drawing, click **Stop Drawing** or press **Escape**. Escape also discards a shape you have started but not finished; shapes you have finished stay on the map. Escape does nothing while you are typing in a field.
 
 .. _map_selection:
 

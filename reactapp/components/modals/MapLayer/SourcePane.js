@@ -594,8 +594,10 @@ const SourcePane = ({
     const timer = setTimeout(
       async () => {
         autoFetchedKeyRef.current = pluginRunKey;
+        // A load counts only while its request is the newest, and every
+        // change to what is owed starts or outdates one, so it is this one.
         if (await runFetchPluginDefaults(source, args)) {
-          setDefaultsOwedFor((owed) => (owed === source ? null : owed));
+          setDefaultsOwedFor(null);
         }
       },
       justPicked ? 0 : ARGS_SETTLE_MS,

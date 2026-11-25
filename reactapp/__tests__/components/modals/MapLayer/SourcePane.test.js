@@ -75,6 +75,9 @@ const TestingComponent = ({
   sourcePropsSpy,
   dynamicMapLayers = [],
   onFetchPluginDefaults,
+  // Keeps the layer's source without its args, as a parent replacing the
+  // source wholesale can (MapLayer's template load).
+  dropArgs = false,
 }) => {
   const [sourceProps, setSourceProps] = useState(initialSourceProps ?? {});
   const [attributeProps, setAttributeProps] = useState({
@@ -90,7 +93,11 @@ const TestingComponent = ({
   // the underlying state updates.
   const spyingSetSourceProps = (updater) => {
     setSourceProps((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
+      let next = typeof updater === "function" ? updater(prev) : updater;
+      if (dropArgs && next && "args" in next) {
+        next = { ...next };
+        delete next.args;
+      }
       if (typeof sourcePropsSpy === "function") {
         sourcePropsSpy(next);
       }
@@ -1244,6 +1251,71 @@ describe("SourcePane Dynamic Map Layer", () => {
 
     expect(sourcePropsSpy).toHaveBeenCalledTimes(0);
   });
+
+  describe("a plugin that declares no args", () => {
+    const noArgsLayers = [
+      {
+        label: "Dynamic Map Layers",
+        options: [
+          {
+            source: "no_args_layer",
+            value: "No Args Layer",
+            label: "No Args Layer",
+            type: "map_layer",
+            dynamic_map_layer: true,
+          },
+        ],
+      },
+    ];
+
+    const pickNoArgsLayer = async (props) => {
+      render(
+        <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+          <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
+            <TestingComponent dynamicMapLayers={noArgsLayers} {...props} />
+          </DataViewerModeContext.Provider>
+        </VariableInputsContext.Provider>,
+      );
+      selectEvent.openMenu(screen.getByRole("combobox"));
+      fireEvent.click(await screen.findByText("No Args Layer"));
+      expect(
+        await screen.findByText("This plugin takes no arguments."),
+      ).toBeInTheDocument();
+    };
+
+    test.each([
+      ["keeps them", false],
+      ["is replaced without them", true],
+    ])(
+      "loads its defaults at once, with no args, when its source %s",
+      async (_, dropArgs) => {
+        const onFetchPluginDefaults = jest
+          .fn()
+          .mockResolvedValue({ success: true });
+
+        await pickNoArgsLayer({ onFetchPluginDefaults, dropArgs });
+
+        await waitFor(() =>
+          expect(onFetchPluginDefaults).toHaveBeenCalledWith(
+            "no_args_layer",
+            {},
+            expect.any(Function),
+          ),
+        );
+      },
+    );
+
+    test("loads nothing without a way to load defaults", async () => {
+      await pickNoArgsLayer({});
+
+      fireEvent.click(screen.getByLabelText("Fetch plugin defaults"));
+
+      expect(screen.getByLabelText("Fetch plugin defaults")).toHaveTextContent(
+        "Fetch defaults",
+      );
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+  });
 });
 
 test("SourcePane Static Image fields", async () => {
@@ -1478,6 +1550,7 @@ TestingComponent.propTypes = {
   sourcePropsSpy: PropTypes.func,
   dynamicMapLayers: PropTypes.array,
   onFetchPluginDefaults: PropTypes.func,
+  dropArgs: PropTypes.bool,
 };
 
 describe("SourcePane Static Image aspect lock and border", () => {

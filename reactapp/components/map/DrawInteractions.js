@@ -9,6 +9,7 @@ import { BiRectangle } from "react-icons/bi";
 import { BsSignStopFill, BsEraser } from "react-icons/bs";
 import { mapDrawingPropType } from "components/map/utilities";
 import { VariableInputsContext } from "components/contexts/Contexts";
+import { isEditableTarget } from "components/modals/PopupModal/PopupModal";
 import GeoJSON from "ol/format/GeoJSON";
 import styled from "styled-components";
 import PropTypes from "prop-types";
@@ -56,6 +57,25 @@ export const drawTypes = {
   Polygon: <FaDrawPolygon />,
   Rectangle: <BiRectangle />,
 };
+
+// Inputs nobody types into. Escape from one, such as a layer's checkbox in
+// the map's own layer control, still stops drawing; were it left alone, the
+// tile editor would close on it instead and lose its unsaved changes.
+const NON_TYPING_INPUT_TYPES = new Set([
+  "button",
+  "checkbox",
+  "color",
+  "file",
+  "image",
+  "radio",
+  "range",
+  "reset",
+  "submit",
+]);
+
+const isTyping = (element) =>
+  isEditableTarget(element) &&
+  !(element.tagName === "INPUT" && NON_TYPING_INPUT_TYPES.has(element.type));
 
 const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
   const [drawType, setDrawType] = useState(null);
@@ -114,41 +134,31 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
 
     let drawEndHandler;
 
-    if (mapDrawing.limit) {
+    if (mapDrawing.limit || mapDrawing.variable) {
       drawEndHandler = ({ feature, target }) => {
         const source = vectorSourceRef.current;
 
-        const features = source.getFeatures();
-
-        if (features.length >= mapDrawing.limit) {
-          // Remove the oldest feature (first in the array)
-          source.removeFeature(features[0]);
+        // OpenLayers adds the drawn feature to the source only after drawend,
+        // so here it is one more than the source holds.
+        if (mapDrawing.limit) {
+          const features = source.getFeatures();
+          if (features.length >= mapDrawing.limit) {
+            // Remove the oldest feature (first in the array)
+            source.removeFeature(features[0]);
+          }
         }
 
-        if (
-          mapDrawing.variable &&
-          source.getFeatures().length + 1 === mapDrawing.limit
-        ) {
-          const geometries = [];
-          source.getFeatures().forEach((existingFeature) => {
-            const existingFeaturegeometry = existingFeature.getGeometry();
-            const existingFeatureGeojson = JSON.parse(
-              new GeoJSON().writeGeometry(existingFeaturegeometry),
-            );
-            geometries.push(existingFeatureGeojson);
-          });
-
-          const geometry = feature.getGeometry();
-          const geojson = JSON.parse(new GeoJSON().writeGeometry(geometry));
-          geometries.push(geojson);
-
+        // The variable holds every shape on the map once this one is added.
+        if (mapDrawing.variable) {
+          const format = new GeoJSON();
+          const geometries = [...source.getFeatures(), feature].map((drawn) =>
+            JSON.parse(format.writeGeometry(drawn.getGeometry())),
+          );
           setVariableInputValues((previousVariableInputValues) => ({
             ...previousVariableInputValues,
-            ...{
-              [mapDrawing.variable]: {
-                projection: target.getMap().getView().getProjection().getCode(),
-                geometries: geometries,
-              },
+            [mapDrawing.variable]: {
+              projection: target.getMap().getView().getProjection().getCode(),
+              geometries,
             },
           }));
         }
@@ -170,6 +180,33 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapDrawing, drawType]);
 
+  // While a tool is on, Escape abandons the shape being drawn and leaves
+  // drawing mode, as Stop Drawing does. It is heard in the capture phase on
+  // the document, ahead of the tile editor's modal and a map popup, which
+  // would close on the same key, and it goes no further. Only a key from the
+  // map's own area counts: the map, inside it, or what encloses it (the page,
+  // the editor or popup it sits in). A key typed into a field, or meant for
+  // another dialog opened over the map, is left alone.
+  useEffect(() => {
+    if (!drawType) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape" || isTyping(event.target)) return;
+      const mapElement = visualizationRef.current?.getTargetElement?.();
+      const fromMapArea =
+        !mapElement ||
+        mapElement.contains(event.target) ||
+        event.target.contains?.(mapElement);
+      if (!fromMapArea) return;
+      drawInteractionRef.current?.abortDrawing();
+      stopDrawing();
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawType]);
+
   useEffect(() => {
     const source = vectorSourceRef.current;
 
@@ -183,8 +220,19 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
     }
   }, [mapDrawing.limit]);
 
+  // Clearing the map empties its variable: with no shapes there is no value,
+  // which every tile bound to it reads as it did before anything was drawn.
   const clearAll = () => {
     vectorSourceRef.current?.clear();
+    if (!mapDrawing.variable) return;
+    setVariableInputValues((previousVariableInputValues) => {
+      if (!(mapDrawing.variable in previousVariableInputValues)) {
+        return previousVariableInputValues;
+      }
+      const nextVariableInputValues = { ...previousVariableInputValues };
+      delete nextVariableInputValues[mapDrawing.variable];
+      return nextVariableInputValues;
+    });
   };
 
   if (!mapDrawing.options) return;
@@ -204,7 +252,7 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
                 {drawTypes[mapDrawingType]}
               </DrawButton>
             ))}
-            <StopEraseButton onClick={stopDrawing} title="Stop Drawing">
+            <StopEraseButton onClick={stopDrawing} title="Stop Drawing (Esc)">
               <BsSignStopFill />
             </StopEraseButton>
             <StopEraseButton onClick={clearAll} title="Clear All Features">

@@ -77,6 +77,26 @@ def warm_visualization_cache():
     return warmed
 
 
+def listed_optional_args(plugin):
+    """Return the arg names a plugin's metadata lists as optional.
+
+    A malformed declaration (``None``, a bare string, anything but a list,
+    tuple or set) lists none rather than raising: every plugin's metadata is
+    built in one pass, so one plugin's mistake would otherwise break the list
+    for every user. ``TethysDashPlugin`` still refuses it when the plugin runs.
+
+    Args:
+        plugin: Intake plugin class.
+
+    Returns:
+        list: The declared optional arg names.
+    """
+    declared = get_plugin_prop(plugin, "optional_args", ())
+    if not isinstance(declared, (list, tuple, set, frozenset)):
+        return []
+    return [name for name in declared if isinstance(name, str)]
+
+
 def build_plugin_metadata(plugin, source):
     """
     Extract metadata from a visualization plugin.
@@ -104,6 +124,7 @@ def build_plugin_metadata(plugin, source):
         "dynamic_map_layer_source": get_plugin_prop(
             plugin, "dynamic_map_layer_source", "GeoJSON"
         ),
+        "optional_args": listed_optional_args(plugin),
     }
 
 

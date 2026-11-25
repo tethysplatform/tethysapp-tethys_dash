@@ -55,8 +55,8 @@ const SecretInput = ({ label, value, onChange, place }) => {
     setPendingSecret,
     discardPendingSecrets,
     isSecretStored,
-  } = useContext(LayoutContext) ?? {};
-  const { tile, layer = "", arg, source } = place ?? {};
+  } = useContext(LayoutContext);
+  const { tile, layer, arg, source } = place;
   const [typed, setTyped] = useState("");
   const [replacing, setReplacing] = useState(false);
   const onChangeRef = useRef(onChange);
@@ -255,7 +255,7 @@ SecretInput.propTypes = {
     layer: PropTypes.string,
     arg: PropTypes.string,
     source: PropTypes.string,
-  }),
+  }).isRequired,
 };
 
 export default SecretInput;

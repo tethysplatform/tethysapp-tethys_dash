@@ -87,6 +87,14 @@ const DatePicker = ({
 
   const onRawChange = (val) => {
     setRawInputValue(val);
+    // An emptied field clears the value. Left unreported, the parent would
+    // keep the last date the field no longer shows: a required date would
+    // save as if filled, and an optional one could never be left blank.
+    if (val.trim() === "") {
+      onChange("");
+      return;
+    }
+
     // Only call onChange if valid absolute or relative time. A relative time
     // goes out as typed, not as the time it names now: like one saved with
     // the dashboard, it is read again at each fetch, and shows as typed

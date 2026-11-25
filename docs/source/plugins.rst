@@ -51,6 +51,7 @@ Properties:
     - **label**: (required) The display name for the visualization in the dashboard app.
     - **type**: (required) The type of visualization. Must be "plotly", "table", "image", "imageCollection", "card", "text", "variable_input", "map", "map_layer", or "custom". See the `Plugin Visualization Types <Plugin Visualization Types_>`_ section for details.
     - **args**: Dictionary of function arguments as keys and data types as values. Used to dynamically create HTML inputs. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list for dropdowns (e.g., `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`). Simple args are set as attributes of the plugin class and can be used in the run method using self (e.g., `self.year`, `self.location`, `self.available_colors`). Date args are parsed to ``datetime`` objects, and dropdown args may declare nested ``sub_args``. See `Accessing Arguments in run()`_ for how each kind reaches ``run()``. An arg typed ``"secret"`` holds a credential such as an API key; see `Secret Arguments`_. Argument names must not contain ``.`` (the reserved nested-argument path delimiter).
+    - **optional_args**: Tuple or list of argument names that may be left empty. Each must also be declared, with its type, in **args**. See `Optional Arguments`_.
     - **tags**: List of tags for search and discovery.
     - **description**: Description of the visualization.
     - **restricted**: Boolean to restrict access to the plugin. If true, the plugin will only be visible to users with permissions. Defaults to false.
@@ -120,6 +121,9 @@ helper methods::
 
 ``sub_args`` returns only the **immediate** children of a parent; descend one
 level at a time for deeper nesting (e.g. ``self.sub_args("transect_location.location")``).
+
+**Optional arguments** are ``None`` when they are left empty, so check for
+``None`` before using one. See `Optional Arguments`_.
 
 .. note::
     Argument names must not contain ``.`` — it is reserved as the
@@ -204,6 +208,90 @@ argument read from an environment variable, rather than writing it in code::
     import os
 
     StationReadings(station="A1", api_key=os.environ["EXAMPLE_API_KEY"]).run()
+
+==================
+Optional Arguments
+==================
+
+An argument the plugin can run without is declared in ``args`` with its type,
+like any other, and also named in ``optional_args``::
+
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
+
+    class NetworkStations(TethysDashPlugin):
+        name = "network_stations"
+        args = {"network": ["Willamette", "All Sites"], "area": "text"}
+        optional_args = ("area",)
+        group = "Example"
+        label = "Network Stations"
+        type = "text"
+        description = "The stations in a river network, or in an area drawn on a map."
+
+        def run(self):
+            if self.area is None and self.network == "All Sites":
+                return {"text": "Draw an area on the map to query data"}
+            stations = find_stations(self.network, self.area)  # area may be None
+            return {"text": ", ".join(stations)}
+
+``("area",)`` needs its comma: ``("area")`` is the string ``"area"``.
+
+What changes for an optional argument:
+
+    - **The dashboard author can leave it blank.** Its input is labelled
+      "(optional)" in the dashboard item's settings, and the item saves
+      without a value for it.
+    - **An empty variable does not hold the item back.** When the argument's
+      whole value is one Variable Input, such as ``${Area}``, and that Variable
+      Input has no value, the plugin still runs. The dashboard shows no
+      "variable is empty" message for it, so the plugin decides what to show,
+      as ``run()`` does above. A value that only contains the Variable Input,
+      such as ``Stations in ${Area}``, still waits for it, as does a Variable
+      Input that another, required argument also uses.
+    - **An empty value reaches** ``run()`` **as** ``None``. That covers an
+      argument left blank, one whose Variable Input is empty, and one missing
+      from a dashboard item saved before the plugin declared it. Both
+      ``self.area`` and ``self.get_arg("area")`` are ``None``, and
+      ``self.get_arg("area", default)`` returns ``default``. A date argument is
+      ``None`` rather than a ``datetime``.
+
+Only top-level arguments can be optional, not ``sub_args``, and a secret
+argument cannot be optional. ``TethysDashPlugin`` raises a ``ValueError`` at
+instantiation if ``optional_args`` names an argument the plugin does not
+declare, names a secret argument, or is not a list or tuple of names (a single
+string included); ``None`` declares none. Optional arguments apply to
+dashboard items: a dynamic map layer's arguments are all required.
+
+A dropdown argument has no blank choice once a value is picked, so make an
+argument that is often left empty a ``"text"`` one, or have the author connect
+it to a Variable Input.
+
+Do not make an argument optional when ``None`` would widen what the plugin
+shows, for example a filter that limits results to one organization. A viewer
+can empty a Variable Input, and the plugin would then run without the filter.
+
+**Shapes drawn on a map.** A map whose **Map Drawing** settings name a **Variable Name** publishes the
+shapes drawn on it under that name (see :doc:`maps/create_map`). Connect it to
+a ``"text"`` argument as exactly ``${Area}``, with nothing around it, and the
+plugin receives the value as a dictionary::
+
+    {
+        "projection": "EPSG:3857",
+        "geometries": [
+            {
+                "type": "Polygon",
+                "coordinates": [[[-13765349.07, 5663107.98],
+                                 [-13753368.57, 5624094.55],
+                                 [-13704832.17, 5661264.83],
+                                 [-13765349.07, 5663107.98]]],
+            },
+        ],
+    }
+
+``geometries`` holds every shape on the map, as GeoJSON geometries in the
+map's projection, ``projection``. A drawn point is a ``Point``, a line a
+``LineString``, and a polygon or a rectangle a ``Polygon``. Before anything is
+drawn, and after the user clears the map, the variable has no value. Make the
+argument optional to run without an area, as ``NetworkStations`` does above.
 
 ==========================
 Plugin Visualization Types

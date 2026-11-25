@@ -194,11 +194,17 @@ export function buildPreloadedRequestKey({
  * Returns an array of warning messages when any variable inputs referenced by a
  * visualization's args have no value, or null if all inputs are populated.
  * Respects custom messaging configured in the grid item metadata.
+ *
+ * `optionalArgs` are the plugin's optional args (its metadata's
+ * `optional_args`). A variable used only as one of them, as its whole value,
+ * holds nothing back and shows no message: the plugin gets None for it and
+ * decides what to show (see findGatingVariableInputTokens).
  */
 export function checkForEmptyVariableInputs({
   metadataString,
   argsString,
   variableInputValues,
+  optionalArgs = [],
 }) {
   const metadata = JSON.parse(metadataString);
   // Walk the parsed args, NOT the JSON string, so the recursion can skip the
@@ -209,8 +215,10 @@ export function checkForEmptyVariableInputs({
   // FeatureScopedVariableInputs provider, not in the host context — and could
   // not tell a map layer's label template from an ordinary arg at all.
   const parsedArgs = JSON.parse(argsString);
-  const allDependentVariableInputs =
-    findUnresolvedVariableInputTokens(parsedArgs);
+  const allDependentVariableInputs = findGatingVariableInputTokens(
+    parsedArgs,
+    optionalArgs,
+  );
   // Skip feature-scoped keys: they're populated by the
   // FeatureScopedVariableInputs provider on a per-feature basis and are
   // unbinding-by-design when no feature is active. Warning on every render
@@ -387,6 +395,11 @@ export function secretArgStatus(
 // (saved_settings.TOKEN).
 const HAS_TOKEN_RE = /\$\{[^}]+\}/;
 
+// A value that is exactly one `${name}`. updateObjectWithVariableInputs gives
+// such a value the variable's own type, or "" when the variable is empty, and
+// findGatingVariableInputTokens exempts it in an optional arg for that reason.
+const EXACT_VARIABLE_INPUT_TOKEN_RE = /^\$\{([^}]+)\}$/;
+
 /**
  * The args a data request for a tile or dynamic layer sends.
  *
@@ -462,6 +475,9 @@ export function storedSecretArgs(storedSecrets, { tile, layer }) {
  *
  * `allArgs` says whether the caller may edit the dashboard: only then does
  * the request send every arg, and say so (see dataRequestArgs).
+ *
+ * `optionalArgs` are the plugin's optional args, which an empty variable does
+ * not hold back (see checkForEmptyVariableInputs).
  */
 export async function getVisualization({
   setVizType,
@@ -481,12 +497,14 @@ export async function getVisualization({
   refresh = false,
   secretArgs = null,
   allArgs,
+  optionalArgs = [],
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
     metadataString,
     argsString,
     variableInputValues,
+    optionalArgs,
   });
   if (emptyVariableWarnings) {
     setVizType("vizWarning");
@@ -812,13 +830,32 @@ export function getGridItem(gridItems, gridItemI) {
   return result;
 }
 
+// Applies `replace` to every string in `value`, object keys included,
+// returning a copy.
+function replaceInlineThroughout(value, replace) {
+  if (typeof value === "string") return replace(value);
+  if (Array.isArray(value)) {
+    return value.map((item) => replaceInlineThroughout(item, replace));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        replace(key),
+        replaceInlineThroughout(item, replace),
+      ]),
+    );
+  }
+  return value;
+}
+
 /**
  * Substitutes `${variableName}` template placeholders in `args` with the
  * corresponding values from `variableInputs`. Date-typed variable inputs are
  * formatted according to `variableInputDateFormats` before substitution.
  * An exact match like `"${foo}"` preserves the original value type; inline
- * matches within a longer string are stringified. Returns a new object with
- * all substitutions applied.
+ * matches within a longer string are stringified, and so is every match
+ * inside an object or list arg, an object value as its JSON. Returns a new
+ * object with all substitutions applied.
  */
 export function updateObjectWithVariableInputs({
   args,
@@ -859,29 +896,55 @@ export function updateObjectWithVariableInputs({
     }
   }
 
-  for (let gridItemsArg in argsCopy) {
-    let value = argsCopy[gridItemsArg];
+  // FeatureScopedVariableInputs marks the merged context with this
+  // sentinel. When absent we're at host scope, so unresolved
+  // `${feature.<key>}` tokens must be PRESERVED for the popup to resolve
+  // later. When present we're inside the popup scope and there is no
+  // further resolution layer, so unresolved feature.* tokens fall back
+  // to "" like any other missing variable.
+  const inFeatureScope =
+    variableInputsCopy.__tethysdash_feature_scope__ === true;
 
-    if (typeof value !== "string") {
-      value = JSON.stringify(value);
-    }
-
-    // FeatureScopedVariableInputs marks the merged context with this
-    // sentinel. When absent we're at host scope, so unresolved
-    // `${feature.<key>}` tokens must be PRESERVED for the popup to resolve
-    // later. When present we're inside the popup scope and there is no
-    // further resolution layer, so unresolved feature.* tokens fall back
-    // to "" like any other missing variable.
-    const inFeatureScope =
-      variableInputsCopy.__tethysdash_feature_scope__ === true;
-
-    // If value is exactly a variable input, preserve its type.
-    // Matches the full string "${variableName}" with no surrounding text.
-    const exactVarMatch = value.match(/^\$\{([^}]+)\}$/);
-    let updatedValuesWithVariableInputs;
-    if (exactVarMatch) {
-      const key = exactVarMatch[1];
+  // Replaces each ${variableName} placeholder in a string with its value as
+  // text.
+  const replaceInline = (text) =>
+    text.replace(/\$\{([^}]+)\}/g, (_, key) => {
       if (
+        variableInputsCopy[key] === undefined &&
+        key.startsWith("feature.") &&
+        !inFeatureScope
+      ) {
+        return "${" + key + "}";
+      }
+      if (typeof variableInputsCopy[key] === "object") {
+        return JSON.stringify(variableInputsCopy[key]);
+      }
+      return variableInputsCopy[key] ?? "";
+    });
+
+  for (let gridItemsArg in argsCopy) {
+    const value = argsCopy[gridItemsArg];
+
+    let updatedValuesWithVariableInputs;
+    if (typeof value !== "string") {
+      // An object or list is substituted one string at a time, keys included,
+      // and only then turned into JSON text, so each value is escaped where it
+      // lands. Spliced into the JSON text itself, an object value (a drawn
+      // area) or a quote broke the text, a popup tile's args_string included.
+      updatedValuesWithVariableInputs = JSON.stringify(
+        replaceInlineThroughout(value, replaceInline),
+      );
+    } else {
+      // If value is exactly a variable input, preserve its type.
+      // Matches the full string "${variableName}" with no surrounding text.
+      const exactVarMatch = value.match(EXACT_VARIABLE_INPUT_TOKEN_RE);
+      const key = exactVarMatch?.[1];
+      if (!exactVarMatch) {
+        // Value contains one or more inline ${variableName} placeholders mixed
+        // with other text. Replaces each placeholder with its string
+        // equivalent.
+        updatedValuesWithVariableInputs = replaceInline(value);
+      } else if (
         variableInputsCopy[key] === undefined &&
         key.startsWith("feature.") &&
         !inFeatureScope
@@ -890,28 +953,9 @@ export function updateObjectWithVariableInputs({
       } else {
         // Nullish, not falsy: this branch exists to PRESERVE the value's type,
         // so a numeric 0 or a false checkbox must survive rather than collapse
-        // to "". Matches the `?? ""` in the inline-replacement branch below.
+        // to "". Matches the `?? ""` in replaceInline.
         updatedValuesWithVariableInputs = variableInputsCopy[key] ?? "";
       }
-    } else {
-      // Value contains one or more inline ${variableName} placeholders mixed
-      // with other text. Replaces each placeholder with its string equivalent.
-      updatedValuesWithVariableInputs = value.replace(
-        /\$\{([^}]+)\}/g,
-        (_, key) => {
-          if (
-            variableInputsCopy[key] === undefined &&
-            key.startsWith("feature.") &&
-            !inFeatureScope
-          ) {
-            return "${" + key + "}";
-          }
-          if (typeof variableInputsCopy[key] === "object") {
-            return JSON.stringify(variableInputsCopy[key]);
-          }
-          return variableInputsCopy[key] ?? "";
-        },
-      );
     }
 
     // Resolve relative ("now-1D") and absolute dates for any date-typed arg.
@@ -1126,6 +1170,42 @@ export function findUnresolvedFeatureTokens(value) {
  */
 export function findUnresolvedVariableInputTokens(value) {
   return collectTokens(value, VARIABLE_INPUT_TOKEN_RE, FEATURE_SCAN_SKIP_KEYS);
+}
+
+/**
+ * The variable inputs whose emptiness holds a tile back: the tokens
+ * `findUnresolvedVariableInputTokens` finds in `args`, less those used only
+ * as an optional arg's whole value.
+ *
+ * Only an optional arg that is exactly one `${name}` exempts that name, since
+ * only then does an empty variable reach the plugin as "", which it reads as
+ * None. A template ("prefix ${name}") or an object or list holding the token
+ * still holds the tile back. `feature.*` tokens are never exempt here: each
+ * caller keeps its own handling of them.
+ *
+ * Shared by the tile's gate (checkForEmptyVariableInputs), the dashboard's
+ * variable-input preload, and the editor's Custom Messaging list, so the three
+ * agree on which variables can hold a tile back.
+ *
+ * @param {object} args - A tile's raw args, as saved.
+ * @param {string[]} optionalArgs - The plugin's optional arg names.
+ * @returns {string[]} Variable input names, deduplicated, in encounter order.
+ */
+export function findGatingVariableInputTokens(args, optionalArgs = []) {
+  if (!optionalArgs?.length || !args || typeof args !== "object") {
+    return findUnresolvedVariableInputTokens(args);
+  }
+  const scanned = Object.fromEntries(
+    Object.entries(args).filter(([name, value]) => {
+      if (!optionalArgs.includes(name) || typeof value !== "string") {
+        return true;
+      }
+      const exact = value.match(EXACT_VARIABLE_INPUT_TOKEN_RE);
+      const exempt = exact !== null && !exact[1].startsWith("feature.");
+      return !exempt;
+    }),
+  );
+  return findUnresolvedVariableInputTokens(scanned);
 }
 
 export const nonDropDownVariableInputTypes = [

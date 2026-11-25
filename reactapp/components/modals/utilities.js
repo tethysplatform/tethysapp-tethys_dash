@@ -9,6 +9,23 @@ export const DASHBOARD_NAME_MAX_LENGTH = 40;
 // preview and the layer editor's automatic Fetch defaults both wait it.
 export const ARGS_SETTLE_MS = 500;
 
+/**
+ * A tile's args in the form the tile editor saves them, and so the form the
+ * dashboard reads: an input holding a selected option ({label, value}) holds
+ * its value.
+ *
+ * @param {object} vizInputsValues - The editor's current arg values.
+ * @returns {object} The args as saved.
+ */
+export function argsAsSaved(vizInputsValues) {
+  return Object.fromEntries(
+    Object.entries(vizInputsValues ?? {}).map(([key, value]) => [
+      key,
+      value?.value ?? value,
+    ]),
+  );
+}
+
 export function getInitialInputValue(value) {
   let inputValue;
   if (value === "text") {

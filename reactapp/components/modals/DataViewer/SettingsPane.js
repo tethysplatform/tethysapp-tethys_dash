@@ -105,6 +105,7 @@ function SettingsPane({
   visualizationRef,
   vizInputsValues,
   vizType,
+  optionalArgs,
 }) {
   const settingsPaneRef = useRef(null);
 
@@ -268,6 +269,7 @@ function SettingsPane({
       )}
       <CustomMessaging
         vizInputsValues={vizInputsValues}
+        optionalArgs={optionalArgs}
         initialCustomMessaging={settings.customMessaging}
         onChange={onCustomMessagingChange}
       />
@@ -307,6 +309,7 @@ SettingsPane.propTypes = {
   setSettings: PropTypes.func,
   vizType: PropTypes.string,
   vizInputsValues: PropTypes.object,
+  optionalArgs: PropTypes.arrayOf(PropTypes.string), // the plugin's optional args
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),

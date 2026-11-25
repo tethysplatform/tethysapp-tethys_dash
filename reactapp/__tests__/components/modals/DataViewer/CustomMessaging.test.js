@@ -6,12 +6,14 @@ global.ResizeObserver = require("resize-observer-polyfill");
 
 const TestingComponent = ({
   vizInputsValues = {},
+  optionalArgs,
   initialCustomMessaging = {},
   onChange,
 }) => {
   return (
     <CustomMessaging
       vizInputsValues={vizInputsValues}
+      optionalArgs={optionalArgs}
       initialCustomMessaging={initialCustomMessaging}
       onChange={onChange}
     />
@@ -137,8 +139,101 @@ it("CustomMessaging with dependent variable inputs", async () => {
   });
 });
 
+/* eslint-disable no-template-curly-in-string */
+describe("which variables get a message", () => {
+  const listed = () =>
+    screen
+      .queryAllByText(/^On Empty .* Variable -$/)
+      .map((label) => label.textContent);
+
+  it("leaves out a variable used only as an optional arg, and offers no On Any Empty Variable for it", () => {
+    render(
+      <TestingComponent
+        onChange={jest.fn()}
+        optionalArgs={["area"]}
+        vizInputsValues={{ area: "${Area}" }}
+      />,
+    );
+
+    expect(listed()).toEqual([]);
+    expect(
+      screen.queryByText("On Any Empty Variable -"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lists a variable that is also used in a required arg", () => {
+    render(
+      <TestingComponent
+        onChange={jest.fn()}
+        optionalArgs={["area"]}
+        vizInputsValues={{ area: "${Area}", title: "Stations in ${Area}" }}
+      />,
+    );
+
+    expect(listed()).toEqual(["On Empty Area Variable -"]);
+  });
+
+  it("reads a selected option by its value, as the save does", () => {
+    render(
+      <TestingComponent
+        onChange={jest.fn()}
+        optionalArgs={["area"]}
+        vizInputsValues={{
+          area: { label: "Area", value: "${Area}" },
+          network: "${Network}",
+        }}
+      />,
+    );
+
+    expect(listed()).toEqual(["On Empty Network Variable -"]);
+  });
+
+  it("leaves out feature, popup-only and label-template variables, whose messages never show", () => {
+    render(
+      <TestingComponent
+        onChange={jest.fn()}
+        vizInputsValues={{
+          station: "${feature.id}",
+          layers: [
+            {
+              configuration: { labels: { template: "${Label Field}" } },
+              popupConfig: { title: "${Popup Only}" },
+            },
+          ],
+          network: "${Network}",
+        }}
+      />,
+    );
+
+    expect(listed()).toEqual(["On Empty Network Variable -"]);
+  });
+
+  it("keeps a saved message for a variable it no longer lists", () => {
+    const onChange = jest.fn();
+    render(
+      <TestingComponent
+        onChange={onChange}
+        optionalArgs={["area"]}
+        vizInputsValues={{ area: "${Area}" }}
+        initialCustomMessaging={{ Area: "Draw an area" }}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("error Custom Message Input"), {
+      target: { value: "Could not load" },
+    });
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      Area: "Draw an area",
+      error: "Could not load",
+    });
+  });
+});
+/* eslint-enable no-template-curly-in-string */
+
 TestingComponent.propTypes = {
   vizInputsValues: PropTypes.object,
+  optionalArgs: PropTypes.arrayOf(PropTypes.string),
   initialCustomMessaging: PropTypes.object,
   onChange: PropTypes.func,
 };

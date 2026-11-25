@@ -13,6 +13,7 @@ import {
   baseMapLayers,
   downloadJSONFile,
   checkForEmptyVariableInputs,
+  findGatingVariableInputTokens,
   findUnresolvedFeatureTokens,
   findUnresolvedVariableInputTokens,
   clearImageVizCache,
@@ -32,6 +33,8 @@ import {
   secretPlaceKey,
   pendingSecretArgs,
   storedSecretArgs,
+  secretArgStatus,
+  getDependentVariableInputs,
 } from "components/visualizations/utilities";
 import appAPI from "services/api/app";
 import {
@@ -1284,6 +1287,104 @@ test("updateObjectWithVariableInputs", async () => {
   }
 });
 
+describe("updateObjectWithVariableInputs inside an object or list arg", () => {
+  const drawnArea = {
+    projection: "EPSG:3857",
+    geometries: [
+      {
+        type: "Polygon",
+        coordinates: [
+          [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+            [0, 0],
+          ],
+        ],
+      },
+    ],
+  };
+
+  test("a drawn area named in a popup tile's args_string leaves the map's layers intact", () => {
+    const popupTile = {
+      i: "1",
+      source: "usace_nwd_network_chart",
+      args_string: JSON.stringify({ network: "${Network}", area: "${area}" }),
+    };
+    const args = {
+      layers: [{ name: "Gauges", popupConfig: { gridItems: [popupTile] } }],
+    };
+
+    const result = updateObjectWithVariableInputs({
+      args,
+      variableInputs: { area: drawnArea, Network: "willamette" },
+    });
+
+    // Each token is replaced as text, as before. The map restores its popup
+    // configs from the raw args (getVisualization), so this text is never
+    // read; it only must not break the layers around it.
+    expect(result).toStrictEqual({
+      layers: [
+        {
+          name: "Gauges",
+          popupConfig: {
+            gridItems: [
+              {
+                ...popupTile,
+                args_string: `{"network":"willamette","area":"${JSON.stringify(drawnArea)}"}`,
+              },
+            ],
+          },
+        },
+      ],
+    });
+  });
+
+  test("an object value deep in an arg arrives as its JSON text", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { layers: [{ source: { props: { area: "${area}" } } }] },
+      variableInputs: { area: drawnArea },
+    });
+
+    expect(result.layers[0].source.props.area).toBe(JSON.stringify(drawnArea));
+  });
+
+  test("a quote or backslash in a value stays part of the value", () => {
+    const value = 'Say "hi" \\ bye';
+    const result = updateObjectWithVariableInputs({
+      args: { layers: [{ title: "${Name} layer" }] },
+      variableInputs: { Name: value },
+    });
+
+    expect(result.layers[0].title).toBe(`${value} layer`);
+  });
+
+  test("keys, numbers and feature tokens are replaced as before", () => {
+    const result = updateObjectWithVariableInputs({
+      args: {
+        mapping: { "${Field}": "${Count}", label: "${feature.name}" },
+        list: ["${Missing}", 3, null, true],
+      },
+      variableInputs: { Field: "flow", Count: 5 },
+    });
+
+    expect(result).toStrictEqual({
+      mapping: { flow: "5", label: "${feature.name}" },
+      list: ["", 3, null, true],
+    });
+  });
+});
+
+test("getDependentVariableInputs finds each name once, in a string or in an object", () => {
+  expect(getDependentVariableInputs("${A} then ${B} then ${A}")).toEqual([
+    "A",
+    "B",
+  ]);
+  expect(
+    getDependentVariableInputs({ list: ["${A}"], nested: { at: "${C}" } }),
+  ).toEqual(["A", "C"]);
+});
+
 describe("updateObjectWithVariableInputs date arg resolution", () => {
   // Mock Date so "now" math is deterministic and timezone-independent
   // assertions can be derived from the same parseDate/convertDatesToLocalISO
@@ -1808,6 +1909,177 @@ test("checkForEmptyVariableInputs", async () => {
   });
 
   expect(emptyVariableWarnings).toStrictEqual(null);
+});
+
+describe("optional args and the empty-variable gate", () => {
+  describe("findGatingVariableInputTokens", () => {
+    test("a variable used only as an optional arg's whole value does not gate", () => {
+      const args = { network: "${Network}", area: "${Area}" };
+
+      expect(findGatingVariableInputTokens(args, ["area"])).toEqual([
+        "Network",
+      ]);
+    });
+
+    test("the same variable in a required arg still gates", () => {
+      const args = { area: "${Area}", title: "Stations in ${Area}" };
+
+      expect(findGatingVariableInputTokens(args, ["area"])).toEqual(["Area"]);
+    });
+
+    test.each([
+      ["a template", "inside ${Area}"],
+      ["an object holding the token", { shape: "${Area}" }],
+      ["a list holding the token", ["${Area}"]],
+    ])("an optional arg holding %s still gates", (_label, value) => {
+      expect(findGatingVariableInputTokens({ area: value }, ["area"])).toEqual([
+        "Area",
+      ]);
+    });
+
+    test("an optional ${feature.*} token is never exempt", () => {
+      expect(
+        findGatingVariableInputTokens({ area: "${feature.huc}" }, ["area"]),
+      ).toEqual(["feature.huc"]);
+    });
+
+    test("an optional arg holding no token contributes nothing", () => {
+      expect(
+        findGatingVariableInputTokens({ area: "", network: "x" }, ["area"]),
+      ).toEqual([]);
+    });
+
+    test.each([[[]], [undefined]])(
+      "with no optional args (%p) it matches the plain scan",
+      (optionalArgs) => {
+        const args = {
+          area: "${Area}",
+          layers: [{ popupConfig: { title: "${Popup Only}" } }],
+        };
+
+        expect(findGatingVariableInputTokens(args, optionalArgs)).toEqual(
+          findUnresolvedVariableInputTokens(args),
+        );
+      },
+    );
+  });
+
+  describe("checkForEmptyVariableInputs", () => {
+    const check = ({ args, metadata = {}, values = {}, optionalArgs }) =>
+      checkForEmptyVariableInputs({
+        metadataString: JSON.stringify(metadata),
+        argsString: JSON.stringify(args),
+        variableInputValues: values,
+        optionalArgs,
+      });
+
+    test("an empty optional-only variable gives no warning and no custom message", () => {
+      expect(
+        check({
+          args: { network: "${Network}", area: "${Area}" },
+          metadata: { customMessaging: { Area: "Draw an area" } },
+          values: { Network: "Willamette" },
+          optionalArgs: ["area"],
+        }),
+      ).toBeNull();
+    });
+
+    test("On Any Empty Variable shows only when a gating variable is empty", () => {
+      const metadata = { customMessaging: { anyEmptyVariable: "Pick both" } };
+      const args = { network: "${Network}", area: "${Area}" };
+
+      expect(
+        check({
+          args,
+          metadata,
+          values: { Network: "Willamette" },
+          optionalArgs: ["area"],
+        }),
+      ).toBeNull();
+      expect(check({ args, metadata, optionalArgs: ["area"] })).toEqual([
+        "Pick both",
+      ]);
+    });
+
+    test("a variable in both an optional and a required arg still warns", () => {
+      expect(
+        check({
+          args: { area: "${Area}", title: "Stations in ${Area}" },
+          optionalArgs: ["area"],
+        }),
+      ).toEqual(["Area variable is empty"]);
+    });
+
+    test("a plugin without optional args warns as before", () => {
+      expect(check({ args: { area: "${Area}" } })).toEqual([
+        "Area variable is empty",
+      ]);
+    });
+  });
+
+  describe("getVisualization", () => {
+    const DATA_URL = "http://api.test/apps/tethysdash/visualizations/get/";
+
+    const run = async ({ allArgs, optionalArgs }) => {
+      const bodies = [];
+      server.use(
+        rest.post(DATA_URL, async (req, res, ctx) => {
+          bodies.push(await req.json());
+          return res(
+            ctx.status(200),
+            ctx.json({ success: true, viz_type: "text", data: { text: "t" } }),
+          );
+        }),
+      );
+      const setVizType = jest.fn();
+      await getVisualization({
+        setVizType,
+        setVizData: jest.fn(),
+        sourceType: "text",
+        sourceArgs: { network: "text", area: "text" },
+        itemData: {
+          source: "network_chart",
+          args: { network: "Willamette", area: "" },
+          requestId: "request-id",
+        },
+        dashboardUUID: "dash-uuid",
+        tileUUID: "tile-uuid",
+        metadataString: "{}",
+        argsString: JSON.stringify({
+          network: "${Network}",
+          area: "${Area}",
+        }),
+        variableInputValues: { Network: "Willamette" },
+        allArgs,
+        optionalArgs,
+      });
+      return { bodies, setVizType };
+    };
+
+    test.each([
+      ["an editor", true],
+      ["a viewer", false],
+    ])(
+      "%s's request goes out with the empty optional arg blank",
+      async (_label, allArgs) => {
+        const { bodies, setVizType } = await run({
+          allArgs,
+          optionalArgs: ["area"],
+        });
+
+        expect(bodies).toHaveLength(1);
+        expect(bodies[0].args).toEqual({ network: "Willamette", area: "" });
+        expect(setVizType).not.toHaveBeenCalledWith("vizWarning");
+      },
+    );
+
+    test("without the optional list the tile warns and sends nothing", async () => {
+      const { bodies, setVizType } = await run({ allArgs: true });
+
+      expect(bodies).toEqual([]);
+      expect(setVizType).toHaveBeenCalledWith("vizWarning");
+    });
+  });
 });
 
 describe("checkForEmptyVariableInputs treats 0 and false as set", () => {
@@ -3213,6 +3485,27 @@ describe("dataRequestArgs", () => {
     ).toBe("typed");
   });
 
+  test("nothing is sent for no args, a secret left null, or an arg the saved args lack", () => {
+    expect(dataRequestArgs({ kind: "tile", allArgs: true })).toEqual({});
+    expect(
+      dataRequestArgs({
+        resolvedArgs: { api_key: null, plot: "flow" },
+        argTypes,
+        kind: "tile",
+        allArgs: true,
+      }),
+    ).toEqual({ plot: "flow" });
+    // Not in the saved args, so wired to nothing: the server runs it as saved.
+    expect(
+      dataRequestArgs({
+        resolvedArgs: { plot: "flow" },
+        argTypes,
+        kind: "tile",
+        allArgs: false,
+      }),
+    ).toEqual({});
+  });
+
   test("every arg type containing date is a date", () => {
     expect(
       ["date", "date-hour", "date-range", "text", ["a"], undefined].map(
@@ -3265,6 +3558,38 @@ describe("secret args", () => {
     expect([...bySource.get("layer")]).toEqual(["t"]);
     // A plugin that is not installed is not listed: nothing is known of it.
     expect(bySource.has("missing_plugin")).toBe(false);
+  });
+
+  test("secretArgsBySource skips an option that names no plugin source", () => {
+    const bySource = secretArgsBySource([
+      {
+        label: "Default",
+        options: [
+          { value: "Text", label: "Text" },
+          { source: "secret_plugin", args: { key: "secret" } },
+        ],
+      },
+    ]);
+
+    expect([...bySource.keys()]).toEqual(["secret_plugin"]);
+  });
+
+  test("secretArgStatus reads a place named without a layer as the tile's own, and no place as unset", () => {
+    const isSecretStored = jest.fn(() => true);
+
+    expect(
+      secretArgStatus(
+        { isSecretStored },
+        { tile: "tile", arg: "key", source: "secret_plugin" },
+      ),
+    ).toBe("stored");
+    expect(isSecretStored).toHaveBeenCalledWith({
+      tile: "tile",
+      layer: "",
+      arg: "key",
+      source: "secret_plugin",
+    });
+    expect(secretArgStatus()).toBe("unset");
   });
 
   test("secretPlaceKey names a place by tile in any case, layer and arg", () => {

@@ -497,6 +497,7 @@ def mock_plugin(mocker):
         visualization_restricted=True,
         visualization_dynamic_map_layer=False,
         visualization_dynamic_map_layer_source="GeoJSON",
+        visualization_optional_args=("package_arg",),
     )
     plugin.name = "package_name"
 
@@ -576,6 +577,7 @@ def mock_plugin_visualization(mock_plugin):
                 "restricted": mock_plugin.visualization_restricted,
                 "dynamic_map_layer": False,
                 "dynamic_map_layer_source": "GeoJSON",
+                "optional_args": ["package_arg"],
             }
         ],
     }
@@ -601,6 +603,7 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "restricted": False,
                 "dynamic_map_layer": False,
                 "dynamic_map_layer_source": "GeoJSON",
+                "optional_args": [],
             },
             {
                 "source": mock_plugin.name,
@@ -615,6 +618,7 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "restricted": mock_plugin.visualization_restricted,
                 "dynamic_map_layer": False,
                 "dynamic_map_layer_source": "GeoJSON",
+                "optional_args": ["package_arg"],
             },
         ],
     }

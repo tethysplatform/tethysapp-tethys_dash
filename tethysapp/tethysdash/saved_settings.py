@@ -449,9 +449,11 @@ def _has_leaf_token(value):
 
 
 def _structure_row(value):
-    """The row of an object or list arg; the browser finds its tokens in its JSON text.
+    """The row of an object or list arg, whose tokens are found in its JSON text.
 
-    A token there that crosses an unescaped quote spans the structure.
+    A token there that crosses an unescaped quote spans the structure. The browser,
+    which substitutes each string on its own, sends such an arg unchanged; it is
+    refused rather than taken as a token.
     """
     text = _json_text(value)
     tokens = TOKEN.findall(text, 0, _token_end(text))

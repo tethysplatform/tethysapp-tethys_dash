@@ -196,6 +196,7 @@ class TethysDashPlugin(base.DataSource):
     attribution = ""
     dynamic_map_layer = False
     dynamic_map_layer_source = "GeoJSON"
+    optional_args = ()
 
     def __init__(self, metadata=None, *args, **kwargs):
         super().__init__(metadata=metadata)
@@ -251,6 +252,7 @@ class TethysDashPlugin(base.DataSource):
             "attribution",
             "dynamic_map_layer",
             "dynamic_map_layer_source",
+            "optional_args",
         }
 
         if self.args.keys() & reserved_keys:
@@ -301,14 +303,23 @@ class TethysDashPlugin(base.DataSource):
         # A secret arg's value is a plain string, set like any other arg; it is
         # recorded here so its value can be kept out of what leaves the server.
         self.secret_arg_names = secret_arg_names(self.args)
+        self.optional_args = self._read_optional_args()
 
         # Raw arg map keyed by the flat (possibly dotted) names the frontend
         # sends. This is the reliable way to read args — attribute access via
         # setattr() breaks for dotted keys, which Python cannot resolve with
         # dot notation. Stores post-parse values so get_arg() agrees with
         # attribute access for simple args. See get_arg()/sub_args().
+        #
+        # An optional arg left empty ("" or null, or not sent at all) is None
+        # by attribute and is "not provided" to get_arg(), which then returns
+        # its caller's default.
         self.received_args = {}
+        for name in self.optional_args:
+            setattr(self, name, None)
         for kwarg_name, kwarg_value in kwargs.items():
+            if kwarg_name in self.optional_args and kwarg_value in ("", None):
+                continue
             arg_type = self.args.get(kwarg_name)
             is_preset = (
                 isinstance(kwarg_value, str) and kwarg_value in DATE_PRESET_SENTINELS
@@ -323,6 +334,44 @@ class TethysDashPlugin(base.DataSource):
         return getattr(type(self), method_name) is not getattr(
             TethysDashPlugin, method_name
         )
+
+    def _read_optional_args(self):
+        """Return the plugin's declared optional args, checked against its args.
+
+        Returns:
+            tuple: The names of the args that may be left empty.
+
+        Raises:
+            ValueError: The declaration is a bare string, names an arg the plugin
+                does not have, or names a secret arg.
+        """
+        declared = get_plugin_prop(self, "optional_args", ())
+        if declared is None:
+            return ()
+        # ("area") is the string "area", not a one-name tuple.
+        if isinstance(declared, str):
+            raise ValueError(
+                "Plugin optional_args must be a list or tuple of arg names, "
+                f"not the string {declared!r}."
+            )
+        if not isinstance(declared, (list, tuple, set, frozenset)):
+            raise ValueError(
+                "Plugin optional_args must be a list or tuple of arg names, "
+                f"not {type(declared).__name__}."
+            )
+        names = tuple(declared)
+        unknown = sorted(name for name in names if name not in self.args)
+        if unknown:
+            raise ValueError(
+                "Plugin optional_args names args the plugin does not have: "
+                + ", ".join(map(str, unknown))
+            )
+        secret = sorted(name for name in names if name in self.secret_arg_names)
+        if secret:
+            raise ValueError(
+                "Plugin optional_args cannot name secret args: " + ", ".join(secret)
+            )
+        return names
 
     def secret_values(self):
         """Return the values this plugin holds for its secret args.
