@@ -263,6 +263,37 @@ test("tabbing past Apply commits the secret typed", async () => {
   expect(screen.getByTestId("pending")).toHaveTextContent('["set"]');
 });
 
+test("leaving or pressing Enter in an empty field enters nothing", async () => {
+  await renderSecret();
+
+  await userEvent.click(screen.getByLabelText("Api Key Input"));
+  await userEvent.keyboard("{Enter}");
+  await userEvent.click(screen.getByText("Elsewhere"));
+
+  expect(screen.getByTestId("pending")).toHaveTextContent("[]");
+  expect(screen.getByLabelText("Api Key Input")).toBeInTheDocument();
+});
+
+test("a secret entered can be replaced before the dashboard is saved", async () => {
+  const { updateDashboard } = await renderSecret();
+
+  await userEvent.type(screen.getByLabelText("Api Key Input"), SECRET);
+  await userEvent.click(screen.getByLabelText("Apply Api Key"));
+  await userEvent.click(screen.getByLabelText("Replace Api Key"));
+  const field = screen.getByLabelText("Api Key Input");
+  expect(field).toHaveAttribute("placeholder", "Enter a new secret");
+  await userEvent.type(field, `${SECRET}-2`);
+  await userEvent.click(screen.getByLabelText("Apply Api Key"));
+  expect(screen.getByTestId("pending")).toHaveTextContent('["set"]');
+
+  await userEvent.click(screen.getByText("Save dashboard"));
+
+  await waitFor(() => expect(updateDashboard).toHaveBeenCalledTimes(1));
+  expect(updateDashboard.mock.calls[0][0].newProperties.secretChanges).toEqual([
+    { ...pathOf(tilePlace), value: `${SECRET}-2` },
+  ]);
+});
+
 test("a stored secret cleared and saved leaves the field unset", async () => {
   const { updateDashboard } = await renderSecret({
     storedSecrets: [pathOf(tilePlace)],

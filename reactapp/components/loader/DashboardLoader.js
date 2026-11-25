@@ -632,7 +632,7 @@ const DashboardLoader = ({
   const restorePendingSecrets = useCallback(
     (snapshot) => {
       updatePendingSecrets(() =>
-        omitEntries(snapshot ?? {}, (key, entry) =>
+        omitEntries(snapshot, (key, entry) =>
           savedSecretEntries.current.has(entry),
         ),
       );
@@ -643,7 +643,7 @@ const DashboardLoader = ({
   // A secret stored for the plugin its tile or layer was saved with does not
   // run another, and the next save sweeps it.
   const isSecretStored = useCallback(
-    ({ tile, layer = "", arg, source }) => {
+    ({ tile, layer, arg, source }) => {
       const savedSource = secretStatus.sources.get(
         secretPlaceKey({ tile, layer, arg }),
       );

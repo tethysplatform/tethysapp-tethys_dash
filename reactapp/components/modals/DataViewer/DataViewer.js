@@ -180,7 +180,7 @@ export function DataViewerContent({
     gridItemUUID,
   } = useContext(GridItemContext);
   const { visualizations } = useContext(AppContext);
-  const { discardPendingSecrets } = useContext(LayoutContext) ?? {};
+  const { discardPendingSecrets } = useContext(LayoutContext);
   const discardSecretsEntered = useDiscardSecretsEntered();
   const { tabs, getActiveTab, updateTab, updateTabs } = useContext(TabContext);
   // --- Initialization logic for visualization states ---

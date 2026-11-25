@@ -33,6 +33,8 @@ import {
   secretPlaceKey,
   pendingSecretArgs,
   storedSecretArgs,
+  secretArgStatus,
+  getDependentVariableInputs,
 } from "components/visualizations/utilities";
 import appAPI from "services/api/app";
 import {
@@ -1371,6 +1373,16 @@ describe("updateObjectWithVariableInputs inside an object or list arg", () => {
       list: ["", 3, null, true],
     });
   });
+});
+
+test("getDependentVariableInputs finds each name once, in a string or in an object", () => {
+  expect(getDependentVariableInputs("${A} then ${B} then ${A}")).toEqual([
+    "A",
+    "B",
+  ]);
+  expect(
+    getDependentVariableInputs({ list: ["${A}"], nested: { at: "${C}" } }),
+  ).toEqual(["A", "C"]);
 });
 
 describe("updateObjectWithVariableInputs date arg resolution", () => {
@@ -3473,6 +3485,27 @@ describe("dataRequestArgs", () => {
     ).toBe("typed");
   });
 
+  test("nothing is sent for no args, a secret left null, or an arg the saved args lack", () => {
+    expect(dataRequestArgs({ kind: "tile", allArgs: true })).toEqual({});
+    expect(
+      dataRequestArgs({
+        resolvedArgs: { api_key: null, plot: "flow" },
+        argTypes,
+        kind: "tile",
+        allArgs: true,
+      }),
+    ).toEqual({ plot: "flow" });
+    // Not in the saved args, so wired to nothing: the server runs it as saved.
+    expect(
+      dataRequestArgs({
+        resolvedArgs: { plot: "flow" },
+        argTypes,
+        kind: "tile",
+        allArgs: false,
+      }),
+    ).toEqual({});
+  });
+
   test("every arg type containing date is a date", () => {
     expect(
       ["date", "date-hour", "date-range", "text", ["a"], undefined].map(
@@ -3525,6 +3558,38 @@ describe("secret args", () => {
     expect([...bySource.get("layer")]).toEqual(["t"]);
     // A plugin that is not installed is not listed: nothing is known of it.
     expect(bySource.has("missing_plugin")).toBe(false);
+  });
+
+  test("secretArgsBySource skips an option that names no plugin source", () => {
+    const bySource = secretArgsBySource([
+      {
+        label: "Default",
+        options: [
+          { value: "Text", label: "Text" },
+          { source: "secret_plugin", args: { key: "secret" } },
+        ],
+      },
+    ]);
+
+    expect([...bySource.keys()]).toEqual(["secret_plugin"]);
+  });
+
+  test("secretArgStatus reads a place named without a layer as the tile's own, and no place as unset", () => {
+    const isSecretStored = jest.fn(() => true);
+
+    expect(
+      secretArgStatus(
+        { isSecretStored },
+        { tile: "tile", arg: "key", source: "secret_plugin" },
+      ),
+    ).toBe("stored");
+    expect(isSecretStored).toHaveBeenCalledWith({
+      tile: "tile",
+      layer: "",
+      arg: "key",
+      source: "secret_plugin",
+    });
+    expect(secretArgStatus()).toBe("unset");
   });
 
   test("secretPlaceKey names a place by tile in any case, layer and arg", () => {

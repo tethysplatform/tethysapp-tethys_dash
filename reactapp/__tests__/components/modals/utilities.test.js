@@ -5,8 +5,21 @@ import {
   removeEmptyValues,
   removeEmptyLayerProps,
   checkRequiredKeys,
+  argsAsSaved,
 } from "components/modals/utilities";
 import { addHours } from "date-fns";
+
+test("argsAsSaved keeps a selected option's value and every other value as it is", () => {
+  expect(
+    argsAsSaved({
+      network: { label: "Willamette", value: "willamette" },
+      plot: "flow",
+      log: false,
+      area: null,
+    }),
+  ).toEqual({ network: "willamette", plot: "flow", log: false, area: null });
+  expect(argsAsSaved(undefined)).toEqual({});
+});
 
 test("getInitialInputValue", async () => {
   let inputValue;

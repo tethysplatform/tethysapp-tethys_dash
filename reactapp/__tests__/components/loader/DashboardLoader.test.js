@@ -2627,11 +2627,56 @@ describe("DashboardLoader pending secrets", () => {
         tabsWith(pluginTile, { ...pluginTile, id: 3 }),
         { ...tilePlace, source: "secret_plugin" },
       ],
+      [
+        "its tile's args cannot be read",
+        tabsWith({ ...pluginTile, args_string: "not json" }),
+        { ...tilePlace, source: "secret_plugin" },
+      ],
+      [
+        "its tile has no uuid",
+        tabsWith({ ...pluginTile, uuid: undefined }),
+        { ...tilePlace, source: "secret_plugin" },
+      ],
+      [
+        "the tab holds something other than grid items",
+        tabsWith(null, "tile-uuid"),
+        { ...tilePlace, source: "secret_plugin" },
+      ],
+      [
+        "its layer has no plugin",
+        tabsWith({
+          ...mapTile,
+          args_string: JSON.stringify({
+            layers: [
+              {
+                configuration: {
+                  type: "VectorLayer",
+                  props: { name: "Live", layerId: "layer-1" },
+                },
+              },
+            ],
+          }),
+        }),
+        { ...layerPlace, source: "secret_layer" },
+      ],
     ])("drops a pending secret when %s", (_, tabs, entry) => {
       expect(
         secretChangesToSave(
           pendingFor({ ...entry, value: SECRET }),
           tabs,
+          secretArgsOf,
+        ),
+      ).toEqual([]);
+    });
+
+    test("a save with nothing pending, or of no tabs, carries no change", () => {
+      expect(
+        secretChangesToSave(null, tabsWith(pluginTile), secretArgsOf),
+      ).toEqual([]);
+      expect(
+        secretChangesToSave(
+          pendingFor({ ...tilePlace, source: "secret_plugin", value: SECRET }),
+          undefined,
           secretArgsOf,
         ),
       ).toEqual([]);

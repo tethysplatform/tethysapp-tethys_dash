@@ -192,8 +192,7 @@ function VisualizationPane({
   );
   // The dashboard and the tile being edited, which the preview names. An
   // editor's preview runs the args as typed, saved or not.
-  const { uuid: dashboardUUID, pendingSecrets } =
-    useContext(LayoutContext) ?? {};
+  const { uuid: dashboardUUID, pendingSecrets } = useContext(LayoutContext);
   const { gridItemUUID } = useContext(GridItemContext) ?? {};
   // Where this tile's secrets are kept, for its plugin as picked here.
   const secretSource = selectedVizTypeOption?.source;
