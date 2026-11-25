@@ -9,6 +9,7 @@ import { BiRectangle } from "react-icons/bi";
 import { BsSignStopFill, BsEraser } from "react-icons/bs";
 import { mapDrawingPropType } from "components/map/utilities";
 import { VariableInputsContext } from "components/contexts/Contexts";
+import { isEditableTarget } from "components/modals/PopupModal/PopupModal";
 import GeoJSON from "ol/format/GeoJSON";
 import styled from "styled-components";
 import PropTypes from "prop-types";
@@ -160,6 +161,33 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapDrawing, drawType]);
 
+  // While a tool is on, Escape abandons the shape being drawn and leaves
+  // drawing mode, as Stop Drawing does. It is heard in the capture phase on
+  // the document, ahead of the tile editor's modal and a map popup, which
+  // would close on the same key, and it goes no further. Only a key from the
+  // map's own area counts: the map, inside it, or what encloses it (the page,
+  // the editor or popup it sits in). A key typed into a field, or meant for
+  // another dialog opened over the map, is left alone.
+  useEffect(() => {
+    if (!drawType) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape" || isEditableTarget(event.target)) return;
+      const mapElement = visualizationRef.current?.getTargetElement?.();
+      const fromMapArea =
+        !mapElement ||
+        mapElement.contains(event.target) ||
+        event.target.contains?.(mapElement);
+      if (!fromMapArea) return;
+      drawInteractionRef.current?.abortDrawing();
+      stopDrawing();
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawType]);
+
   useEffect(() => {
     const source = vectorSourceRef.current;
 
@@ -205,7 +233,7 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
                 {drawTypes[mapDrawingType]}
               </DrawButton>
             ))}
-            <StopEraseButton onClick={stopDrawing} title="Stop Drawing">
+            <StopEraseButton onClick={stopDrawing} title="Stop Drawing (Esc)">
               <BsSignStopFill />
             </StopEraseButton>
             <StopEraseButton onClick={clearAll} title="Clear All Features">

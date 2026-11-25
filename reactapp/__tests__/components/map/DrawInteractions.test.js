@@ -1,20 +1,32 @@
 import { act } from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import DrawInteractions from "components/map/DrawInteractions";
 import VectorSource from "ol/source/Vector";
 import Feature from "ol/Feature";
 import Point from "ol/geom/Point";
 import Polygon from "ol/geom/Polygon";
 import { fromLonLat } from "ol/proj";
+import Draw from "ol/interaction/Draw";
+import Modal from "react-bootstrap/Modal";
+import PopupModal from "components/modals/PopupModal/PopupModal";
 import { VariableInputsContext } from "components/contexts/Contexts";
 
-// Renders DrawInteractions over a mock map and turns on `tool`. Returns:
+// Renders DrawInteractions over a mock map and turns on `tool`. The toolbar
+// renders inside the map's element (`mapElement`, the map's target), as it
+// does in the app; `parent` holds the map element, as the page, the tile
+// editor or a popup would. Returns, among others:
 // - `finishShape`: ends a shape the way OpenLayers does, `drawend` first and
 //   then the feature joining the source;
 // - `written`: the variable values each write leaves, applied in order.
-const renderDrawing = async (mapDrawing, tool = "Point") => {
+const renderDrawing = async (
+  mapDrawing,
+  tool = "Point",
+  parent = document.body,
+) => {
   const interactions = [];
   let layer;
+  const mapElement = document.createElement("div");
+  parent.appendChild(mapElement);
   const mockMap = {
     addLayer: jest.fn((added) => {
       layer = added;
@@ -22,6 +34,7 @@ const renderDrawing = async (mapDrawing, tool = "Point") => {
     addInteraction: jest.fn((interaction) => interactions.push(interaction)),
     removeInteraction: jest.fn(),
     getView: () => ({ getProjection: () => ({ getCode: () => "EPSG:3857" }) }),
+    getTargetElement: () => mapElement,
   };
   const setVariableInputValues = jest.fn();
   const drawing = { current: false };
@@ -34,8 +47,9 @@ const renderDrawing = async (mapDrawing, tool = "Point") => {
         drawing={drawing}
       />
     </VariableInputsContext.Provider>,
+    { container: mapElement },
   );
-  fireEvent.click(await screen.findByTitle(`Draw ${tool}`));
+  fireEvent.click(await within(mapElement).findByTitle(`Draw ${tool}`));
   const source = layer.getSource();
 
   const finishShape = (geometry) => {
@@ -61,6 +75,7 @@ const renderDrawing = async (mapDrawing, tool = "Point") => {
     drawing,
     finishShape,
     interactions,
+    mapElement,
     mockMap,
     setVariableInputValues,
     source,
@@ -90,7 +105,7 @@ test("Draw Interactions no options and no render", async () => {
     </VariableInputsContext.Provider>,
   );
 
-  expect(screen.queryByTitle("Stop Drawing")).not.toBeInTheDocument();
+  expect(screen.queryByTitle("Stop Drawing (Esc)")).not.toBeInTheDocument();
 
   rerender(
     <VariableInputsContext.Provider
@@ -104,7 +119,7 @@ test("Draw Interactions no options and no render", async () => {
     </VariableInputsContext.Provider>,
   );
 
-  expect(screen.queryByTitle("Stop Drawing")).not.toBeInTheDocument();
+  expect(screen.queryByTitle("Stop Drawing (Esc)")).not.toBeInTheDocument();
 
   rerender(
     <VariableInputsContext.Provider
@@ -118,7 +133,7 @@ test("Draw Interactions no options and no render", async () => {
     </VariableInputsContext.Provider>,
   );
 
-  expect(await screen.findByTitle("Stop Drawing")).toBeInTheDocument();
+  expect(await screen.findByTitle("Stop Drawing (Esc)")).toBeInTheDocument();
 });
 
 test("Draw Interactions click draw and then deselect", async () => {
@@ -190,7 +205,7 @@ test("Draw Interactions click draw and then stop", async () => {
   expect(drawing.current).toBe(true);
   expect(mockAddInteraction).toHaveBeenCalled();
 
-  const stopDrawingButton = screen.getByTitle("Stop Drawing");
+  const stopDrawingButton = screen.getByTitle("Stop Drawing (Esc)");
   fireEvent.click(stopDrawingButton);
 
   expect(drawing.current).toBe(false);
@@ -693,5 +708,192 @@ describe("the drawing variable follows the shapes on the map", () => {
     fireEvent.click(screen.getByTitle("Clear All Features"));
 
     expect(setVariableInputValues).not.toHaveBeenCalled();
+  });
+});
+
+describe("Escape stops drawing", () => {
+  const POPUP_POSITION = {
+    leftPct: 20,
+    topPct: 25,
+    widthPct: 60,
+    heightPct: 50,
+  };
+  // As a browser sends it: react-bootstrap's Modal reads `code`/`keyCode`.
+  const escapeOn = (element) =>
+    fireEvent.keyDown(element, { key: "Escape", code: "Escape", keyCode: 27 });
+  let abortDrawing;
+
+  beforeEach(() => {
+    abortDrawing = jest.spyOn(Draw.prototype, "abortDrawing");
+  });
+
+  afterEach(() => {
+    abortDrawing.mockRestore();
+  });
+
+  test("abandons the shape being drawn and leaves drawing mode, keeping what was drawn", async () => {
+    const {
+      drawing,
+      finishShape,
+      interactions,
+      mockMap,
+      setVariableInputValues,
+      source,
+    } = await renderDrawing(
+      { options: ["Polygon"], variable: "area" },
+      "Polygon",
+    );
+    finishShape(
+      new Polygon([
+        [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+          [0, 0],
+        ],
+      ]),
+    );
+    const writes = setVariableInputValues.mock.calls.length;
+    mockMap.removeInteraction.mockClear();
+
+    escapeOn(document.body);
+
+    expect(abortDrawing).toHaveBeenCalledTimes(1);
+    expect(drawing.current).toBe(false);
+    expect(mockMap.removeInteraction).toHaveBeenCalledWith(interactions.at(-1));
+    expect(source.getFeatures()).toHaveLength(1);
+    expect(setVariableInputValues).toHaveBeenCalledTimes(writes);
+  });
+
+  test("counts a key from the map's own toolbar", async () => {
+    const { drawing, mapElement } = await renderDrawing({ options: ["Point"] });
+
+    escapeOn(within(mapElement).getByTitle("Draw Point"));
+
+    expect(drawing.current).toBe(false);
+  });
+
+  test.each([
+    ["an input", () => document.createElement("input")],
+    ["a select", () => document.createElement("select")],
+    [
+      "a contenteditable element",
+      () => {
+        const element = document.createElement("div");
+        element.setAttribute("contenteditable", "true");
+        return element;
+      },
+    ],
+  ])("is ignored while typing in %s", async (_label, makeField) => {
+    const { drawing, mapElement } = await renderDrawing({
+      options: ["Point"],
+    });
+    const field = makeField();
+    mapElement.appendChild(field);
+
+    escapeOn(field);
+
+    expect(abortDrawing).not.toHaveBeenCalled();
+    expect(drawing.current).toBe(true);
+  });
+
+  test("ignores other keys", async () => {
+    const { drawing } = await renderDrawing({ options: ["Point"] });
+
+    fireEvent.keyDown(document.body, { key: "Enter" });
+
+    expect(drawing.current).toBe(true);
+  });
+
+  test("is not listened for once drawing has stopped or the map is gone", async () => {
+    const reachedThePage = jest.fn();
+    document.addEventListener("keydown", reachedThePage);
+    const { mapElement, unmount } = await renderDrawing({ options: ["Point"] });
+
+    fireEvent.click(within(mapElement).getByTitle("Stop Drawing (Esc)"));
+    escapeOn(document.body);
+    fireEvent.click(within(mapElement).getByTitle("Draw Point"));
+    unmount();
+    escapeOn(document.body);
+
+    expect(abortDrawing).not.toHaveBeenCalled();
+    expect(reachedThePage).toHaveBeenCalledTimes(2);
+    document.removeEventListener("keydown", reachedThePage);
+  });
+
+  test("one Escape stops every map that is drawing", async () => {
+    const { drawing: firstMap } = await renderDrawing({ options: ["Point"] });
+    const { drawing: secondMap } = await renderDrawing({ options: ["Point"] });
+
+    escapeOn(document.body);
+
+    expect(firstMap.current).toBe(false);
+    expect(secondMap.current).toBe(false);
+  });
+
+  test("keeps the tile editor open while drawing, and lets it close once drawing has stopped", async () => {
+    const onHide = jest.fn();
+    render(
+      <Modal show={true} onHide={onHide} animation={false}>
+        <Modal.Body>
+          <div data-testid="map-host" />
+        </Modal.Body>
+      </Modal>,
+    );
+    const dialog = await screen.findByRole("dialog");
+    const { drawing } = await renderDrawing(
+      { options: ["Point"] },
+      "Point",
+      screen.getByTestId("map-host"),
+    );
+
+    escapeOn(dialog);
+
+    expect(drawing.current).toBe(false);
+    expect(onHide).not.toHaveBeenCalled();
+
+    escapeOn(dialog);
+
+    expect(onHide).toHaveBeenCalledTimes(1);
+  });
+
+  test("keeps a map popup open while drawing, and lets it close once drawing has stopped", async () => {
+    const onClose = jest.fn();
+    render(
+      <PopupModal show={true} onClose={onClose} position={POPUP_POSITION}>
+        <div data-testid="popup-map-host" />
+      </PopupModal>,
+    );
+    const popup = screen.getByTestId("popup-modal");
+    const { drawing } = await renderDrawing(
+      { options: ["Point"] },
+      "Point",
+      screen.getByTestId("popup-map-host"),
+    );
+
+    escapeOn(popup);
+
+    expect(drawing.current).toBe(false);
+    expect(onClose).not.toHaveBeenCalled();
+
+    escapeOn(popup);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test("lets a dialog opened over a drawing map close, and keeps drawing", async () => {
+    const { drawing } = await renderDrawing({ options: ["Point"] });
+    const onHide = jest.fn();
+    render(
+      <Modal show={true} onHide={onHide} animation={false}>
+        <Modal.Body>Dashboard settings</Modal.Body>
+      </Modal>,
+    );
+
+    escapeOn(await screen.findByRole("dialog"));
+
+    expect(onHide).toHaveBeenCalledTimes(1);
+    expect(drawing.current).toBe(true);
+    expect(abortDrawing).not.toHaveBeenCalled();
   });
 });
