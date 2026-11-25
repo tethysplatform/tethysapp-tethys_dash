@@ -768,6 +768,86 @@ def test_build_plugin_metadata_reports_dynamic_map_layer_source():
     assert vector["dynamic_map_layer_source"] == "GeoJSON"
 
 
+class OptionalEchoPlugin(TethysDashPlugin):
+    """A table plugin whose ``area`` arg may be left empty."""
+
+    name = "optional_echo"
+    group = "Test"
+    label = "Optional Echo"
+    type = "table"
+    args = {"site": "text", "area": "text"}
+    optional_args = ("area",)
+
+    def run(self):
+        return {
+            "title": "Optional Echo",
+            "data": [{"site": self.site, "area_is_none": self.area is None}],
+        }
+
+
+@pytest.fixture
+def optional_echo_intake(mocker):
+    """Install OptionalEchoPlugin as the only plugin."""
+
+    class MockIntake:
+        source = types.SimpleNamespace(registry={"optional_echo": OptionalEchoPlugin})
+        open_optional_echo = OptionalEchoPlugin
+
+    mocker.patch("tethysapp.tethysdash.visualizations.intake", new=MockIntake())
+
+
+def test_build_plugin_metadata_lists_optional_args():
+    from tethysapp.tethysdash.visualizations import build_plugin_metadata
+
+    declared = build_plugin_metadata(OptionalEchoPlugin, "optional_echo")
+    undeclared = build_plugin_metadata(EchoRuntimePlugin, "echo_runtime")
+
+    assert declared["optional_args"] == ["area"]
+    assert undeclared["optional_args"] == []
+
+
+@pytest.mark.django_db
+def test_viewer_request_with_an_empty_optional_token_runs_with_none(
+    db_session, dashboard, optional_echo_intake, mock_app_get_ps_db, test_member_user
+):
+    """A viewer's request carries an empty exact ``${Area}`` as "", and the plugin
+    reads it as None."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tile = str(uuid4())
+    db_session.add(
+        GridItem(
+            dashboard_id=dashboard.id,
+            uuid=tile,
+            i="1",
+            x=0,
+            y=0,
+            w=1,
+            h=1,
+            source="optional_echo",
+            args_string=json.dumps({"site": "A", "area": "${Area}"}),
+            metadata_string="{}",
+        )
+    )
+    db_session.commit()
+    request = DataRequest(
+        dashboard=dashboard.uuid,
+        tile=tile,
+        layer="",
+        source="optional_echo",
+        args={"area": ""},
+        mode="scaffold",
+        request_id="req-1",
+        all_args=False,
+    )
+
+    run_args = prepare_run_args(test_member_user, request)
+    viz_type, data = get_visualization("optional_echo", run_args, None, "req-1")
+
+    assert run_args == {"site": "A", "area": ""}
+    assert viz_type == "table"
+    assert data["data"] == [{"site": "A", "area_is_none": True}]
+
+
 def test_get_visualization_features_mode_geotiff_happy(echo_runtime_raster_intake):
     viz_type, data = _fetch_raster("happy")
 

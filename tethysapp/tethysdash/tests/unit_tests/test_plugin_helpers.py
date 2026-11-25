@@ -1137,6 +1137,105 @@ def test_received_args_reflects_parsed_dates():
     assert plugin.received_args["foo"] == 1
 
 
+class OptionalPlugin(TethysDashPlugin):
+    name = "optional"
+    group = "TestGroup"
+    label = "Optional Plugin"
+    type = "plotly"
+    args = {"network": "text", "area": "text", "since": "date"}
+    optional_args = ("area", "since")
+
+    def run(self):
+        return "ran"
+
+
+@pytest.mark.parametrize(
+    "sent", [{}, {"area": ""}, {"area": None}], ids=["absent", "blank", "null"]
+)
+def test_empty_optional_arg_is_none_and_not_provided(sent):
+    plugin = OptionalPlugin(network="willamette", **sent)
+
+    assert plugin.area is None
+    assert plugin.get_arg("area") is None
+    assert plugin.get_arg("area", "whole basin") == "whole basin"
+    assert "area" not in plugin.received_args
+
+
+@pytest.mark.parametrize("value", ["salem", 0, False, {"geometries": []}])
+def test_filled_optional_arg_passes_through(value):
+    plugin = OptionalPlugin(network="willamette", area=value)
+
+    assert plugin.area is value
+    assert plugin.get_arg("area") is value
+
+
+def test_empty_optional_date_is_none_without_parsing():
+    plugin = OptionalPlugin(network="willamette", since="")
+
+    assert plugin.since is None
+
+
+def test_filled_optional_date_still_parses():
+    plugin = OptionalPlugin(network="willamette", since="2023-01-01T10:30:45")
+
+    assert plugin.since == datetime(2023, 1, 1, 10, 30)
+
+
+def test_optional_date_preset_passes_through():
+    plugin = OptionalPlugin(network="willamette", since="latest")
+
+    assert plugin.since == "latest"
+
+
+def test_required_arg_left_blank_is_unchanged():
+    plugin = OptionalPlugin(network="")
+
+    assert plugin.network == ""
+    assert plugin.get_arg("network") == ""
+
+
+def test_plugin_without_optional_args_is_unchanged():
+    plugin = MinimalPlugin(fooDate="2023-01-01")
+
+    assert plugin.optional_args == ()
+    assert not hasattr(plugin, "foo")
+    assert plugin.get_arg("foo") is None
+
+
+@pytest.mark.parametrize(
+    ("declared", "message"),
+    [
+        (("area", "missing"), "args the plugin does not have: missing"),
+        (("key",), "cannot name secret args: key"),
+        ("area", "not the string 'area'"),
+    ],
+    ids=["unknown", "secret", "bare-string"],
+)
+def test_optional_args_declaration_is_checked(declared, message):
+    class Declared(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"area": "text", "key": "secret"}
+        optional_args = declared
+
+    with pytest.raises(ValueError, match=re.escape(message)):
+        Declared()
+
+
+def test_arg_named_optional_args_is_reserved():
+    class Reserved(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"optional_args": "text"}
+
+    with pytest.raises(ValueError, match="reserved keys"):
+        Reserved()
+
+
 class SecretPlugin(TethysDashPlugin):
     name = "secret"
     group = "TestGroup"

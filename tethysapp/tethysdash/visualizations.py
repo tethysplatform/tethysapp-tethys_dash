@@ -104,6 +104,7 @@ def build_plugin_metadata(plugin, source):
         "dynamic_map_layer_source": get_plugin_prop(
             plugin, "dynamic_map_layer_source", "GeoJSON"
         ),
+        "optional_args": list(get_plugin_prop(plugin, "optional_args", ())),
     }
 
 
